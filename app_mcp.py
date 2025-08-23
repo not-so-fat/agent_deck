@@ -119,44 +119,47 @@ app = FastMCP(
     instructions="An MCP service that provides access to tools from the currently active deck's services only. Deck management should be done through the web UI."
 )
 
-async def call_mcp_service_async(service_endpoint: str, tool_name: str, kwargs: Dict[str, Any], custom_headers: Optional[Dict[str, str]] = None) -> str:
-    """Call an MCP service using MCPClientManager."""
+async def call_mcp_service_async(service_id: str, tool_name: str, kwargs: Dict[str, Any], custom_headers: Optional[Dict[str, str]] = None) -> str:
+    """Call an MCP service using the backend's MCP client manager."""
     try:
-        # For now, we'll use a simplified approach
-        # In a full implementation, you'd want to use the MCP client from the TypeScript backend
-        headers = {
-            'Content-Type': 'application/json',
-            **(custom_headers or {})
-        }
+        # Use the backend's API to call MCP services, which handles session management properly
+        logger.info(f"Calling backend API to execute tool {tool_name} on service {service_id}")
         
-        # Try to call the MCP service directly
-        # The service_endpoint should already be the full MCP endpoint
         response = requests.post(
-            service_endpoint,
-            headers=headers,
+            f"{BACKEND_BASE_URL}/api/services/{service_id}/call",
+            headers={
+                'Content-Type': 'application/json'
+            },
             json={
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": tool_name,
-                "params": kwargs
+                "toolName": tool_name,
+                "arguments": kwargs
             },
             timeout=API_TIMEOUT
         )
-        response.raise_for_status()
+        
+        logger.info(f"Backend API response status: {response.status_code}")
+        
+        if response.status_code != 200:
+            logger.error(f"Backend API error response: {response.text}")
+            response.raise_for_status()
         
         result = response.json()
-        if 'error' in result:
-            raise ValueError(f'MCP service returned error: {result["error"]}')
         
-        return json.dumps(result.get('result', result))
+        if not result.get('success', False):
+            error_msg = result.get('error', 'Unknown error from backend')
+            logger.error(f"Backend API returned error: {error_msg}")
+            raise ValueError(f'Backend API error: {error_msg}')
+        
+        return json.dumps(result.get('data', result.get('result', result)))
         
     except Exception as e:
+        logger.error(f"Error calling MCP service through backend: {str(e)}")
         raise ValueError(f'Failed to call MCP service: {str(e)}')
 
-def call_mcp_service_sync(service_endpoint: str, tool_name: str, kwargs: Dict[str, Any], custom_headers: Optional[Dict[str, str]] = None) -> str:
+def call_mcp_service_sync(service_id: str, tool_name: str, kwargs: Dict[str, Any], custom_headers: Optional[Dict[str, str]] = None) -> str:
     """Synchronous wrapper for calling MCP service using threading."""
     def run_async():
-        return asyncio.run(call_mcp_service_async(service_endpoint, tool_name, kwargs, custom_headers))
+        return asyncio.run(call_mcp_service_async(service_id, tool_name, kwargs, custom_headers))
     
     with ThreadPoolExecutor() as executor:
         future = executor.submit(run_async)
@@ -188,13 +191,13 @@ def _call_service_internal(service_id: str, tool_name: str, arguments: str) -> s
     
     # Handle different service types
     if service['type'] == 'mcp':
-        # For MCP services, use direct MCP client call
+        # For MCP services, use the backend's MCP client manager
         try:
             # Get custom headers from service registration
             custom_headers = service.get('headers', {})
             logger.info(f"Using custom headers for {service['name']}: {custom_headers}")
             
-            result = call_mcp_service_sync(service_endpoint, tool_name, kwargs, custom_headers)
+            result = call_mcp_service_sync(service_id, tool_name, kwargs, custom_headers)
             logger.info(f"Called {tool_name} on {service['name']} (Type: {service['type']})")
             return result
         except Exception as e:
