@@ -13,29 +13,15 @@ When I use Cursor, there are different contexts;
 in total, many MCP servers would help, but agent will be slower / less accurate when too many servers are connected.
 But for each context I don't need many servers.
 
-## Idea: Local app for MCP access (like a browser for agents)
+## Idea: Local app for MCP access (like a browser FOR agents)
 
 In local app you can manage what MCP servers you want to use, and provide a single MCP server to access anything.
+<img src="./misc/Future.png" alt="Future" width="90%" />
 
-## Architecture
+At this moment, AgentDeck is manual favorite MCP management app.
+<img src="./misc/Future.png" alt="Future" width="90%" />
 
-This is a **TypeScript monorepo** built with **Turborepo** containing:
 
-### **Packages:**
-- **`@agent-deck/shared`** - Shared types, schemas, and utilities
-- **`@agent-deck/backend`** - Fastify API server with SQLite database
-- **`@agent-deck/mcp-server`** - MCP server that provides unified access to deck services
-
-### **Apps:**
-- **`apps/agent-deck`** - React frontend (coming soon - will integrate existing frontend)
-
-## Supported Services
-
-- **MCP servers**
-  - [x] Remote MCP servers (HTTP, SSE)
-  - [ ] Local MCP servers (planned)
-- **A2A Agents**
-  - [x] Agents with A2A agent card
 
 ## Features
 
@@ -54,13 +40,25 @@ This is a **TypeScript monorepo** built with **Turborepo** containing:
 - **Prompt Management**: List and retrieve prompts from services
 - **Database Integration**: Automatically reads active deck from database
 
-### **Frontend** (Coming Soon)
+### **Frontend**
 - **Cyberpunk-themed UI** with card-based interface
 - **Drag & Drop**: Build decks by dragging service cards
 - **Real-time Updates**: Live service health monitoring
 - **Service Registration**: Add MCP and A2A services
 - **Deck Management**: Create and manage multiple decks
 - **Search & Filter**: Find services quickly
+
+
+## Architecture
+
+### **Packages:**
+- **`@agent-deck/shared`** - Shared types, schemas, and utilities
+- **`@agent-deck/backend`** - Fastify API server with SQLite database
+- **`@agent-deck/mcp-server`** - MCP server that provides unified access to deck services
+
+### **Apps:**
+- **`apps/agent-deck`** - React frontend (coming soon - will integrate existing frontend)
+
 
 ## Quick Start
 
@@ -222,37 +220,3 @@ npm run build
 # Build specific package
 cd packages/backend && npm run build
 ```
-
-## Integration Plan
-
-### **Phase 1: Frontend Integration** ✅
-- [x] Set up TypeScript monorepo with Turborepo
-- [x] Implement shared package with types and schemas
-- [x] Build backend API server with Fastify
-- [x] Create MCP server for unified service access
-- [x] Comprehensive testing suite
-
-### **Phase 2: Frontend Migration** 🔄
-- [ ] Migrate existing React frontend to `apps/agent-deck`
-- [ ] Update API calls to use new backend endpoints
-- [ ] Integrate with new shared types and schemas
-- [ ] Maintain existing UI/UX design and functionality
-
-### **Phase 3: Enhanced Features** 📋
-- [ ] Local MCP server support
-- [ ] Advanced deck management features
-- [ ] Service templates and presets
-- [ ] Performance optimizations
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
-## License
-
-ISC License - see LICENSE file for details. 
