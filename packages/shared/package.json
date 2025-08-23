@@ -1,0 +1,26 @@
+{
+  "name": "@agent-deck/shared",
+  "version": "1.0.0",
+  "description": "Shared types, schemas, and utilities for Agent Deck",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.5",
+    "vitest": "^1.2.1"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}
