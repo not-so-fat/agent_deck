@@ -19,7 +19,7 @@ In local app you can manage what MCP servers you want to use, and provide a sing
 <img src="./misc/Future.png" alt="Future" width="90%" />
 
 At this moment, AgentDeck is manual favorite MCP management app.
-<img src="./misc/Future.png" alt="Future" width="90%" />
+<img src="./misc/AgentDeck.png" alt="AgentDeck" width="90%" />
 
 
 
