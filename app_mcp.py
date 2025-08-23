@@ -130,8 +130,9 @@ async def call_mcp_service_async(service_endpoint: str, tool_name: str, kwargs: 
         }
         
         # Try to call the MCP service directly
+        # The service_endpoint should already be the full MCP endpoint
         response = requests.post(
-            f"{service_endpoint}/mcp",
+            service_endpoint,
             headers=headers,
             json={
                 "jsonrpc": "2.0",
