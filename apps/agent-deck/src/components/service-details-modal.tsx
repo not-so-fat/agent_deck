@@ -90,6 +90,9 @@ export default function ServiceDetailsModal({
 
   // Cast service to API type for compatibility
   const apiService = (currentService || service) as unknown as APIService;
+  
+  // Ensure we have a valid service before running queries
+  const hasValidService = Boolean(apiService && apiService.id && apiService.url);
 
   // Query for MCP discovery analysis
   const { data: mcpDiscoveryData, isLoading: mcpDiscoveryLoading, error: mcpDiscoveryError, refetch: refetchMcpDiscovery } = useQuery({
@@ -109,9 +112,24 @@ export default function ServiceDetailsModal({
         throw error;
       }
     },
-    enabled: !!apiService && apiService.type === 'mcp' && isOpen,
+    enabled: hasValidService && apiService.type === 'mcp' && isOpen,
     staleTime: 0, // Always fetch fresh data for discovery
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
+  });
+
+  console.log('MCP Discovery Query Debug:', {
+    apiService: apiService?.id,
+    apiServiceType: apiService?.type,
+    apiServiceUrl: apiService?.url,
+    isOpen,
+    hasValidService,
+    enabled: hasValidService && apiService.type === 'mcp' && isOpen,
+    mcpDiscoveryLoading,
+    mcpDiscoveryData: mcpDiscoveryData ? JSON.stringify(mcpDiscoveryData, null, 2) : null,
+    mcpDiscoveryDataKeys: mcpDiscoveryData ? Object.keys(mcpDiscoveryData) : null,
+    oauthRequired: mcpDiscoveryData?.data?.oauth?.required,
+    oauthData: mcpDiscoveryData?.data?.oauth ? JSON.stringify(mcpDiscoveryData.data.oauth, null, 2) : null,
+    toolsQueryEnabled: hasValidService && apiService.type === 'mcp' && isOpen && !mcpDiscoveryData?.data?.oauth?.required
   });
 
   // Query for MCP tools discovery
@@ -132,9 +150,18 @@ export default function ServiceDetailsModal({
         throw error;
       }
     },
-    enabled: !!apiService && apiService.type === 'mcp' && isOpen,
+    enabled: hasValidService && apiService.type === 'mcp' && isOpen && !mcpDiscoveryData?.data?.oauth?.required,
     staleTime: 0, // Always fetch fresh data for tools
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
+  });
+
+  console.log('MCP Tools Query Debug:', {
+    hasValidService,
+    apiServiceType: apiService?.type,
+    isOpen,
+    oauthRequired: mcpDiscoveryData?.data?.oauth?.required,
+    toolsQueryEnabled: hasValidService && apiService.type === 'mcp' && isOpen && !mcpDiscoveryData?.data?.oauth?.required,
+    mcpToolsLoading
   });
 
   // Query for A2A manifest
@@ -146,7 +173,7 @@ export default function ServiceDetailsModal({
       const responseText = await response.text();
       return JSON.parse(responseText);
     },
-    enabled: !!apiService && apiService.type === 'a2a' && isOpen,
+    enabled: hasValidService && apiService.type === 'a2a' && isOpen,
     staleTime: 0, // Always fetch fresh data for manifest
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
   });
@@ -160,6 +187,9 @@ export default function ServiceDetailsModal({
     service: service?.id,
     serviceType: service?.type,
     isOpen,
+    mcpDiscoveryLoading,
+    mcpDiscoveryData: mcpDiscoveryData,
+    mcpDiscoveryError: mcpDiscoveryError ? String(mcpDiscoveryError) : null,
     mcpToolsLoading,
     a2aManifestLoading,
     mcpToolsError: mcpToolsError ? String(mcpToolsError) : null,
@@ -167,7 +197,8 @@ export default function ServiceDetailsModal({
     mcpToolsCount: mcpTools.length,
     mcpToolsData: mcpToolsData,
     hasA2aManifest: !!a2aManifest,
-    isLoading
+    isLoading,
+    oauthRequired: mcpDiscoveryData?.data?.oauth?.required
   });
 
   useEffect(() => {
@@ -868,84 +899,76 @@ export default function ServiceDetailsModal({
               </div>
             )}
 
-            {/* OAuth Required Warning - Show prominently when OAuth is needed and no tools found */}
-            {service?.type === 'mcp' && !mcpToolsLoading && !mcpToolsError && mcpTools.length === 0 && mcpDiscoveryData?.oauth?.required && (
+            {/* OAuth Required Warning - Show prominently when OAuth is needed */}
+            {service?.type === 'mcp' && mcpDiscoveryData?.data?.oauth?.required && (
               <div className="bg-orange-500/20 border border-orange-500/30 rounded-lg p-4 mb-4">
                 <h3 className="text-orange-300 font-semibold mb-2">🔐 Authentication Required</h3>
                 <div className="text-orange-200 text-sm space-y-2">
                   <p><strong>OAuth 2.0 Authentication Required</strong></p>
                   <p>This MCP server requires OAuth authentication to access its tools. Please authenticate to continue.</p>
                   
-                  {mcpDiscoveryData.oauth.authorizationUrl && (
+                  {mcpDiscoveryData.data.oauth.authorizationUrl && (
                     <div className="mt-3 flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="default"
                         className="h-8 bg-orange-600 hover:bg-orange-700"
                         onClick={async () => {
-                          if (!apiService?.id) return
+                          if (!apiService?.id) return;
+                          
                           try {
-                            const resp = await apiRequest('GET', `/api/oauth/${apiService.id}/authorize`)
+                            toast({
+                              title: 'Setting up OAuth...',
+                              description: 'Automatically registering OAuth application and starting authorization flow...',
+                            });
+
+                            const resp = await apiRequest('POST', `/api/oauth/${apiService.id}/auto-setup`, {});
                             if (!resp.ok) {
-                              const msg = await resp.text()
-                              let description = msg || 'Authorization endpoint returned an error.'
+                              const errorData = await resp.json();
                               
-                              // Provide specific guidance for different OAuth providers
-                              if (mcpDiscoveryData.oauth.provider === 'github') {
-                                description = `GitHub OAuth requires manual setup:
-
-1. Go to https://github.com/settings/developers
-2. Click "New OAuth App"
-3. Set Application name: "AgentDeck"
-4. Set Authorization callback URL: http://localhost:8000/api/oauth/${apiService.id}/callback
-5. Copy the Client ID and Client Secret
-6. Edit this service and add the credentials`
-                              } else if (mcpDiscoveryData.oauth.issuer?.includes('notion')) {
-                                description = `Notion OAuth requires manual setup:
-
-1. Go to https://www.notion.so/my-integrations
-2. Click "New integration"
-3. Set Integration name: "AgentDeck"
-4. Set Redirect URLs: http://localhost:8000/api/oauth/${apiService.id}/callback
-5. Copy the Client ID and Client Secret
-6. Edit this service and add the credentials`
+                              // Check if we have a registration URL to navigate to
+                              if (errorData.data?.registrationUrl) {
+                                // Open the registration page
+                                window.open(errorData.data.registrationUrl, '_blank');
+                                
+                                toast({
+                                  title: 'OAuth Registration Required',
+                                  description: `${errorData.error} I've opened the registration page for you. Please create an OAuth app and then come back to add your credentials.`,
+                                  duration: 15000,
+                                });
+                              } else {
+                                toast({
+                                  title: 'OAuth Setup Failed',
+                                  description: errorData.error || 'Failed to setup OAuth automatically. Please configure manually.',
+                                  variant: 'destructive',
+                                });
                               }
+                              return;
+                            }
+
+                            const data = await resp.json();
+                            if (data.success && data.data?.authorizationUrl) {
+                              // Open the authorization URL
+                              window.open(data.data.authorizationUrl, '_blank');
                               
                               toast({
-                                title: 'OAuth start failed',
-                                description: description,
-                                variant: 'destructive'
-                              })
-                              return
-                            }
-                            const data = await resp.json()
-                            const authUrl = data?.data?.authorizationUrl || data?.authorization_url
-                            if (!authUrl) {
+                                title: 'OAuth Setup Successful',
+                                description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
+                                duration: 10000,
+                              });
+                            } else {
                               toast({
-                                title: 'Missing authorization URL',
-                                description: 'Backend did not return an authorization URL. Please configure OAuth credentials first.',
-                                variant: 'destructive'
-                              })
-                              return
+                                title: 'OAuth Setup Failed',
+                                description: 'Failed to get authorization URL. Please try again.',
+                                variant: 'destructive',
+                              });
                             }
-                            
-                            // Start polling for OAuth completion
-                            startOauthPolling();
-                            
-                            // Open OAuth URL
-                            window.open(authUrl, '_blank')
-                            
+                          } catch (error) {
                             toast({
-                              title: 'OAuth started',
-                              description: 'Please complete the authentication in the new window. This page will automatically update when complete.',
-                              variant: 'default'
-                            })
-                          } catch (e) {
-                            toast({
-                              title: 'OAuth start failed',
-                              description: e instanceof Error ? e.message : String(e),
-                              variant: 'destructive'
-                            })
+                              title: 'OAuth Setup Failed',
+                              description: error instanceof Error ? error.message : 'Unknown error occurred',
+                              variant: 'destructive',
+                            });
                           }
                         }}
                       >
@@ -955,26 +978,12 @@ export default function ServiceDetailsModal({
                         size="sm"
                         variant="ghost"
                         className="p-1 h-auto text-orange-300"
-                        onClick={() => window.open(mcpDiscoveryData.oauth.authorizationUrl, '_blank')}
+                        onClick={() => window.open(mcpDiscoveryData.data.oauth.authorizationUrl, '_blank')}
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
                         Open Raw Authorization URL
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 border-orange-500/30 text-orange-300 hover:bg-orange-500/10"
-                        onClick={() => {
-                          // TODO: Open service settings modal to configure OAuth credentials
-                          toast({
-                            title: 'OAuth Configuration',
-                            description: 'Please edit the service to configure OAuth Client ID and Client Secret.',
-                            variant: 'default'
-                          })
-                        }}
-                      >
-                        ⚙️ Configure OAuth
-                      </Button>
+
                     </div>
                   )}
                   
@@ -987,21 +996,21 @@ export default function ServiceDetailsModal({
                       <li>Configure these credentials in the service settings</li>
                     </ul>
                     
-                    {mcpDiscoveryData.oauth.resourceName && (
+                    {mcpDiscoveryData.data.oauth.resourceName && (
                       <div className="mt-3 p-2 bg-orange-500/10 rounded border border-orange-500/20">
                         <p><strong>🔍 OAuth Configuration Found:</strong></p>
-                        <p><strong>Resource:</strong> {mcpDiscoveryData.oauth.resourceName}</p>
-                        {mcpDiscoveryData.oauth.issuer && (
-                          <p><strong>Issuer:</strong> {mcpDiscoveryData.oauth.issuer}</p>
+                        <p><strong>Resource:</strong> {mcpDiscoveryData.data.oauth.resourceName}</p>
+                        {mcpDiscoveryData.data.oauth.issuer && (
+                          <p><strong>Issuer:</strong> {mcpDiscoveryData.data.oauth.issuer}</p>
                         )}
-                        {mcpDiscoveryData.oauth.scopesSupported?.length > 0 && (
-                          <p><strong>Supported Scopes:</strong> {mcpDiscoveryData.oauth.scopesSupported.join(', ')}</p>
+                        {mcpDiscoveryData.data.oauth.scopesSupported?.length > 0 && (
+                          <p><strong>Supported Scopes:</strong> {mcpDiscoveryData.data.oauth.scopesSupported.join(', ')}</p>
                         )}
-                        {mcpDiscoveryData.oauth.authorizationUrl && (
-                          <p><strong>Authorization URL:</strong> {mcpDiscoveryData.oauth.authorizationUrl}</p>
+                        {mcpDiscoveryData.data.oauth.authorizationUrl && (
+                          <p><strong>Authorization URL:</strong> {mcpDiscoveryData.data.oauth.authorizationUrl}</p>
                         )}
-                        {mcpDiscoveryData.oauth.tokenUrl && (
-                          <p><strong>Token URL:</strong> {mcpDiscoveryData.oauth.tokenUrl}</p>
+                        {mcpDiscoveryData.data.oauth.tokenUrl && (
+                          <p><strong>Token URL:</strong> {mcpDiscoveryData.data.oauth.tokenUrl}</p>
                         )}
                       </div>
                     )}
@@ -1112,7 +1121,7 @@ export default function ServiceDetailsModal({
             )}
 
             {/* No Tools/Details Available (Success but empty) */}
-            {!isLoading && !mcpToolsError && !a2aManifestError && service.type === 'mcp' && mcpTools.length === 0 && !mcpDiscoveryData?.oauth?.required && (
+            {!isLoading && !mcpToolsError && !a2aManifestError && service.type === 'mcp' && mcpTools.length === 0 && !mcpDiscoveryData?.data?.oauth?.required && (
               <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-4">
                 <h3 className="text-yellow-300 font-semibold mb-2">No Tools Available</h3>
                 <p className="text-yellow-200 text-sm">
@@ -1188,105 +1197,233 @@ export default function ServiceDetailsModal({
                         </div>
                       )}
                       
-                      {mcpDiscoveryData?.oauth?.required && (
+                      {mcpDiscoveryData?.data?.oauth?.required && (
                         <div className="text-yellow-200">
                           <p>• <strong>OAuth 2.0 Authentication Required</strong></p>
-                          {mcpDiscoveryData.oauth.authorizationUrl && (
+                          {mcpDiscoveryData.data.oauth.authorizationUrl && (
                             <div className="mt-2 flex items-center gap-2">
                               <Button
                                 size="sm"
                                 variant="default"
                                 className="h-7"
                                 onClick={async () => {
-                                  if (!apiService?.id) return
+                                  if (!apiService?.id) return;
+                                  
                                   try {
-                                    const resp = await apiRequest('GET', `/api/oauth/${apiService.id}/authorize`)
-                                    if (!resp.ok) {
-                                      const msg = await resp.text()
-                                      toast({
-                                        title: 'OAuth start failed',
-                                        description: msg || 'Authorization endpoint returned an error.',
-                                        variant: 'destructive'
-                                      })
-                                      return
-                                    }
-                                    const data = await resp.json()
-                                    const authUrl = data?.authorization_url
-                                    if (!authUrl) {
-                                      toast({
-                                        title: 'Missing authorization URL',
-                                        description: 'Backend did not return an authorization_url. Please configure client_id and redirect URI.',
-                                        variant: 'destructive'
-                                      })
-                                      return
-                                    }
-                                    
-                                    // Start polling for OAuth completion
-                                    startOauthPolling();
-                                    
-                                    // Open OAuth URL
-                                    window.open(authUrl, '_blank')
-                                    
                                     toast({
-                                      title: 'OAuth started',
-                                      description: 'Please complete the authentication in the new window. This page will automatically update when complete.',
-                                      variant: 'default'
-                                    })
-                                  } catch (e) {
+                                      title: 'Setting up OAuth...',
+                                      description: 'Automatically registering OAuth application and starting authorization flow...',
+                                    });
+
+                                                                      const resp = await apiRequest('POST', `/api/oauth/${apiService.id}/auto-setup`, {});
+                                  if (!resp.ok) {
+                                    const errorData = await resp.json();
+                                    
+                                    // Check if we have a registration URL to navigate to
+                                    if (errorData.data?.registrationUrl) {
+                                      // Open the registration page
+                                      window.open(errorData.data.registrationUrl, '_blank');
+                                      
+                                      toast({
+                                        title: 'OAuth Registration Required',
+                                        description: `${errorData.error} I've opened the registration page for you. Please create an OAuth app and then come back to add your credentials.`,
+                                        duration: 15000,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: 'OAuth Setup Failed',
+                                        description: errorData.error || 'Failed to setup OAuth automatically. Please configure manually.',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                    return;
+                                  }
+
+                                    const data = await resp.json();
+                                    if (data.success && data.data?.authorizationUrl) {
+                                      // Open the authorization URL
+                                      window.open(data.data.authorizationUrl, '_blank');
+                                      
+                                      toast({
+                                        title: 'OAuth Setup Successful',
+                                        description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
+                                        duration: 10000,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: 'OAuth Setup Failed',
+                                        description: 'Failed to get authorization URL. Please try again.',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                  } catch (error) {
                                     toast({
-                                      title: 'OAuth start failed',
-                                      description: e instanceof Error ? e.message : String(e),
-                                      variant: 'destructive'
-                                    })
+                                      title: 'OAuth Setup Failed',
+                                      description: error instanceof Error ? error.message : 'Unknown error occurred',
+                                      variant: 'destructive',
+                                    });
                                   }
                                 }}
                               >
-                                Continue OAuth
+                                🔧 Auto-Setup OAuth
                               </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="p-1 h-auto text-blue-300"
-                                onClick={() => window.open(mcpDiscoveryData.oauth.authorizationUrl, '_blank')}
+                                onClick={() => window.open(mcpDiscoveryData.data.oauth.authorizationUrl, '_blank')}
                               >
                                 <ExternalLink className="w-4 h-4 mr-1" />
                                 Open Raw Authorization URL
                               </Button>
                             </div>
                           )}
-                          {!mcpDiscoveryData.oauth.authorizationUrl && mcpDiscoveryData.oauth.protectedResourceConfigUrl && (
+                          {!mcpDiscoveryData.data.oauth.authorizationUrl && mcpDiscoveryData.data.oauth.protectedResourceConfigUrl && (
                             <div className="mt-2">
                               <Button
                                 size="sm"
                                 variant="ghost"
                                 className="p-1 h-auto text-blue-300"
-                                onClick={() => window.open(mcpDiscoveryData.oauth.protectedResourceConfigUrl, '_blank')}
+                                onClick={() => window.open(mcpDiscoveryData.data.oauth.protectedResourceConfigUrl, '_blank')}
                               >
                                 <ExternalLink className="w-4 h-4 mr-1" />
                                 View OAuth Configuration
                               </Button>
                             </div>
                           )}
-                          {mcpDiscoveryData.oauth.authorizationServerMetadataUrl && (
+                          {mcpDiscoveryData.data.oauth.authorizationServerMetadataUrl && (
                             <div className="mt-2 text-xs text-gray-300">
                               <span className="mr-1">Auth Server Metadata:</span>
                               <button
                                 className="underline text-blue-300"
-                                onClick={() => window.open(mcpDiscoveryData.oauth.authorizationServerMetadataUrl, '_blank')}
+                                onClick={() => window.open(mcpDiscoveryData.data.oauth.authorizationServerMetadataUrl, '_blank')}
                               >
-                                {mcpDiscoveryData.oauth.authorizationServerMetadataUrl}
+                                {mcpDiscoveryData.data.oauth.authorizationServerMetadataUrl}
                               </button>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {mcpDiscoveryData?.success && !mcpDiscoveryData?.oauth?.required && (
+                      {mcpDiscoveryData?.success && !mcpDiscoveryData?.data?.oauth?.required && (
                         <div className="text-green-200">
                           <p>• <strong>✅ Server Analysis Complete</strong></p>
                           <p>• MCP server is accessible and responding</p>
                           <p>• No authentication issues detected</p>
                           <p>• Protocol compatibility confirmed</p>
+                        </div>
+                      )}
+                      
+                      {mcpDiscoveryData?.data?.oauth?.required && (
+                        <div className="text-orange-200">
+                          <p>• <strong>🔐 OAuth 2.0 Authentication Required</strong></p>
+                          <p>• This MCP server requires OAuth authentication</p>
+                          {mcpDiscoveryData.data.oauth.resourceName && (
+                            <p>• Service: {mcpDiscoveryData.data.oauth.resourceName}</p>
+                          )}
+                          {mcpDiscoveryData.data.oauth.authorizationUrl && (
+                            <p>• Authorization URL: {mcpDiscoveryData.data.oauth.authorizationUrl}</p>
+                          )}
+                          {mcpDiscoveryData.data.oauth.tokenUrl && (
+                            <p>• Token URL: {mcpDiscoveryData.data.oauth.tokenUrl}</p>
+                          )}
+                          
+                          {/* OAuth Configuration Button */}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-orange-600 hover:bg-orange-700"
+                              onClick={async () => {
+                                if (!apiService?.id) return;
+                                
+                                try {
+                                  toast({
+                                    title: 'Setting up OAuth...',
+                                    description: 'Automatically registering OAuth application and starting authorization flow...',
+                                  });
+
+                                  const resp = await apiRequest('POST', `/api/oauth/${apiService.id}/auto-setup`, {});
+                                  if (!resp.ok) {
+                                    const errorData = await resp.json();
+                                    
+                                    // Check if we have a registration URL to navigate to
+                                    if (errorData.data?.registrationUrl) {
+                                      // Open the registration page
+                                      window.open(errorData.data.registrationUrl, '_blank');
+                                      
+                                      toast({
+                                        title: 'OAuth Registration Required',
+                                        description: `${errorData.error} I've opened the registration page for you. Please create an OAuth app and then come back to add your credentials.`,
+                                        duration: 15000,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: 'OAuth Setup Failed',
+                                        description: errorData.error || 'Failed to setup OAuth automatically. Please configure manually.',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                    return;
+                                  }
+
+                                  const data = await resp.json();
+                                  if (data.success && data.data?.authorizationUrl) {
+                                    // Open the authorization URL
+                                    window.open(data.data.authorizationUrl, '_blank');
+                                    
+                                    toast({
+                                      title: 'OAuth Setup Successful',
+                                      description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
+                                      duration: 10000,
+                                    });
+                                  } else {
+                                    toast({
+                                      title: 'OAuth Setup Failed',
+                                      description: 'Failed to get authorization URL. Please try again.',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                } catch (error) {
+                                  toast({
+                                    title: 'OAuth Setup Failed',
+                                    description: error instanceof Error ? error.message : 'Unknown error occurred',
+                                    variant: 'destructive',
+                                  });
+                                }
+                              }}
+                            >
+                              🔧 Auto-Setup OAuth
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-orange-500/30 text-orange-300 hover:bg-orange-500/10"
+                              onClick={() => {
+                                // Show generic OAuth setup instructions
+                                const instructions = `OAuth Setup Instructions:
+
+1. Go to the service provider's OAuth/Developer settings
+2. Create a new OAuth application
+3. Set Redirect URL: http://localhost:8000/api/oauth/${apiService?.id}/callback
+4. Copy the Client ID and Client Secret
+5. Edit this service and add the credentials
+
+${mcpDiscoveryData.data.oauth.authorizationUrl ? `Authorization URL: ${mcpDiscoveryData.data.oauth.authorizationUrl}` : ''}
+${mcpDiscoveryData.data.oauth.tokenUrl ? `Token URL: ${mcpDiscoveryData.data.oauth.tokenUrl}` : ''}
+${mcpDiscoveryData.data.oauth.issuer ? `Issuer: ${mcpDiscoveryData.data.oauth.issuer}` : ''}`;
+
+                                toast({
+                                  title: 'OAuth Setup Instructions',
+                                  description: instructions,
+                                  duration: 10000, // Show for 10 seconds
+                                });
+                              }}
+                            >
+                              📋 Setup Instructions
+                            </Button>
+                          </div>
                         </div>
                       )}
                       

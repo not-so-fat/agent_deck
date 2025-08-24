@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { ServiceManager } from '../services/service-manager';
+import { MCPDiscoveryService } from '../services/mcp-discovery-service';
 import { ApiResponse, Service, ServiceTool } from '@agent-deck/shared';
 
 // OAuth discovery functions
@@ -156,6 +157,8 @@ const DiscoverMCPRequest = z.object({
 type DiscoverMCPRequestType = z.infer<typeof DiscoverMCPRequest>;
 
 export default async function mcpRoutes(fastify: FastifyInstance) {
+  const discoveryService = new MCPDiscoveryService();
+  
   // Discover and analyze an MCP server
   fastify.post<{ Body: DiscoverMCPRequestType }>('/discover', async (request, reply) => {
     try {
@@ -163,90 +166,14 @@ export default async function mcpRoutes(fastify: FastifyInstance) {
       
       fastify.log.info(`🔍 Discovering MCP server: ${url}`);
       
-      // Get the service manager from the app state
-      const serviceManager = fastify.serviceManager;
+      // Use the new discovery service
+      const discoveryResult = await discoveryService.discoverService(url);
       
-      // Create a temporary service for discovery
-      const tempService: Service = {
-        id: 'temp-discovery',
-        name: 'Discovery Service',
-        type: 'mcp',
-        url,
-        health: 'unknown',
-        description: '',
-        cardColor: '#7ed4da',
-        isConnected: false,
-        lastPing: undefined,
-        registeredAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        headers: undefined,
-        oauthClientId: undefined,
-        oauthClientSecret: undefined,
-        oauthAuthorizationUrl: undefined,
-        oauthTokenUrl: undefined,
-        oauthRedirectUri: undefined,
-        oauthScope: undefined,
-        oauthAccessToken: undefined,
-        oauthRefreshToken: undefined,
-        oauthTokenExpiresAt: undefined,
-        oauthState: undefined,
-      };
+      fastify.log.info(`✅ MCP discovery completed for ${url}: ${discoveryResult.tools_count} tools found, OAuth required: ${discoveryResult.oauth.required}`);
       
-      // Try to discover tools using MCP client directly
-      let tools: ServiceTool[] = [];
-      let isValid = false;
-      let error: string | null = null;
-      
-      try {
-        const toolsResult = await serviceManager.mcpClientManager.discoverTools(tempService);
-        tools = toolsResult || [];
-        isValid = true;
-      } catch (e) {
-        error = e instanceof Error ? e.message : 'Unknown error';
-      }
-      
-      // Check service health
-      let health = 'unknown';
-      try {
-        const healthResult = await serviceManager.checkServiceHealth(tempService.id);
-        if (healthResult.success) {
-          health = healthResult.health;
-        }
-      } catch (e) {
-        // Ignore health check errors for discovery
-      }
-      
-      // OAuth discovery when tool discovery fails or returns empty (likely protected)
-      let oauthInfo: any = { required: false };
-      if (!isValid || tools.length === 0) {
-        try {
-          oauthInfo = await discoverOAuthInfo(url);
-        } catch (e) {
-          fastify.log.warn(`OAuth discovery failed for ${url}: ${e}`);
-        }
-      }
-      
-      // Build analysis response
-      const analysis = {
-        success: isValid,
-        transport_type: 'http', // Default for now
-        url,
-        tools_count: tools.length,
-        tools,
-        capabilities: {
-          supports_tool_discovery: isValid,
-          supports_tool_calling: isValid
-        },
-        oauth: oauthInfo,
-        health,
-        error: error || null,
-      };
-      
-      fastify.log.info(`✅ MCP discovery completed for ${url}: ${tools.length} tools found`);
-      
-      const response: ApiResponse<typeof analysis> = {
+      const response: ApiResponse<typeof discoveryResult> = {
         success: true,
-        data: analysis,
+        data: discoveryResult,
       };
       
       return reply.send(response);

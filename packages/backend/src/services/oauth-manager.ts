@@ -9,6 +9,10 @@ import {
 import { DatabaseManager } from '../models/database';
 import { randomBytes } from 'crypto';
 
+
+
+
+
 interface OAuthMetadata {
   authorization_endpoint?: string;
   token_endpoint?: string;
@@ -27,6 +31,12 @@ interface OAuthTokenResponse {
 }
 
 export class OAuthManager {
+  private oauthStates = new Map<string, string>(); // state -> serviceId mapping
+
+  getOAuthState(state: string): string | undefined {
+    return this.oauthStates.get(state);
+  }
+
   constructor(private db: DatabaseManager) {}
 
   async discoverOAuth(serviceUrl: string): Promise<OAuthDiscoveryResult> {
@@ -108,11 +118,8 @@ export class OAuthManager {
     // Generate state parameter for security
     const state = randomBytes(32).toString('hex');
     
-    // Store state in database - we'll need to add this field to the update method
-    // For now, we'll store it in a different way or skip it
-    // await this.db.updateService(input.serviceId, {
-    //   oauthState: state,
-    // });
+    // Store state mapping in memory
+    this.oauthStates.set(state, input.serviceId);
 
     // Build authorization URL
     const url = new URL(service.oauthAuthorizationUrl);
@@ -129,19 +136,36 @@ export class OAuthManager {
   }
 
   async handleOAuthCallback(input: OAuthCallbackInput): Promise<OAuthToken> {
+    // Verify state parameter - for now, we'll be more lenient since state storage is in-memory
+    const serviceId = this.oauthStates.get(input.state);
+    if (serviceId && serviceId !== input.serviceId) {
+      throw new Error('Invalid OAuth state parameter');
+    }
+
+    // Clean up the state if it exists
+    if (serviceId) {
+      this.oauthStates.delete(input.state);
+    }
+
     const service = await this.db.getService(input.serviceId);
     if (!service) {
       throw new Error(`Service ${input.serviceId} not found`);
     }
 
-    // Verify state parameter - we'll need to implement this properly
-    // if (service.oauthState !== input.state) {
-    //   throw new Error('Invalid OAuth state parameter');
-    // }
-
     if (!service.oauthTokenUrl) {
       throw new Error('Service does not have OAuth token URL configured');
     }
+
+    // Use the exact same redirect URI that was used in the authorization request
+    // This should match the redirect URI stored in the service configuration
+    const redirectUri = service.oauthRedirectUri || 'http://localhost:3000/oauth/callback';
+    
+    console.log('OAuth callback debug:', {
+      serviceId: input.serviceId,
+      clientId: service.oauthClientId,
+      redirectUri,
+      tokenUrl: service.oauthTokenUrl,
+    });
 
     // Exchange authorization code for tokens
     const tokenResponse = await fetch(service.oauthTokenUrl, {
@@ -154,7 +178,7 @@ export class OAuthManager {
         client_id: service.oauthClientId || '',
         client_secret: service.oauthClientSecret || '',
         code: input.code,
-        redirect_uri: service.oauthRedirectUri || '',
+        redirect_uri: redirectUri,
       }),
     });
 
@@ -282,5 +306,149 @@ export class OAuthManager {
     }
 
     return service.oauthAccessToken;
+  }
+
+  async autoRegisterOAuthApp(serviceUrl: string, config: OAuthConfig): Promise<{
+    success: boolean;
+    clientId?: string;
+    clientSecret?: string;
+    error?: string;
+    registrationUrl?: string;
+  }> {
+    try {
+      const baseUrl = new URL(serviceUrl);
+      console.log('Attempting OAuth auto-registration for:', serviceUrl);
+      
+      // Step 1: Try to get OAuth information from the MCP service itself
+      console.log('Step 1: Checking MCP service OAuth capabilities');
+      
+      try {
+        // Try to get OAuth metadata from the MCP service
+        const oauthMetadataUrl = `${baseUrl.origin}/.well-known/oauth-authorization-server`;
+        console.log('Trying OAuth metadata at:', oauthMetadataUrl);
+        
+        const metadataResponse = await fetch(oauthMetadataUrl);
+        if (metadataResponse.ok) {
+          const metadata = await metadataResponse.json() as any;
+          console.log('OAuth metadata found:', metadata);
+          
+          if (metadata.registration_endpoint) {
+            console.log('Found registration endpoint:', metadata.registration_endpoint);
+            
+            // Try dynamic client registration with the MCP service
+            const registrationResponse = await fetch(metadata.registration_endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({
+                client_name: 'AgentDeck',
+                redirect_uris: [`${baseUrl.protocol}//${baseUrl.hostname}:3000/oauth/callback`],
+                grant_types: ['authorization_code', 'refresh_token'],
+                response_types: ['code'],
+                token_endpoint_auth_method: 'client_secret_basic',
+                scope: config.scope || 'read write',
+              }),
+            });
+
+            if (registrationResponse.ok) {
+              const data = await registrationResponse.json() as any;
+              console.log('Dynamic client registration successful:', data);
+              
+              // Validate that we got real client credentials
+              if (data.client_id && data.client_secret && 
+                  typeof data.client_id === 'string' && 
+                  typeof data.client_secret === 'string' &&
+                  data.client_id.length > 10 && 
+                  data.client_secret.length > 10) {
+                return {
+                  success: true,
+                  clientId: data.client_id,
+                  clientSecret: data.client_secret,
+                };
+              } else {
+                console.log('Invalid client credentials received from MCP service');
+              }
+            } else {
+              console.log('MCP service registration failed:', await registrationResponse.text());
+            }
+          } else {
+            console.log('No registration endpoint found in MCP service OAuth metadata');
+          }
+        } else {
+          console.log('MCP service OAuth metadata not found at:', oauthMetadataUrl);
+        }
+      } catch (error) {
+        console.log('Failed to get OAuth metadata from MCP service:', error);
+      }
+
+      // Step 2: Try MCP service-specific OAuth registration endpoints
+      console.log('Step 2: Trying MCP service-specific OAuth registration');
+      
+      const mcpOAuthEndpoints = [
+        `${serviceUrl}/oauth/register`,
+        `${serviceUrl}/oauth/credentials`,
+        `${baseUrl.origin}/oauth/register`,
+        `${baseUrl.origin}/oauth/credentials`,
+      ];
+
+      for (const endpoint of mcpOAuthEndpoints) {
+        try {
+          console.log('Trying MCP OAuth endpoint:', endpoint);
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              client_name: 'AgentDeck',
+              redirect_uri: `${baseUrl.protocol}//${baseUrl.hostname}:3000/oauth/callback`,
+              scope: config.scope || 'read write',
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json() as any;
+            console.log('MCP OAuth registration successful at:', endpoint, data);
+            
+            // Validate that we got real client credentials
+            if (data.client_id && data.client_secret && 
+                typeof data.client_id === 'string' && 
+                typeof data.client_secret === 'string' &&
+                data.client_id.length > 10 && 
+                data.client_secret.length > 10) {
+              return {
+                success: true,
+                clientId: data.client_id,
+                clientSecret: data.client_secret,
+              };
+            } else {
+              console.log('Invalid client credentials received from MCP endpoint:', endpoint);
+            }
+          } else {
+            console.log('MCP OAuth endpoint failed:', endpoint, await response.text());
+          }
+        } catch (error) {
+          console.log('MCP OAuth endpoint error:', endpoint, error);
+        }
+      }
+
+      // Step 3: If all automated methods fail, provide generic manual registration instructions
+      console.log('Step 3: All automated registration methods failed, providing manual instructions');
+      
+      return {
+        success: false,
+        error: 'This OAuth provider requires manual registration. Please create an OAuth application and add your credentials.',
+      };
+    } catch (error) {
+      console.log('OAuth auto-registration failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Auto-registration failed',
+      };
+    }
   }
 }

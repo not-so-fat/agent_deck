@@ -18,7 +18,10 @@
     "@fastify/websocket": "^11.2.0",
     "@modelcontextprotocol/sdk": "^1.17.4",
     "better-sqlite3": "^9.4.3",
+    "dotenv": "^17.2.1",
     "fastify": "^5.0.0",
+    "openid-client": "^6.6.4",
+    "use-mcp": "^0.0.21",
     "zod": "^3.22.4"
   },
   "devDependencies": {
