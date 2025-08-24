@@ -1,5 +1,8 @@
 # Agent Deck
 
+<img src="./misc/Screen.png" alt="Frontend" width="90%" />
+
+
 ## What does it solve?
 
 <img src="./misc/CursorTooManyTools.png" alt="Cursor Too Many Tools" width="60%" />
