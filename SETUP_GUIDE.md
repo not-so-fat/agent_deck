@@ -56,7 +56,7 @@ node dist/index.js
 - [x] `package.json` - Root package configuration
 - [x] `turbo.json` - Turborepo configuration
 - [x] `tsconfig.json` - Root TypeScript configuration
-- [x] `.gitignore` - Git ignore rules
+- [x] `.gitignore` - Git ignore rules (fixed to include frontend lib files)
 - [x] `README.md` - Project documentation
 
 ### Shared Package ✅
@@ -131,6 +131,17 @@ PORT=8001 npm run dev
 npm run clean
 npm run build
 ```
+
+### 6. Missing Frontend Files (FIXED ✅)
+**Error**: `Cannot find module '@/lib/queryClient'` or missing `src/lib/` files
+**Solution**: This issue has been fixed! The `.gitignore` file was incorrectly ignoring the `apps/agent-deck/src/lib/` directory. The fix is now committed to the repository.
+
+**What was fixed:**
+- Updated `.gitignore` to not ignore `apps/agent-deck/src/lib/` directory
+- Added essential files `queryClient.ts` and `utils.ts` to git tracking
+- Added missing testing dependencies to `package.json`
+
+**Users should NOT manually edit these files** - the installation process will handle everything automatically.
 
 ## Environment Variables (Optional)
 
@@ -223,6 +234,24 @@ agent-deck/
 └── apps/
     └── agent-deck/             # React frontend
 ```
+
+## Important Notes
+
+### ✅ All Essential Files Are Now Included
+The repository now includes all necessary files:
+- **Frontend lib files**: `apps/agent-deck/src/lib/queryClient.ts` and `utils.ts` are now properly tracked
+- **Database file**: `packages/mcp-server/agent-deck.db` is included
+- **All dependencies**: Missing testing dependencies have been added
+- **Configuration files**: All necessary config files are present
+
+### 🚫 No Manual File Editing Required
+Users should **NOT** need to manually edit any files in `src/lib/` or create missing files. The installation process should handle everything automatically.
+
+### 🔧 What Was Fixed
+1. **`.gitignore` issue**: Fixed to not ignore frontend `src/lib/` directory
+2. **Missing dependencies**: Added `@testing-library/react` and `@testing-library/jest-dom`
+3. **TypeScript errors**: Fixed unused imports and type issues
+4. **Build process**: Added `install:all` script for easier setup
 
 All essential files are present in the repository. The main requirements are:
 1. **Node.js 18+**
