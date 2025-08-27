@@ -1,11 +1,10 @@
 import { memo } from "react";
 import { Service, Deck } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Settings, Database, Cloud, Code, Brain, FileText, Mail, Calculator, BarChart, Trash2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Settings, Database, Cloud, Code, Brain, FileText, Mail, Calculator, BarChart, Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface CardComponentProps {
   service: Service;

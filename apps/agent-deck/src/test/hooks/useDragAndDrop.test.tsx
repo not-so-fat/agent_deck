@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useDragAndDrop } from '../../hooks/use-drag-and-drop'
-import { Service } from '@shared/schema'
+import { useDragAndDrop } from '@/hooks/use-drag-and-drop'
+import { Service } from '@agent-deck/shared'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 

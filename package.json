@@ -13,7 +13,8 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
-    "type-check": "turbo run type-check"
+    "type-check": "turbo run type-check",
+    "install:all": "npm install && npm run build"
   },
   "devDependencies": {
     "turbo": "^1.12.4",
