@@ -65,8 +65,14 @@ At this moment, AgentDeck is manual favorite MCP management app.
 ## Quick Start
 
 ### **Prerequisites**
-- Node.js 18+
+- Node.js 20.x LTS (required)
 - npm or yarn
+
+Note on Node version:
+- If you use Homebrew, ensure Node 20 is first in PATH:
+  - macOS (arm64): `export PATH="/opt/homebrew/opt/node@20/bin:$PATH"`
+- If you use nvm, run: `nvm install 20 && nvm use 20`
+- Native modules like `better-sqlite3` are built against the active Node; using Node 20 avoids NODE_MODULE_VERSION mismatches.
 
 ### **Installation**
 ```bash
@@ -80,7 +86,7 @@ npm install
 # Build all packages
 npm run build
 
-# Start development servers
+# Start development servers (monorepo)
 npm run dev
 
 # Run tests
@@ -103,6 +109,17 @@ npm run mcp
 # MCP server runs on http://localhost:3001
 # MCP endpoint: POST http://localhost:3001/mcp (requires MCP client/session)
 ```
+
+#### **Frontend (Vite dev server)**
+```bash
+cd apps/agent-deck
+npm run dev -- --port 3000 --strictPort
+# Frontend runs on http://localhost:3000 (proxies /api and /ws to http://localhost:8000)
+```
+
+Recommended startup order:
+1) Backend (8000) → 2) Frontend (3000) → 3) MCP (3001)
+
 
 ## API Endpoints
 
@@ -142,6 +159,25 @@ npm run mcp
 
 ### **WebSocket**
 - `WS /api/ws/events` - Real-time updates
+
+## Troubleshooting
+
+- Native module error (better-sqlite3) after switching Node versions
+  - Symptom: ERR_DLOPEN_FAILED / NODE_MODULE_VERSION mismatch
+  - Fix: ensure Node 20 is active, then reinstall
+    - With Homebrew Node 20 active in PATH, run from repo root:
+      - `rm -rf node_modules packages/*/node_modules apps/*/node_modules && npm ci`
+
+- Port already in use
+  - 3000 (frontend) or 3001 (MCP) might be occupied by a previous run
+  - Free the port and restart:
+    - macOS: `kill -9 $(lsof -t -iTCP:3000 -sTCP:LISTEN)` (swap 3000 for 3001 as needed)
+  - Or start Vite with `--strictPort` to fail fast: `npm run dev -- --port 3000 --strictPort`
+
+- MCP cannot reach backend (ECONNREFUSED in MCP logs)
+  - Confirm backend health: `curl http://127.0.0.1:8000/health`
+  - MCP backend status: `curl http://127.0.0.1:3001/backend-status`
+  - Ensure backend is started before MCP and that ports match defaults.
 
 ## MCP Server Usage
 
@@ -197,7 +233,6 @@ agent-deck/
 │   └── backend/          # Fastify API server + MCP server (HTTP)
 ├── apps/
 │   └── agent-deck/       # React frontend
-├── old_impl/             # Original Python implementation (optional)
 └── misc/                 # Documentation and assets
 ```
 
