@@ -1,144 +1,52 @@
-# Agent Deck MCP Server - Python Implementation
+# Agent Deck MCP Server - TypeScript (HTTP Transport)
 
-This is a revised Python MCP server that integrates with the new TypeScript backend APIs instead of using direct database access.
+This project now provides an MCP server implemented in TypeScript and embedded inside the backend package. It uses the official `@modelcontextprotocol/sdk` with the HTTP transport to expose tools that interact with the Agent Deck backend API.
 
-## Key Changes from Old Implementation
+## Key Points
 
-### 1. **API Integration Instead of Direct Database Access**
-- **Old**: Direct SQLite database access via `DatabaseManager`
-- **New**: HTTP API calls to the TypeScript backend at `http://localhost:8000`
+- Official MCP SDK (`@modelcontextprotocol/sdk`)
+- HTTP transport via `StreamableHTTPServerTransport`
+- Lives in `packages/backend/src/mcp-server.ts` and `packages/backend/src/mcp-index.ts`
+- Unified access to services in the active deck; tool discovery and tool calls are routed through the backend API
 
-### 2. **Response Format Handling**
-- **Old**: Direct database results
-- **New**: Handles `ApiResponse<T>` format with `success` and `data`/`error` fields
+## Files
 
-### 3. **Field Name Updates**
-- **Old**: `api_key` field
-- **New**: `apiKey` field (camelCase to match TypeScript conventions)
+- `packages/backend/src/mcp-server.ts`: MCP server definitions (tools, resources, routes)
+- `packages/backend/src/mcp-index.ts`: Entrypoint to start the MCP server
 
-### 4. **Service Discovery**
-- **Old**: Direct MCP client manager calls
-- **New**: Uses backend API endpoint `/api/services/{id}/tools`
+## How to Run
 
-## Architecture
-
-```
-┌─────────────────┐    HTTP API    ┌──────────────────┐
-│   Python MCP    │ ──────────────► │ TypeScript       │
-│   Server        │                │ Backend          │
-│   (Port 3001)   │                │ (Port 8000)      │
-└─────────────────┘                └──────────────────┘
-         │                                   │
-         │ MCP Protocol                      │ Database
-         ▼                                   ▼
-┌─────────────────┐                ┌──────────────────┐
-│   MCP Clients   │                │   SQLite DB      │
-│   (Cursor, etc) │                │                  │
-└─────────────────┘                └──────────────────┘
-```
-
-## Setup
-
-### 1. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Start the TypeScript Backend
 ```bash
 cd packages/backend
-npm run dev
+npm run mcp
+# MCP server available at http://localhost:3001
+# MCP endpoint: POST http://localhost:3001/mcp (requires an MCP client session)
 ```
 
-### 3. Start the Python MCP Server
-```bash
-python app_mcp.py
-```
+## Tools (partial)
 
-## Available MCP Tools
+- `get_services`: List all services
+- `get_decks`: List all decks
+- `get_active_deck`: Get the currently active deck
+- `list_active_deck_services`: List services in the active deck
+- `list_service_tools(serviceId)`: Discover tools for a specific service
+- `call_service_tool(serviceId, toolName, arguments?)`: Call a tool on a registered service
 
-### 1. `get_active_deck_info()`
-Returns information about the currently active deck and its services.
+`call_service_tool` posts to the backend at `/api/services/:id/call` with body `{ toolName, arguments }`.
+`arguments` may be an object or a JSON string; strings are parsed to JSON.
 
-### 2. `list_active_deck_services()`
-Lists all services in the currently active deck.
+## HTTP Transport Notes
 
-### 3. `list_service_tools(service_id: str)`
-Lists all available tools for a specific service in the active deck.
+The HTTP transport requires a valid MCP session. Use an MCP client (Cursor, `use-mcp`, or the official SDK client) to establish a session and call tools. Simple `curl` calls to `/mcp` without session headers will be rejected.
 
-### 4. `call_service(service_id: str, tool_name: str, arguments: str)`
-Calls a tool on a service from the currently active deck.
+## Optional: Python Reference
 
-## API Endpoints Used
-
-The Python MCP server communicates with these TypeScript backend endpoints:
-
-- `GET /api/decks/active` - Get the currently active deck
-- `GET /api/services` - Get all services
-- `GET /api/services/{id}` - Get a specific service
-- `GET /api/services/{id}/tools` - Get tools for a service
-- `POST /api/services/{id}/call` - Call a tool on a service
-
-## Configuration
-
-### Backend URL
-The server connects to the TypeScript backend at `http://localhost:8000` by default. You can modify this by changing the `BACKEND_BASE_URL` constant in `app_mcp.py`.
-
-### Port
-The MCP server runs on port 3001 by default. You can change this in the `app.run()` call at the bottom of the file.
-
-## Error Handling
-
-The server includes comprehensive error handling for:
-- Network connectivity issues
-- API response format errors
-- Service discovery failures
-- Tool execution errors
-
-## Logging
-
-The server uses Python's logging module with INFO level by default. You can adjust the log level by modifying the `logging.basicConfig()` call.
-
-## Integration with Cursor
-
-To use this MCP server with Cursor:
-
-1. Add the following to your Cursor settings:
-```json
-{
-  "mcpServers": {
-    "agent-deck": {
-      "command": "python",
-      "args": ["app_mcp.py"],
-      "env": {}
-    }
-  }
-}
-```
-
-2. Or use the HTTP transport by connecting to `http://localhost:3001/mcp`
+The repository contains a Python MCP server (`app_mcp.py`) as a reference implementation that calls the backend API. The TypeScript MCP server is the primary supported server.
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Backend not running**: Ensure the TypeScript backend is running on port 8000
-2. **Port conflicts**: Change the port in `app_mcp.py` if 3001 is in use
-3. **API errors**: Check the backend logs for detailed error messages
-4. **Dependencies**: Ensure all Python dependencies are installed
-
-### Debug Mode
-
-To enable debug logging, modify the logging configuration:
-```python
-logging.basicConfig(level=logging.DEBUG)
-```
-
-## Future Improvements
-
-1. **MCP Client Integration**: Use the TypeScript backend's MCP client manager for better MCP service integration
-2. **Caching**: Add caching for frequently accessed data
-3. **Health Checks**: Add health check endpoints
-4. **Metrics**: Add performance metrics and monitoring
-5. **Configuration**: Move configuration to environment variables or config files
+1. Ensure backend API is running on port 8000
+2. Start MCP server via `npm run mcp` in `packages/backend`
+3. Use an MCP client to open a session before calling tools
+4. Check logs: `logs/mcp_ts.log`
 

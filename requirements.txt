@@ -1,5 +1,0 @@
-fastmcp>=0.1.0
-requests>=2.31.0
-asyncio
-typing-extensions>=4.0.0
-

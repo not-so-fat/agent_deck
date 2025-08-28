@@ -104,6 +104,7 @@ CREATE TABLE services (
     is_connected BOOLEAN NOT NULL DEFAULT 0,
     last_ping TEXT,
     registered_at TEXT NOT NULL,
+    u
     updated_at TEXT NOT NULL,
     headers TEXT,
     

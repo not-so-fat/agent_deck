@@ -56,8 +56,7 @@ At this moment, AgentDeck is manual favorite MCP management app.
 
 ### **Packages:**
 - **`@agent-deck/shared`** - Shared types, schemas, and utilities
-- **`@agent-deck/backend`** - Fastify API server with SQLite database
-- **`@agent-deck/mcp-server`** - MCP server that provides unified access to deck services
+- **`@agent-deck/backend`** - Fastify API server with SQLite database and the MCP server (HTTP transport)
 
 ### **Apps:**
 - **`apps/agent-deck`** - React frontend (coming soon - will integrate existing frontend)
@@ -97,12 +96,12 @@ npm run dev
 # Server runs on http://localhost:8000
 ```
 
-#### **MCP Server**
+#### **MCP Server (TypeScript, HTTP transport)**
 ```bash
-cd packages/mcp-server
-npm run build
-node dist/index.js
-# MCP server communicates via stdio
+cd packages/backend
+npm run mcp
+# MCP server runs on http://localhost:3001
+# MCP endpoint: POST http://localhost:3001/mcp (requires MCP client/session)
 ```
 
 ## API Endpoints
@@ -146,19 +145,18 @@ node dist/index.js
 
 ## MCP Server Usage
 
-The MCP server provides a unified interface to all services in the active deck:
+The MCP server (inside `@agent-deck/backend`) provides a unified interface to services in the active deck using the official MCP SDK over HTTP transport.
 
-### **Tools**
-- **List Tools**: Returns all tools from services in active deck
-- **Call Tool**: Calls tools using format `serviceName:toolName`
+### **Tools (partial)**
+- `get_services`: List all services
+- `get_decks`: List all decks
+- `get_active_deck`: Get the active deck
+- `list_active_deck_services`: List services in the active deck
+- `list_service_tools(serviceId)`: Discover tools for a service
+- `call_service_tool(serviceId, toolName, arguments?)`: Call a tool on a registered service via backend `/api/services/:id/call`
 
-### **Resources**
-- **List Resources**: Returns all resources from deck services
-- **Read Resource**: Access resources using format `serviceName:resourceUri`
-
-### **Prompts**
-- **List Prompts**: Returns all prompts from deck services
-- **Get Prompt**: Retrieve prompts using format `serviceName:promptName`
+Notes:
+- The HTTP transport requires a valid MCP session. Use an MCP client (Cursor, `use-mcp`, or the official SDK client) to connect and call tools. Direct `curl` requires session headers and is not recommended for normal use.
 
 ## Database Schema
 
@@ -196,11 +194,10 @@ The MCP server provides a unified interface to all services in the active deck:
 agent-deck/
 ├── packages/
 │   ├── shared/           # Shared types, schemas, utilities
-│   ├── backend/          # Fastify API server
-│   └── mcp-server/       # MCP server implementation
+│   └── backend/          # Fastify API server + MCP server (HTTP)
 ├── apps/
-│   └── agent-deck/       # React frontend (coming soon)
-├── old_impl/             # Original Python implementation
+│   └── agent-deck/       # React frontend
+├── old_impl/             # Original Python implementation (optional)
 └── misc/                 # Documentation and assets
 ```
 

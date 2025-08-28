@@ -43,11 +43,11 @@ npm run dev
 # Frontend runs on http://localhost:3000
 ```
 
-#### MCP Server (Optional - for testing)
+#### MCP Server (TypeScript, HTTP transport)
 ```bash
-cd packages/mcp-server
-npm run build
-node dist/index.js
+cd packages/backend
+npm run mcp
+# MCP server: http://localhost:3001 (endpoint: /mcp)
 ```
 
 ## Essential Files Checklist
@@ -74,11 +74,9 @@ node dist/index.js
 - [x] `packages/backend/src/services/` - Business logic
 - [x] `packages/backend/src/models/` - Database models
 
-### MCP Server Package ✅
-- [x] `packages/mcp-server/package.json`
-- [x] `packages/mcp-server/src/index.ts`
-- [x] `packages/mcp-server/src/server.ts`
-- [x] `packages/mcp-server/agent-deck.db` - **IMPORTANT: Database file**
+### MCP Server ✅
+- [x] `packages/backend/src/mcp-index.ts`
+- [x] `packages/backend/src/mcp-server.ts`
 
 ### Frontend Package ✅
 - [x] `apps/agent-deck/package.json`

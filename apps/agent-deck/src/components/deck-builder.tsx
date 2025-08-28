@@ -8,10 +8,10 @@ interface DeckBuilderProps {
   deck: Deck;
   services: Service[];
   allServices: Service[];
-  onDrop: (serviceId: string) => void;
-  onDragStart: (e: React.DragEvent, serviceId: string) => void;
-  onDragEnd: () => void;
-  onCardClick: (service: Service) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragStart: (e: React.DragEvent, service: Service, fromDeck?: boolean) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+  onCardClick?: (service: Service) => void;
 }
 
 export default function DeckBuilder({
@@ -26,10 +26,7 @@ export default function DeckBuilder({
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const serviceId = e.dataTransfer.getData('text/plain');
-    if (serviceId) {
-      onDrop(serviceId);
-    }
+    onDrop(e);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -88,6 +85,7 @@ export default function DeckBuilder({
   };
 
   const maxSize = 10; // Default max size for decks
+  const hasEmptySlots = (deck.services?.length || services.length) < (deck.maxSize || maxSize);
 
   return (
     <div className="h-full flex flex-col">
@@ -108,92 +106,113 @@ export default function DeckBuilder({
       </div>
 
       <div
-        className="flex-1 bg-black/20 rounded-lg border-2 border-dashed border-white/10 p-4 overflow-y-auto"
+        className="relative flex-1 p-4 rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         style={{
           minHeight: '200px',
-          background: services.length === 0 
-            ? 'linear-gradient(135deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 100%)'
-            : 'rgba(0,0,0,0.2)'
+          background: 'linear-gradient(135deg, rgba(196, 182, 67, 0.1), rgba(212, 199, 96, 0.1))',
+          borderColor: 'rgba(196, 182, 67, 0.3)'
         }}
+        data-testid="deck-drop-zone"
       >
-        {services.length === 0 ? (
-          <div className="text-center h-full flex flex-col justify-center">
-            <div className="w-12 h-12 rounded-full bg-blue-500/20 border border-blue-500/30 flex items-center justify-center mx-auto mb-3">
-              <Plus className="w-6 h-6 text-blue-400" />
+        <div className="relative flex items-center justify-center" style={{ width: 'fit-content' }}>
+          {services.length === 0 ? (
+            <div className="text-center">
+              <div className="w-32 h-48 border-2 border-dashed border-gray-500 rounded-lg flex items-center justify-center opacity-50 hover:opacity-75 transition-all mb-4">
+                <Plus className="w-8 h-8 text-gray-500" />
+              </div>
             </div>
-            <h4 className="text-lg font-bold mb-2" style={{color: '#92E4DD'}}>
-              Empty Deck
-            </h4>
-            <p className="text-gray-300 mb-4 text-sm">
-              Drag services from your collection to build your deck.
-            </p>
-            <div className="text-xs text-gray-400">
-              {services.length}/{maxSize} cards
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,80px)] gap-2">
-            {services.map((service, index) => {
-              const IconComponent = getServiceIcon(service);
-              return (
-                <div
-                  key={service.id}
-                  className="relative group cursor-pointer"
-                  draggable
-                  onDragStart={(e) => onDragStart(e, service.id)}
-                  onDragEnd={onDragEnd}
-                  onClick={() => onCardClick(service)}
-                >
+          ) : (
+            <div className="flex items-center justify-center space-x-[-60px] hover:space-x-4 transition-all duration-500 group">
+              {services.map((service, index) => {
+                const IconComponent = getServiceIcon(service);
+                return (
                   <div
-                    className="w-20 h-32 rounded-lg border-2 border-white/20 bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-sm shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl hover:border-white/40 relative overflow-hidden"
+                    key={service.id}
+                    className="relative transition-all duration-500 hover:z-20 hover:scale-110"
                     style={{
-                      background: `linear-gradient(135deg, ${service.cardColor}20, ${service.cardColor}10)`,
-                      borderColor: `${service.cardColor}40`,
+                      zIndex: services.length - index,
+                      transform: `rotate(${(index - services.length / 2) * 2}deg)`
                     }}
                   >
-                    {/* Service Icon */}
-                    <div className="absolute top-2 left-2 w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                      <IconComponent className="w-3 h-3 text-white" />
-                    </div>
-
-                    {/* Service Name */}
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <h4 className="text-xs font-bold text-white truncate">
-                        {service.name}
-                      </h4>
-                      <p className="text-xs text-gray-300 truncate">
-                        {service.type.toUpperCase()}
-                      </p>
-                    </div>
-
-                    {/* Health Indicator */}
-                    <div className="absolute top-2 right-2">
-                      <div className={`w-2 h-2 rounded-full ${
-                        service.health === 'healthy' ? 'bg-green-400' :
-                        service.health === 'unhealthy' ? 'bg-red-400' :
-                        'bg-yellow-400'
-                      }`}></div>
-                    </div>
-
-                    {/* Remove Button */}
-                    <button
-                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-xs hover:bg-red-600"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeServiceFromDeck(service.id);
+                    <div
+                      className={`
+                        w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 
+                        transform transition-all duration-500 shadow-lg hover:shadow-2xl
+                        bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900
+                        relative overflow-hidden cursor-pointer
+                        hover:rotate-0
+                      `}
+                      style={{
+                        borderColor: service.cardColor || '#7ed4da',
+                        boxShadow: `0 0 20px ${service.cardColor ? `${service.cardColor}20` : '#7ed4da20'}`
                       }}
-                      title="Remove from deck"
+                      draggable
+                      onDragStart={(e) => onDragStart(e, service, true)}
+                      onDragEnd={(e) => onDragEnd(e)}
+                      onClick={() => onCardClick?.(service)}
+                      data-testid={`deck-card-${service.id}`}
                     >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                      <div className="absolute top-1 left-1 text-xs font-bold">
+                        <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
+                          {service.type === 'mcp' ? 'M' : 'A'}
+                        </div>
+                      </div>
+                      <div className="absolute bottom-1 right-1 text-xs font-bold rotate-180">
+                        <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
+                          {service.type === 'mcp' ? 'M' : 'A'}
+                        </div>
+                      </div>
+
+                      <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
+                        <div className="mb-2" style={{ color: service.cardColor || '#7ed4da' }}>
+                          <IconComponent className="w-6 h-6" />
+                        </div>
+                        <h3
+                          className="font-bold text-xs mb-1 line-clamp-2"
+                          data-testid={`deck-card-name-${service.id}`}
+                          style={{ color: service.cardColor || '#7ed4da' }}
+                        >
+                          {service.name}
+                        </h3>
+                        <div className="text-[8px] px-1 py-0.5 rounded border opacity-70" style={{ 
+                          color: service.cardColor || '#7ed4da',
+                          borderColor: service.cardColor || '#7ed4da'
+                        }}>
+                          {service.type.toUpperCase()}
+                        </div>
+                      </div>
+
+                      <button
+                        className="absolute -top-2 -right-2 w-6 h-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-all text-xs bg-red-500 text-white hover:bg-red-600"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeServiceFromDeck(service.id);
+                        }}
+                        title="Remove from deck"
+                        data-testid={`button-remove-from-deck-${service.id}`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+
+                      <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none"></div>
+                    </div>
                   </div>
+                );
+              })}
+
+              {hasEmptySlots && (
+                <div
+                  className="w-32 h-48 aspect-[2/3] border-2 border-dashed border-gray-500 rounded-lg flex items-center justify-center opacity-50 hover:opacity-75 transition-all ml-4"
+                  data-testid="empty-slot-add"
+                >
+                  <Plus className="w-8 h-8 text-gray-500" />
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
