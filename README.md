@@ -89,6 +89,9 @@ npm run build
 # Start development servers (monorepo)
 npm run dev
 
+# Start all services with one command (backend 8000, frontend 3000, MCP 3001)
+npm run dev:all
+
 # Run tests
 npm test
 ```

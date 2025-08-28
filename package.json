@@ -10,6 +10,10 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:all": "bash ./scripts/dev-all.sh",
+    "backend:dev": "npm --workspace packages/backend run dev",
+    "frontend:dev": "npm --workspace apps/agent-deck run dev -- --port 3000 --strictPort",
+    "mcp": "npm --workspace packages/backend run mcp",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean",
