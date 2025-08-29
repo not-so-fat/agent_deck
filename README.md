@@ -226,6 +226,14 @@ Notes:
 - `service_id` (TEXT NOT NULL)
 - `position` (INTEGER NOT NULL)
 
+## 📚 **Documentation**
+
+- **[Setup Guide](docs/SETUP.md)** - Complete installation and setup instructions
+- **[User Guide](docs/USER_GUIDE.md)** - How to use Agent Deck features
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - Technical architecture and design
+- **[Development Guide](docs/DEVELOPMENT.md)** - Development workflow and guidelines
+- **[Integration Guide](docs/INTEGRATION.md)** - Integration and migration documentation
+
 ## Development
 
 ### **Project Structure**
@@ -236,7 +244,8 @@ agent-deck/
 │   └── backend/          # Fastify API server + MCP server (HTTP)
 ├── apps/
 │   └── agent-deck/       # React frontend
-└── misc/                 # Documentation and assets
+├── docs/                 # Documentation
+└── misc/                 # Assets and misc files
 ```
 
 ### **Testing**
@@ -246,7 +255,7 @@ npm test
 
 # Run tests for specific package
 cd packages/backend && npm test
-cd packages/mcp-server && npm test
+cd apps/agent-deck && npm test
 cd packages/shared && npm test
 ```
 
