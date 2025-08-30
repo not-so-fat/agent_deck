@@ -290,6 +290,9 @@ export interface Deck {
 - **Routing**: Wouter
 - **Real-time**: WebSocket integration
 - **Testing**: Vitest + Testing Library
+- **Service Registration**: Tabbed modal for Remote MCP and Local MCP servers
+- **Service Display**: Clear type distinction (Remote MCP, Local MCP, A2A)
+- **Local MCP Management**: Environment variables, command validation, process lifecycle
 
 ### Shared (packages/shared)
 - **Types**: TypeScript interfaces
@@ -390,6 +393,31 @@ Local MCP servers are spawned as subprocesses and communicate via stdio transpor
 - **Automatic Discovery**: Tools and capabilities discovered automatically
 - **Seamless Routing**: MCP calls routed to appropriate local or remote servers
 - **Health Monitoring**: Integrated with existing health check system
+
+### Frontend Integration Plan
+
+#### **Service Registration Modal**
+- **Tabbed Interface**: Single modal with "Remote MCP Server" and "Local MCP Server" tabs
+- **Remote MCP Tab**: Existing MCP server registration form
+- **Local MCP Tab**: New form with command, arguments, and environment variables
+
+#### **Local MCP Form Fields**
+- **Name**: Required, must be unique across all services
+- **Command**: Required, validated for safety (e.g., "npx", "python")
+- **Arguments**: Array of strings (e.g., ["-y", "@modelcontextprotocol/server-memory"])
+- **Environment Variables**: Optional key-value pairs for server configuration
+
+#### **Service Card Display**
+- **Remote MCP**: Shows "Remote MCP" badge and "RM" corner indicator
+- **Local MCP**: Shows "Local MCP" badge and "LM" corner indicator
+- **A2A**: Shows "A2A" badge and "A" corner indicator
+
+#### **User Experience Flow**
+1. **Click "Register MCP"** → Opens tabbed modal (Remote MCP selected by default)
+2. **Switch to "Local MCP Server" tab** → Shows local server form
+3. **Fill form** → Name, command, arguments, environment variables
+4. **Submit** → Validation → Import → Start server → Success feedback
+5. **Result** → Service appears in collection with "Local MCP" badge
 
 ### **Unified Service Architecture**
 
@@ -598,6 +626,7 @@ export async function createServiceHandler(
 
 ### 📋 Planned
 - **Enhanced Features**: Advanced deck management, service templates, Docker containerization for local servers
+- **Frontend Integration**: Local MCP server UI integration with tabbed registration modal
 
 ## Benefits of This Architecture
 

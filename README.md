@@ -48,9 +48,11 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **Cyberpunk-themed UI** with card-based interface
 - **Drag & Drop**: Build decks by dragging service cards
 - **Real-time Updates**: Live service health monitoring
-- **Service Registration**: Add MCP and A2A services
+- **Service Registration**: Add MCP, A2A, and Local MCP services
+- **Tabbed Registration**: Unified modal with Remote MCP and Local MCP tabs
 - **Deck Management**: Create and manage multiple decks
 - **Search & Filter**: Find services quickly
+- **Service Type Display**: Clear distinction between Remote MCP, Local MCP, and A2A services
 
 ### **Local MCP Servers**
 - **JSON Configuration**: Import local servers from mcpServers manifests
@@ -291,6 +293,13 @@ curl http://localhost:8000/api/local-mcp/{serviceId}/status
 - **Environment Sanitization**: Only allows safe environment variable names
 - **Process Isolation**: Each server runs in its own process
 - **User Trust Model**: Assumes local environment trust
+
+### **Frontend Integration (Coming Soon)**
+- **Tabbed Registration Modal**: Single "Register MCP" button with Remote/Local tabs
+- **Local MCP Form**: Command, arguments, and environment variables input
+- **Service Type Display**: Clear "Remote MCP" vs "Local MCP" distinction
+- **Real-time Validation**: Command safety and environment variable validation
+- **Process Management**: Start/stop local servers from the UI
 
 ## Database Schema
 
