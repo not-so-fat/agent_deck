@@ -41,6 +41,28 @@ Agent Deck is a local application that acts as a "browser for agents" to manage 
    - **Card Color**: Choose a color for the service card
 4. Click **"Register Service"**
 
+#### **Local MCP Services**
+1. Click the **"Register MCP"** button
+2. Switch to the **"Local MCP Server"** tab
+3. **Option 1 - JSON Configuration**:
+   - Paste a JSON configuration with `mcpServers` format
+   - Click **"Parse Configuration"** to extract details
+   - Review and edit the parsed information
+   - Click **"Register Service"**
+4. **Option 2 - Manual Entry**:
+   - **Name**: Unique name for the service
+   - **Command**: Executable command (e.g., `npx`, `python`)
+   - **Arguments**: Array of command arguments
+   - **Environment Variables**: Optional key-value pairs
+   - **Description**: Optional description
+5. Click **"Register Service"**
+
+**Important Notes**:
+- **On-Demand Startup**: Local MCP servers start automatically when first accessed, not on system startup
+- **Name Uniqueness**: Service names must be unique across all service types (Remote MCP, Local MCP, A2A)
+- **Command Safety**: Only safe commands are allowed (no `rm`, `sudo`, etc.)
+- **Process Management**: Servers are automatically managed and cleaned up on system shutdown
+
 ### **Service Configuration**
 
 #### **OAuth Setup**

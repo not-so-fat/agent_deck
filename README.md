@@ -58,6 +58,7 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **JSON Configuration**: Import local servers from mcpServers manifests
 - **Stdio Transport**: Spawn subprocesses and communicate via JSON-RPC
 - **Security Features**: Command validation and environment sanitization
+- **On-Demand Startup**: Servers start automatically when first accessed (not on system boot)
 - **Automatic Discovery**: Tools and capabilities discovered automatically
 - **Process Management**: Start, stop, and monitor local server processes
 

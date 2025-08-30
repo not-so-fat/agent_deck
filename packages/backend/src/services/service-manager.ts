@@ -92,6 +92,24 @@ export class ServiceManager {
   }
 
   async deleteService(id: string): Promise<boolean> {
+    // First, get the service to check if it's a local MCP server
+    const service = await this.db.getService(id);
+    if (!service) {
+      return false; // Service doesn't exist
+    }
+    
+    // If it's a local MCP server, stop it first
+    if (service.type === 'local-mcp') {
+      try {
+        console.log(`🛑 Stopping local MCP server before deletion: ${service.name}`);
+        await this.stopLocalServer(id);
+      } catch (error) {
+        console.warn(`⚠️ Failed to stop local MCP server ${service.name}:`, error);
+        // Continue with deletion even if stopping fails
+      }
+    }
+    
+    // Delete the service from database
     return await this.db.deleteService(id);
   }
 

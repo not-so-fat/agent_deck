@@ -393,6 +393,43 @@ Local MCP servers are spawned as subprocesses and communicate via stdio transpor
 - **Automatic Discovery**: Tools and capabilities discovered automatically
 - **Seamless Routing**: MCP calls routed to appropriate local or remote servers
 - **Health Monitoring**: Integrated with existing health check system
+- **On-Demand Startup**: Local MCP servers are started only when first accessed, not on system startup
+
+### **On-Demand Local MCP Server Startup**
+
+Local MCP servers use an **on-demand startup** approach rather than automatic startup on system boot:
+
+#### **Design Decision**
+- **Fast System Startup**: The main system starts quickly without waiting for local MCP servers
+- **Resource Efficiency**: Only starts servers that are actually used
+- **Better Error Isolation**: Startup failures don't block the entire system
+- **Improved User Experience**: Users get immediate access to the system
+
+#### **Implementation**
+```typescript
+// In MCPClientManager.getClient()
+if (service.type === 'local-mcp') {
+  // Check if server is already running
+  if (!this.localServerManager.isLocalServerRunning(service.id)) {
+    // Start the server on first access
+    await this.localServerManager.startLocalServer(service);
+  }
+  return this.localServerManager.getClient(service.id);
+}
+```
+
+#### **Benefits**
+- ✅ **Fast System Startup**: No waiting for potentially slow local servers
+- ✅ **Resource Efficiency**: Only starts servers that are actually needed
+- ✅ **Better Error Isolation**: Startup failures don't block the entire system
+- ✅ **User Experience**: Users get immediate access to the system
+- ✅ **Graceful Degradation**: If a local server fails to start, it only affects that specific service
+
+#### **Lifecycle**
+1. **System Startup**: Main system starts quickly, local MCP servers remain stopped
+2. **First Access**: When a local MCP server is first accessed, it's started automatically
+3. **Subsequent Access**: Server remains running for subsequent requests
+4. **System Shutdown**: All local MCP servers are properly stopped and cleaned up
 
 ### Frontend Integration Plan
 
