@@ -1,5 +1,27 @@
 import '@testing-library/jest-dom'
 import { vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { render } from '@testing-library/react'
+import React from 'react'
+
+// Create a custom render function that includes providers
+const createTestQueryClient = () => new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+})
+
+export const createTestWrapper = () => {
+  const testQueryClient = createTestQueryClient()
+  
+  return ({ children }: { children: React.ReactNode }) => 
+    React.createElement(QueryClientProvider, { client: testQueryClient }, children)
+}
 
 // Mock IntersectionObserver
 global.IntersectionObserver = vi.fn().mockImplementation(() => ({

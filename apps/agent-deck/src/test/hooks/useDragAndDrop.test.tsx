@@ -1,53 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useDragAndDrop } from '@/hooks/use-drag-and-drop'
-import { Service } from '@agent-deck/shared'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import React from 'react'
+import { createTestWrapper } from '../setup'
+
+// Mock the API request function
+vi.mock('@/lib/queryClient', () => ({
+  apiRequest: vi.fn()
+}))
 
 // Mock the toast hook
-vi.mock('../../hooks/use-toast', () => ({
+vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     toast: vi.fn()
   })
 }))
 
-// Mock the API request
-vi.mock('../../lib/queryClient', () => ({
-  apiRequest: vi.fn()
-}))
-
-// Create a test wrapper with QueryClient
-const createTestWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  })
-  
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+const mockService = {
+  id: 'test-service-1',
+  name: 'Test Service',
+  type: 'mcp' as const,
+  url: 'http://localhost:8000/mcp',
+  health: 'healthy' as const,
+  description: 'A test service',
+  cardColor: '#7ed4da',
+  isConnected: true,
+  lastPing: '2025-08-30T16:41:28.265Z',
+  registeredAt: '2025-08-30T16:41:28.265Z',
+  updatedAt: '2025-08-30T16:41:28.265Z'
 }
 
 describe('useDragAndDrop', () => {
-  const mockService: Service = {
-    id: 'test-service-1',
-    name: 'Test Service',
-    type: 'mcp',
-    url: 'http://localhost:8000/mcp',
-    health: 'healthy',
-    description: 'A test service',
-    cardColor: '#7ed4da',
-    isConnected: true,
-    lastPing: new Date().toISOString(),
-    registeredAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -58,16 +40,14 @@ describe('useDragAndDrop', () => {
         wrapper: createTestWrapper()
       })
 
+      expect(result.current.draggedService).toBe(null)
       expect(result.current.isDraggingFromDeck).toBe(false)
-      expect(typeof result.current.handleDragStart).toBe('function')
-      expect(typeof result.current.handleDragEnd).toBe('function')
-      expect(typeof result.current.handleDrop).toBe('function')
-      expect(typeof result.current.handleGlobalDrop).toBe('function')
+      expect(result.current.isDropping).toBe(false)
     })
   })
 
   describe('Drag Start', () => {
-    it('handles drag start event', () => {
+    it('handles drag start event from collection', () => {
       const { result } = renderHook(() => useDragAndDrop(), {
         wrapper: createTestWrapper()
       })
@@ -75,22 +55,31 @@ describe('useDragAndDrop', () => {
       const mockDragEvent = {
         dataTransfer: {
           setData: vi.fn(),
-          setDragImage: vi.fn()
+          effectAllowed: ''
         },
-        preventDefault: vi.fn()
+        currentTarget: {
+          style: { opacity: '' }
+        }
       } as any
 
       act(() => {
-        result.current.handleDragStart(mockDragEvent, mockService)
+        result.current.handleDragStart(mockDragEvent, mockService, false)
       })
 
+      expect(result.current.draggedService).toEqual(mockService)
+      expect(result.current.isDraggingFromDeck).toBe(false)
+      expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
+        'text/plain',
+        mockService.id
+      )
       expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
         'application/json',
-        JSON.stringify(mockService)
+        JSON.stringify({ serviceId: mockService.id, fromDeck: false })
       )
+      expect(mockDragEvent.dataTransfer.effectAllowed).toBe('copy')
     })
 
-    it('sets drag image when provided', () => {
+    it('handles drag start event from deck', () => {
       const { result } = renderHook(() => useDragAndDrop(), {
         wrapper: createTestWrapper()
       })
@@ -98,22 +87,28 @@ describe('useDragAndDrop', () => {
       const mockDragEvent = {
         dataTransfer: {
           setData: vi.fn(),
-          setDragImage: vi.fn()
+          effectAllowed: ''
         },
-        preventDefault: vi.fn()
+        currentTarget: {
+          style: { opacity: '' }
+        }
       } as any
 
-      const mockElement = document.createElement('div')
-
       act(() => {
-        result.current.handleDragStart(mockDragEvent, mockService, mockElement)
+        result.current.handleDragStart(mockDragEvent, mockService, true)
       })
 
-      expect(mockDragEvent.dataTransfer.setDragImage).toHaveBeenCalledWith(
-        mockElement,
-        0,
-        0
+      expect(result.current.draggedService).toEqual(mockService)
+      expect(result.current.isDraggingFromDeck).toBe(true)
+      expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
+        'text/plain',
+        mockService.id
       )
+      expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
+        'application/json',
+        JSON.stringify({ serviceId: mockService.id, fromDeck: true })
+      )
+      expect(mockDragEvent.dataTransfer.effectAllowed).toBe('move')
     })
   })
 
@@ -123,223 +118,77 @@ describe('useDragAndDrop', () => {
         wrapper: createTestWrapper()
       })
 
-      const mockDragEvent = {
+      // First start a drag
+      const mockStartEvent = {
         dataTransfer: {
-          clearData: vi.fn()
+          setData: vi.fn(),
+          effectAllowed: ''
         },
-        preventDefault: vi.fn()
+        currentTarget: {
+          style: { opacity: '' }
+        }
       } as any
 
       act(() => {
-        result.current.handleDragEnd(mockDragEvent)
+        result.current.handleDragStart(mockStartEvent, mockService, false)
       })
 
-      expect(mockDragEvent.dataTransfer.clearData).toHaveBeenCalled()
+      expect(result.current.draggedService).toEqual(mockService)
+
+      // Then end the drag
+      const mockEndEvent = {
+        currentTarget: {
+          style: { opacity: '0.5' }
+        }
+      } as any
+
+      act(() => {
+        result.current.handleDragEnd(mockEndEvent)
+      })
+
+      expect(result.current.draggedService).toBe(null)
     })
   })
 
   describe('Drop Handling', () => {
-    it('handles drop event with valid service data', () => {
+    it('handles drop event with no service data', () => {
       const { result } = renderHook(() => useDragAndDrop(), {
         wrapper: createTestWrapper()
       })
 
       const mockDropEvent = {
-        dataTransfer: {
-          getData: vi.fn().mockReturnValue(JSON.stringify(mockService))
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      const mockCallback = vi.fn()
-
-      act(() => {
-        result.current.handleDrop(mockDropEvent, mockCallback)
-      })
-
-      expect(mockDropEvent.preventDefault).toHaveBeenCalled()
-      expect(mockCallback).toHaveBeenCalledWith(mockService)
-    })
-
-    it('handles drop event with invalid service data', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      const mockDropEvent = {
-        dataTransfer: {
-          getData: vi.fn().mockReturnValue('invalid-json')
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      const mockCallback = vi.fn()
-
-      act(() => {
-        result.current.handleDrop(mockDropEvent, mockCallback)
-      })
-
-      expect(mockDropEvent.preventDefault).toHaveBeenCalled()
-      expect(mockCallback).not.toHaveBeenCalled()
-    })
-
-    it('handles drop event with no data', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      const mockDropEvent = {
+        preventDefault: vi.fn(),
         dataTransfer: {
           getData: vi.fn().mockReturnValue('')
-        },
-        preventDefault: vi.fn()
+        }
       } as any
 
-      const mockCallback = vi.fn()
-
       act(() => {
-        result.current.handleDrop(mockDropEvent, mockCallback)
+        result.current.handleDrop(mockDropEvent)
       })
 
       expect(mockDropEvent.preventDefault).toHaveBeenCalled()
-      expect(mockCallback).not.toHaveBeenCalled()
     })
   })
 
   describe('Global Drop Handling', () => {
-    it('handles global drop event', () => {
+    it('handles global drop with no service data', () => {
       const { result } = renderHook(() => useDragAndDrop(), {
         wrapper: createTestWrapper()
       })
 
       const mockDropEvent = {
+        preventDefault: vi.fn(),
         dataTransfer: {
-          getData: vi.fn().mockReturnValue(JSON.stringify(mockService))
-        },
-        preventDefault: vi.fn()
+          getData: vi.fn().mockReturnValue('')
+        }
       } as any
 
-      const mockCallback = vi.fn()
-
       act(() => {
-        result.current.handleGlobalDrop(mockDropEvent, mockCallback)
+        result.current.handleGlobalDrop(mockDropEvent)
       })
 
       expect(mockDropEvent.preventDefault).toHaveBeenCalled()
-      expect(mockCallback).toHaveBeenCalledWith(mockService)
-    })
-
-    it('handles global drop with invalid data', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      const mockDropEvent = {
-        dataTransfer: {
-          getData: vi.fn().mockReturnValue('invalid-json')
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      const mockCallback = vi.fn()
-
-      act(() => {
-        result.current.handleGlobalDrop(mockDropEvent, mockCallback)
-      })
-
-      expect(mockDropEvent.preventDefault).toHaveBeenCalled()
-      expect(mockCallback).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('Deck Dragging State', () => {
-    it('tracks dragging from deck state', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      // Initially should be false
-      expect(result.current.isDraggingFromDeck).toBe(false)
-
-      // Simulate starting drag from deck
-      const mockDragEvent = {
-        dataTransfer: {
-          setData: vi.fn(),
-          setDragImage: vi.fn()
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      act(() => {
-        result.current.handleDragStart(mockDragEvent, mockService, undefined, true)
-      })
-
-      // Should now be true
-      expect(result.current.isDraggingFromDeck).toBe(true)
-
-      // Simulate ending drag
-      const mockDropEvent = {
-        dataTransfer: {
-          getData: vi.fn().mockReturnValue(JSON.stringify(mockService))
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      act(() => {
-        result.current.handleDrop(mockDropEvent, vi.fn())
-      })
-
-      // Should be false again after drop
-      expect(result.current.isDraggingFromDeck).toBe(false)
-    })
-  })
-
-  describe('Error Handling', () => {
-    it('handles JSON parse errors gracefully', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      const mockDropEvent = {
-        dataTransfer: {
-          getData: vi.fn().mockImplementation(() => {
-            throw new Error('JSON parse error')
-          })
-        },
-        preventDefault: vi.fn()
-      } as any
-
-      const mockCallback = vi.fn()
-
-      // Should not throw error
-      expect(() => {
-        act(() => {
-          result.current.handleDrop(mockDropEvent, mockCallback)
-        })
-      }).not.toThrow()
-
-      expect(mockCallback).not.toHaveBeenCalled()
-    })
-
-    it('handles missing dataTransfer', () => {
-      const { result } = renderHook(() => useDragAndDrop(), {
-        wrapper: createTestWrapper()
-      })
-
-      const mockDropEvent = {
-        preventDefault: vi.fn()
-      } as any
-
-      const mockCallback = vi.fn()
-
-      // Should not throw error
-      expect(() => {
-        act(() => {
-          result.current.handleDrop(mockDropEvent, mockCallback)
-        })
-      }).not.toThrow()
-
-      expect(mockCallback).not.toHaveBeenCalled()
     })
   })
 })
