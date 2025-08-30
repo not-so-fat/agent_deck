@@ -48,7 +48,7 @@ const getServiceIcon = (service: Service) => {
     }
   }
   
-  return service.type === 'mcp' ? <Database className="w-6 h-6" /> : <Brain className="w-6 h-6" />;
+  return service.type === 'mcp' || service.type === 'local-mcp' ? <Database className="w-6 h-6" /> : <Brain className="w-6 h-6" />;
 };
 
 
@@ -146,14 +146,16 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
         {/* Playing Card Corner - Top Left */}
         <div className="absolute top-1 left-1 text-xs font-bold">
           <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-            {service.type === 'mcp' ? 'M' : 'A'}
+            {service.type === 'mcp' ? 'RM' : 
+             service.type === 'local-mcp' ? 'LM' : 'A'}
           </div>
         </div>
         
         {/* Playing Card Corner - Bottom Right (upside down) */}
         <div className="absolute bottom-1 right-1 text-xs font-bold rotate-180">
           <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-            {service.type === 'mcp' ? 'M' : 'A'}
+            {service.type === 'mcp' ? 'RM' : 
+             service.type === 'local-mcp' ? 'LM' : 'A'}
           </div>
         </div>
         
@@ -193,7 +195,9 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
             color: service.cardColor || '#7ed4da',
             borderColor: service.cardColor || '#7ed4da'
           }}>
-            {service.type.toUpperCase()}
+            {service.type === 'mcp' ? 'Remote MCP' : 
+             service.type === 'local-mcp' ? 'Local MCP' : 
+             'A2A'}
           </div>
           
 

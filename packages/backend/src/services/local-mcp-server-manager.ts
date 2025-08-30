@@ -136,14 +136,17 @@ export class LocalMCPServerManager {
    */
   private async discoverCapabilities(client: Client) {
     try {
-      const [tools, resources, prompts] = await Promise.all([
-        client.listTools().catch(() => []),
+      const [toolsResponse, resources, prompts] = await Promise.all([
+        client.listTools().catch(() => ({ tools: [] })),
         client.listResources().catch(() => []),
         client.listPrompts().catch(() => []),
       ]);
 
+      // Handle tools response - it might be an object with a tools property or a direct array
+      const tools = Array.isArray(toolsResponse) ? toolsResponse : (toolsResponse as any)?.tools || [];
+
       return {
-        tools: (tools as any[] || []).map((tool: any) => ({
+        tools: tools.map((tool: any) => ({
           name: tool.name || tool.title || 'Unknown Tool',
           description: tool.description || '',
           inputSchema: tool.inputSchema || {},

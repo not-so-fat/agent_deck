@@ -44,7 +44,7 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **Database Integration**: Automatically reads active deck from database
 - **Local Server Support**: Spawn and manage local MCP servers via stdio transport
 
-### **Frontend**
+### **Frontend** ✅ **Fully Implemented**
 - **Cyberpunk-themed UI** with card-based interface
 - **Drag & Drop**: Build decks by dragging service cards
 - **Real-time Updates**: Live service health monitoring
@@ -69,7 +69,7 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **`@agent-deck/backend`** - Fastify API server with SQLite database and the MCP server (HTTP transport)
 
 ### **Apps:**
-- **`apps/agent-deck`** - React frontend (coming soon - will integrate existing frontend)
+- **`apps/agent-deck`** - React frontend ✅ **Fully implemented**
 
 
 ## Quick Start
@@ -294,7 +294,7 @@ curl http://localhost:8000/api/local-mcp/{serviceId}/status
 - **Process Isolation**: Each server runs in its own process
 - **User Trust Model**: Assumes local environment trust
 
-### **Frontend Integration (Coming Soon)**
+### **Frontend Integration** ✅ **Fully Implemented**
 - **Tabbed Registration Modal**: Single "Register MCP" button with Remote/Local tabs
 - **Local MCP Form**: Command, arguments, and environment variables input
 - **Service Type Display**: Clear "Remote MCP" vs "Local MCP" distinction

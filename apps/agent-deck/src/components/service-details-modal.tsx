@@ -136,7 +136,7 @@ export default function ServiceDetailsModal({
   const { data: mcpToolsData, isLoading: mcpToolsLoading, error: mcpToolsError, refetch: refetchMcpTools } = useQuery({
     queryKey: ['/api/services', apiService?.id, 'tools'],
     queryFn: async () => {
-      if (!apiService || apiService.type !== 'mcp') return { data: [] };
+      if (!apiService || (apiService.type !== 'mcp' && apiService.type !== 'local-mcp')) return { data: [] };
       
       console.log(`🔍 Attempting to discover tools for MCP service: ${apiService.id} at ${apiService.url}`);
       
@@ -150,7 +150,7 @@ export default function ServiceDetailsModal({
         throw error;
       }
     },
-    enabled: hasValidService && apiService.type === 'mcp' && isOpen && !mcpDiscoveryData?.data?.oauth?.required,
+    enabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || !mcpDiscoveryData?.data?.oauth?.required),
     staleTime: 0, // Always fetch fresh data for tools
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
   });
@@ -160,7 +160,7 @@ export default function ServiceDetailsModal({
     apiServiceType: apiService?.type,
     isOpen,
     oauthRequired: mcpDiscoveryData?.data?.oauth?.required,
-    toolsQueryEnabled: hasValidService && apiService.type === 'mcp' && isOpen && !mcpDiscoveryData?.data?.oauth?.required,
+    toolsQueryEnabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || !mcpDiscoveryData?.data?.oauth?.required),
     mcpToolsLoading
   });
 
@@ -681,7 +681,7 @@ export default function ServiceDetailsModal({
             )}
 
             {/* MCP Tools - Playing Card Style */}
-            {service.type === 'mcp' && mcpTools.length > 0 && (
+            {(service.type === 'mcp' || service.type === 'local-mcp') && mcpTools.length > 0 && (
               <div className="bg-black/20 rounded-lg p-4 border border-white/10">
                 <h3 className="text-lg font-semibold mb-4 flex items-center">
                   <Wrench className="w-5 h-5 mr-2" />
@@ -1084,7 +1084,7 @@ export default function ServiceDetailsModal({
             )}
 
             {/* Error Display */}
-            {mcpToolsError && service.type === 'mcp' && (
+            {mcpToolsError && (service.type === 'mcp' || service.type === 'local-mcp') && (
               <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4">
                 <h3 className="text-red-300 font-semibold mb-2">MCP Tool Discovery Failed</h3>
                 <div className="text-red-200 text-sm space-y-2">
@@ -1121,7 +1121,7 @@ export default function ServiceDetailsModal({
             )}
 
             {/* No Tools/Details Available (Success but empty) */}
-            {!isLoading && !mcpToolsError && !a2aManifestError && service.type === 'mcp' && mcpTools.length === 0 && !mcpDiscoveryData?.data?.oauth?.required && (
+            {!isLoading && !mcpToolsError && !a2aManifestError && (service.type === 'mcp' || service.type === 'local-mcp') && mcpTools.length === 0 && (service.type === 'local-mcp' || !mcpDiscoveryData?.data?.oauth?.required) && (
               <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-4">
                 <h3 className="text-yellow-300 font-semibold mb-2">No Tools Available</h3>
                 <p className="text-yellow-200 text-sm">
@@ -1139,7 +1139,7 @@ export default function ServiceDetailsModal({
             )}
 
             {/* MCP Discovery Information */}
-            {service.type === 'mcp' && (
+            {(service.type === 'mcp' || service.type === 'local-mcp') && (
               <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
                 <h3 className="text-blue-300 font-semibold mb-2">🔍 MCP Server Analysis</h3>
                 <div className="text-blue-200 text-sm space-y-2">
