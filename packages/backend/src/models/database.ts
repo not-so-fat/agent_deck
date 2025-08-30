@@ -30,7 +30,7 @@ export class DatabaseManager {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS services (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
+        name TEXT NOT NULL UNIQUE,
         type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a', 'local-mcp')),
         url TEXT NOT NULL,
         health TEXT NOT NULL DEFAULT 'unknown',

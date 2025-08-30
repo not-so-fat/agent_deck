@@ -44,6 +44,13 @@ export class ServiceManager {
     // Validate input
     const validatedInput = CreateServiceSchema.parse(input);
     
+    // Check for name conflicts
+    const existingServices = await this.db.getAllServices();
+    const nameConflict = existingServices.find(s => s.name === validatedInput.name);
+    if (nameConflict) {
+      throw new Error(`Service with name "${validatedInput.name}" already exists`);
+    }
+    
     // Create service in database
     const service = await this.db.createService(validatedInput);
     
@@ -250,15 +257,13 @@ export class ServiceManager {
       const createdServices: Service[] = [];
       
       for (const serviceInput of services) {
-        // Check if service already exists
+        // Check if service already exists (any type with same name)
         const existingServices = await this.db.getAllServices();
-        const existingService = existingServices.find(s => 
-          s.type === 'local-mcp' && s.name === serviceInput.name
-        );
+        const existingService = existingServices.find(s => s.name === serviceInput.name);
         
         if (existingService) {
-          console.log(`⚠️ Local MCP server ${serviceInput.name} already exists, skipping`);
-          continue;
+          console.log(`⚠️ Service with name "${serviceInput.name}" already exists (type: ${existingService.type}), skipping`);
+          throw new Error(`Service with name "${serviceInput.name}" already exists`);
         }
         
         // Validate command safety
