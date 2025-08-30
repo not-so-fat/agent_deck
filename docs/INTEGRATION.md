@@ -46,18 +46,18 @@ The MCP server provides a unified interface to all services in the active deck. 
 ### **Available MCP Tools**
 
 #### **Deck Management**
-1. `get_services` - Get all available services
-2. `get_decks` - Get all decks
-3. `get_active_deck` - Get the currently active deck
-4. `list_active_deck_services` - List services in the active deck
+1. `get_decks` - Get all available decks
+2. `get_active_deck` - Get the currently active deck with services
+3. `list_active_deck_services` - List services in the active deck
 
 #### **Service Management**
-5. `list_service_tools(serviceId)` - Discover tools for a specific service
-6. `call_service_tool(serviceId, toolName, arguments?)` - Call a tool on a service
+4. `list_service_tools(serviceId)` - Discover tools for a specific service in the active deck
+5. `call_service_tool(serviceId, toolName, arguments?)` - Call a tool on a service from the active deck
 
 ### **Available MCP Resources**
-1. `agent-deck://services` - List of all services
-2. `agent-deck://decks` - List of all decks
+1. `agent-deck://decks` - List of all available decks
+2. `agent-deck://active-deck` - The currently active deck
+3. `agent-deck://active-deck/services` - Services in the currently active deck
 
 ### **MCP Client Integration Example**
 ```typescript

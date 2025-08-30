@@ -119,18 +119,18 @@ For services requiring OAuth authentication:
 When connected to the MCP server, you can access:
 
 1. **Deck Management Tools**:
-   - `get_services` - List all available services
-   - `get_decks` - List all decks
-   - `get_active_deck` - Get the currently active deck
+   - `get_decks` - List all available decks
+   - `get_active_deck` - Get the currently active deck with services
    - `list_active_deck_services` - List services in the active deck
 
 2. **Service Tools**:
-   - `list_service_tools(serviceId)` - Discover tools for a specific service
-   - `call_service_tool(serviceId, toolName, arguments?)` - Call a tool on a service
+   - `list_service_tools(serviceId)` - Discover tools for a specific service in the active deck
+   - `call_service_tool(serviceId, toolName, arguments?)` - Call a tool on a service from the active deck
 
 ### **Available MCP Resources**
-- `agent-deck://services` - List of all services
-- `agent-deck://decks` - List of all decks
+- `agent-deck://decks` - List of all available decks
+- `agent-deck://active-deck` - The currently active deck
+- `agent-deck://active-deck/services` - Services in the currently active deck
 
 ### **Connecting MCP Clients**
 1. **Configure MCP Client**: Set the MCP server URL to `http://localhost:3001/mcp`

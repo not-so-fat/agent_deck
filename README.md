@@ -205,12 +205,11 @@ Recommended startup order:
 The MCP server (inside `@agent-deck/backend`) provides a unified interface to services in the active deck using the official MCP SDK over HTTP transport.
 
 ### **Tools (partial)**
-- `get_services`: List all services
-- `get_decks`: List all decks
-- `get_active_deck`: Get the active deck
+- `get_decks`: List all available decks
+- `get_active_deck`: Get the active deck with services
 - `list_active_deck_services`: List services in the active deck
-- `list_service_tools(serviceId)`: Discover tools for a service
-- `call_service_tool(serviceId, toolName, arguments?)`: Call a tool on a registered service via backend `/api/services/:id/call`
+- `list_service_tools(serviceId)`: Discover tools for a service in the active deck
+- `call_service_tool(serviceId, toolName, arguments?)`: Call a tool on a service from the active deck
 
 Notes:
 - The HTTP transport requires a valid MCP session. Use an MCP client (Cursor, `use-mcp`, or the official SDK client) to connect and call tools. Direct `curl` requires session headers and is not recommended for normal use.

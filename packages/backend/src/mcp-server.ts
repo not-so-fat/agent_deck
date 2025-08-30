@@ -63,28 +63,10 @@ export class AgentDeckMCPServer {
   }
 
   private setupTools() {
-    // Get all services
-    this.server.registerTool("get_services", {
-      title: "Get Services",
-      description: "Get all available MCP services from Agent Deck",
-      inputSchema: {}
-    }, async () => {
-      try {
-        const services = await this.callBackendAPI('/api/services');
-        return {
-          content: [{ type: "text", text: JSON.stringify(services, null, 2) }]
-        };
-      } catch (error) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }]
-        };
-      }
-    });
-
-    // Get all decks
+    // Get all decks (useful for seeing available decks)
     this.server.registerTool("get_decks", {
       title: "Get Decks",
-      description: "Get all decks from Agent Deck",
+      description: "Get all available decks from Agent Deck",
       inputSchema: {}
     }, async () => {
       try {
@@ -99,10 +81,10 @@ export class AgentDeckMCPServer {
       }
     });
 
-    // Get active deck
+    // Get active deck with its services
     this.server.registerTool("get_active_deck", {
       title: "Get Active Deck",
-      description: "Get the currently active deck",
+      description: "Get the currently active deck with all its services",
       inputSchema: {}
     }, async () => {
       try {
@@ -114,20 +96,6 @@ export class AgentDeckMCPServer {
         return {
           content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }]
         };
-      }
-    });
-
-    // List tools for a specific service
-    this.server.registerTool("list_service_tools", {
-      title: "List Service Tools",
-      description: "List all available tools for a specific service",
-      inputSchema: { serviceId: z.string() }
-    }, async ({ serviceId }) => {
-      try {
-        const tools = await this.callBackendAPI(`/api/services/${serviceId}/tools`);
-        return { content: [{ type: "text", text: JSON.stringify(tools, null, 2) }] };
-      } catch (error) {
-        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
       }
     });
 
@@ -146,10 +114,24 @@ export class AgentDeckMCPServer {
       }
     });
 
-    // Call a tool on a registered service via backend API
+    // List tools for a specific service in the active deck
+    this.server.registerTool("list_service_tools", {
+      title: "List Service Tools",
+      description: "List all available tools for a specific service in the active deck",
+      inputSchema: { serviceId: z.string() }
+    }, async ({ serviceId }) => {
+      try {
+        const tools = await this.callBackendAPI(`/api/services/${serviceId}/tools`);
+        return { content: [{ type: "text", text: JSON.stringify(tools, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    // Call a tool on a service in the active deck
     this.server.registerTool("call_service_tool", {
       title: "Call Service Tool",
-      description: "Call a tool on a service from the active deck using the backend API",
+      description: "Call a tool on a service from the active deck",
       inputSchema: {
         serviceId: z.string(),
         toolName: z.string(),
@@ -186,18 +168,19 @@ export class AgentDeckMCPServer {
   }
 
   private setupResources() {
-    // Register resource for services
-    this.server.resource("services", "agent-deck://services", {
-      name: "Agent Deck Services",
-      description: "List of all available MCP services",
+    // Register resource for active deck services only
+    this.server.resource("active_deck_services", "agent-deck://active-deck/services", {
+      name: "Active Deck Services",
+      description: "List of services in the currently active deck",
       mimeType: "application/json"
     }, async () => {
       try {
-        const services = await this.callBackendAPI('/api/services');
+        const activeDeck = await this.callBackendAPI('/api/decks/active');
+        const services = activeDeck?.services ?? [];
         
         return {
           contents: [{
-            uri: "agent-deck://services",
+            uri: "agent-deck://active-deck/services",
             mimeType: "application/json",
             text: JSON.stringify(services, null, 2)
           }]
@@ -205,18 +188,45 @@ export class AgentDeckMCPServer {
       } catch (error) {
         return {
           contents: [{
-            uri: "agent-deck://services",
+            uri: "agent-deck://active-deck/services",
             mimeType: "application/json",
-            text: JSON.stringify({ error: `Failed to get services: ${error}` }, null, 2)
+            text: JSON.stringify({ error: `Failed to get active deck services: ${error}` }, null, 2)
           }]
         };
       }
     });
 
-    // Register resource for decks
+    // Register resource for active deck
+    this.server.resource("active_deck", "agent-deck://active-deck", {
+      name: "Active Deck",
+      description: "The currently active deck with all its services",
+      mimeType: "application/json"
+    }, async () => {
+      try {
+        const activeDeck = await this.callBackendAPI('/api/decks/active');
+        
+        return {
+          contents: [{
+            uri: "agent-deck://active-deck",
+            mimeType: "application/json",
+            text: JSON.stringify(activeDeck, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://active-deck",
+            mimeType: "application/json",
+            text: JSON.stringify({ error: `Failed to get active deck: ${error}` }, null, 2)
+          }]
+        };
+      }
+    });
+
+    // Register resource for all decks
     this.server.resource("decks", "agent-deck://decks", {
       name: "Agent Deck Decks",
-      description: "List of all decks",
+      description: "List of all available decks",
       mimeType: "application/json"
     }, async () => {
       try {
@@ -266,14 +276,14 @@ export class AgentDeckMCPServer {
           backend: backendStatus,
           connected: response.ok
         });
-              } catch (error) {
-          res.json({
-            mcpServer: 'ok',
-            backend: 'unreachable',
-            connected: false,
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
+      } catch (error) {
+        res.json({
+          mcpServer: 'ok',
+          backend: 'unreachable',
+          connected: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     });
   }
 
@@ -289,17 +299,20 @@ export class AgentDeckMCPServer {
       this.app.listen(this.port, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
-        console.log(`   - get_services: Get all available MCP services`);
-        console.log(`   - get_decks: Get all decks`);
-        console.log(`   - get_active_deck: Get the currently active deck`);
+        console.log(`   - get_decks: Get all available decks`);
+        console.log(`   - get_active_deck: Get the currently active deck with services`);
+        console.log(`   - list_active_deck_services: List services in the active deck`);
+        console.log(`   - list_service_tools: List tools for a specific service`);
+        console.log(`   - call_service_tool: Call a tool on a service`);
         console.log(`📋 Available resources:`);
-        console.log(`   - agent-deck://services: List of all services`);
-        console.log(`   - agent-deck://decks: List of all decks`);
+        console.log(`   - agent-deck://decks: List of all available decks`);
+        console.log(`   - agent-deck://active-deck: The currently active deck`);
+        console.log(`   - agent-deck://active-deck/services: Services in the active deck`);
         console.log(`🌐 Server running on http://localhost:${this.port}`);
         console.log(`🔧 MCP endpoint: http://localhost:${this.port}/mcp`);
         console.log(`❤️  Health check: http://localhost:${this.port}/health`);
         console.log(`🔗 Backend status: http://localhost:${this.port}/backend-status`);
-        console.log(`📝 Architecture: MCP Server → Backend API → Database`);
+        console.log(`📝 Architecture: MCP Server → Backend API → Active Deck Services`);
       });
       
       return this.app;
