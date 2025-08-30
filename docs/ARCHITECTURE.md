@@ -136,11 +136,11 @@ agent_deck/
 ### Database Schema
 
 ```sql
--- Services table (enhanced with OAuth)
+-- Services table (enhanced with OAuth and Local MCP support)
 CREATE TABLE services (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a')),
+    type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a', 'local-mcp')),
     url TEXT NOT NULL,
     health TEXT NOT NULL DEFAULT 'unknown',
     description TEXT,
@@ -161,7 +161,13 @@ CREATE TABLE services (
     oauth_access_token TEXT,
     oauth_refresh_token TEXT,
     oauth_token_expires_at TEXT,
-    oauth_state TEXT
+    oauth_state TEXT,
+    
+    -- Local MCP server fields
+    local_command TEXT,
+    local_args TEXT,
+    local_working_dir TEXT,
+    local_env TEXT
 );
 
 -- Decks table
@@ -192,7 +198,7 @@ CREATE TABLE deck_services (
 export interface Service {
   id: string;
   name: string;
-  type: 'mcp' | 'a2a';
+  type: 'mcp' | 'a2a' | 'local-mcp';
   url: string;
   health: 'unknown' | 'healthy' | 'unhealthy';
   description?: string;
@@ -214,6 +220,38 @@ export interface Service {
   oauthRefreshToken?: string;
   oauthTokenExpiresAt?: string;
   oauthState?: string;
+  
+  // Local MCP server fields
+  localCommand?: string;
+  localArgs?: string[];
+  localWorkingDir?: string;
+  localEnv?: Record<string, string>;
+}
+
+// Local MCP server configuration types
+export interface LocalMCPServerConfig {
+  command: string;
+  args: string[];
+  workingDir?: string;
+  env?: Record<string, string>;
+}
+
+export interface MCPServersManifest {
+  mcpServers: Record<string, LocalMCPServerConfig>;
+}
+
+export interface LocalMCPServerProcess {
+  id: string;
+  serviceId: string;
+  process: any; // Node.js ChildProcess
+  isRunning: boolean;
+  startTime: Date;
+  lastActivity: Date;
+  capabilities?: {
+    tools: ServiceTool[];
+    resources: any[];
+    prompts: string[];
+  };
 }
 
 // packages/shared/src/types/deck.ts
@@ -299,6 +337,129 @@ The MCP server provides a unified interface to all services in the active deck. 
 1. `agent-deck://services` - List of all services
 2. `agent-deck://decks` - List of all decks
 
+## Local MCP Server Architecture
+
+### Overview
+Local MCP servers are spawned as subprocesses and communicate via stdio transport. This allows users to run MCP servers locally without needing to set up HTTP endpoints.
+
+### Key Components
+
+#### **LocalMCPServerManager**
+- **Purpose**: Manages local MCP server processes
+- **Features**: 
+  - Subprocess spawning and lifecycle management
+  - Stdio transport integration with MCP SDK
+  - Capability discovery and caching
+  - Process monitoring and cleanup
+
+#### **ConfigManager**
+- **Purpose**: Handles JSON configuration parsing and validation
+- **Features**:
+  - Parse mcpServers manifests
+  - Validate command safety and environment variables
+  - Convert configurations to service definitions
+  - Generate sample configurations
+
+### Configuration Format
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "MCP_SERVER_FILESYSTEM_ROOT": "/path/to/root"
+      }
+    }
+  }
+}
+```
+
+### Security Features
+- **Command Validation**: Blocks unsafe commands (rm, sudo, etc.)
+- **Environment Sanitization**: Only allows safe environment variable names
+- **Process Isolation**: Each server runs in its own process
+- **User Trust Model**: Assumes local environment trust
+
+### Integration with Existing Architecture
+- **Unified Interface**: Local servers appear in the same MCP interface
+- **Automatic Discovery**: Tools and capabilities discovered automatically
+- **Seamless Routing**: MCP calls routed to appropriate local or remote servers
+- **Health Monitoring**: Integrated with existing health check system
+
+### **Unified Service Architecture**
+
+Local MCP servers are **services first**, not independent entities. They integrate seamlessly into the existing service architecture:
+
+#### **Single API for All Services**
+All services, regardless of type, use the same API endpoints:
+- `POST /api/services/:id/call` - Call tools on any service (unified)
+- `GET /api/services/:id/tools` - Discover tools for any service
+- `GET /api/services/:id/health` - Check health of any service
+
+#### **Internal Routing**
+The `MCPClientManager` handles routing internally:
+```typescript
+// Unified service calling - same API for all service types
+if (service.type === 'mcp' || service.type === 'a2a') {
+  // Use HTTP/SSE transport for remote services
+  return this.httpClient.callTool(service, toolName, arguments);
+} else if (service.type === 'local-mcp') {
+  // Use stdio transport for local services
+  return this.localServerManager.callTool(service.id, toolName, arguments);
+}
+```
+
+#### **Management vs. Usage**
+- **Management Endpoints** (`/api/local-mcp/*`): Only for process lifecycle (start/stop/import)
+- **Usage Endpoints** (`/api/services/*`): For all service operations (call tools, discover capabilities)
+
+#### **User Experience**
+Users interact with local MCP servers exactly like any other service:
+1. Import configuration → Creates services in database
+2. Add to deck → Same as any other service
+3. Call tools → Same unified API
+4. Monitor health → Same health check system
+
+#### **Architecture Flow**
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Active Deck                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │
+│  │ MCP Service │  │ A2A Service │  │Local MCP    │     │
+│  │ (Remote)    │  │ (Remote)    │  │Service      │     │
+│  └─────────────┘  └─────────────┘  └─────────────┘     │
+└─────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    POST /api/services/:id/call
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │ Service Manager │
+                    └─────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │ MCP Client      │
+                    │ Manager         │
+                    └─────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │ Route to:       │
+                    │ • HTTP/SSE      │
+                    │ • Local MCP     │
+                    │   (stdio)       │
+                    └─────────────────┘
+```
+
+This design ensures **consistency**, **simplicity**, and **maintainability** across all service types.
+
 ### Implementation Pattern
 ```typescript
 // Example MCP tool implementation
@@ -349,6 +510,14 @@ server.tool(
 #### OAuth
 - `GET /api/oauth/:serviceId/authorize` - Start OAuth flow
 - `GET /api/oauth/:serviceId/callback` - OAuth callback
+
+#### Local MCP Servers
+- `POST /api/local-mcp/import` - Import local servers from JSON configuration
+- `GET /api/local-mcp/sample-config` - Get sample configuration
+- `POST /api/local-mcp/:serviceId/start` - Start a local MCP server
+- `POST /api/local-mcp/:serviceId/stop` - Stop a local MCP server
+- `GET /api/local-mcp/:serviceId/status` - Get local server status
+- `GET /api/local-mcp/list` - List all local MCP servers
 
 #### WebSocket
 - `WS /ws` - Real-time updates for service status
@@ -420,6 +589,7 @@ export async function createServiceHandler(
 - **Shared Package**: Comprehensive types, schemas, and utilities with full test coverage
 - **Backend API Server**: Fastify server with SQLite database, full CRUD operations, OAuth support, and WebSocket
 - **MCP Server**: Complete MCP server implementation with unified access to active deck services
+- **Local MCP Servers**: Full support for local MCP servers with stdio transport, configuration management, and security features
 - **Frontend**: React application with modern UI and real-time updates
 - **Testing**: 81/81 tests passing across all packages
 
@@ -427,7 +597,7 @@ export async function createServiceHandler(
 - **OAuth Flow Implementation**: OAuth discovery and UI are complete, flow implementation in progress
 
 ### 📋 Planned
-- **Enhanced Features**: Local MCP servers, advanced deck management, service templates
+- **Enhanced Features**: Advanced deck management, service templates, Docker containerization for local servers
 
 ## Benefits of This Architecture
 

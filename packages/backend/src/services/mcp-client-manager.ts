@@ -2,6 +2,7 @@ import { Service, ServiceTool } from '@agent-deck/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { LocalMCPServerManager } from './local-mcp-server-manager';
 
 interface MCPTool {
   name: string;
@@ -18,9 +19,27 @@ interface MCPResource {
 
 export class MCPClientManager {
   private clients = new Map<string, Client>();
+  private localServerManager: LocalMCPServerManager;
+
+  constructor() {
+    this.localServerManager = new LocalMCPServerManager();
+  }
 
   private async getClient(service: Service): Promise<Client> {
     const clientKey = service.id;
+    
+    // Check if this is a local MCP server
+    if (service.type === 'local-mcp') {
+      // For local servers, we need to start them and get the client from the local manager
+      if (!this.localServerManager.isLocalServerRunning(service.id)) {
+        await this.localServerManager.startLocalServer(service);
+      }
+      const client = this.localServerManager.getClient(service.id);
+      if (!client) {
+        throw new Error(`Failed to get client for local MCP server ${service.id}`);
+      }
+      return client;
+    }
     
     if (this.clients.has(clientKey)) {
       return this.clients.get(clientKey)!;
@@ -138,6 +157,11 @@ export class MCPClientManager {
     try {
       console.log(`🔧 Calling tool ${toolName} on MCP service: ${service.url}`);
       
+      // For local servers, use the local manager
+      if (service.type === 'local-mcp') {
+        return await this.localServerManager.callTool(service.id, toolName, arguments_);
+      }
+      
       const client = await this.getClient(service);
       
       // Call the tool using the MCP protocol
@@ -157,6 +181,20 @@ export class MCPClientManager {
   async discoverResources(service: Service): Promise<MCPResource[]> {
     try {
       console.log(`🔍 Discovering resources for MCP service: ${service.url}`);
+      
+      // For local servers, get capabilities from the local manager
+      if (service.type === 'local-mcp') {
+        const processRecord = this.localServerManager.getLocalServer(service.id);
+        if (processRecord?.capabilities?.resources) {
+          return processRecord.capabilities.resources.map((resource: any) => ({
+            uri: resource.uri,
+            mimeType: resource.mimeType || 'application/json',
+            name: resource.name || resource.uri,
+            description: resource.description || '',
+          }));
+        }
+        return [];
+      }
       
       const client = await this.getClient(service);
       
@@ -183,6 +221,11 @@ export class MCPClientManager {
     try {
       console.log(`📖 Getting resource ${resourceUri} from MCP service: ${service.url}`);
       
+      // For local servers, use the local manager
+      if (service.type === 'local-mcp') {
+        return await this.localServerManager.getResource(service.id, resourceUri);
+      }
+      
       const client = await this.getClient(service);
       
       // Read the resource using the MCP protocol
@@ -201,6 +244,12 @@ export class MCPClientManager {
     try {
       console.log(`🔍 Listing prompts for MCP service: ${service.url}`);
       
+      // For local servers, get capabilities from the local manager
+      if (service.type === 'local-mcp') {
+        const processRecord = this.localServerManager.getLocalServer(service.id);
+        return processRecord?.capabilities?.prompts || [];
+      }
+      
       const client = await this.getClient(service);
       
       // List available prompts using the MCP protocol
@@ -217,6 +266,11 @@ export class MCPClientManager {
   async getPrompt(service: Service, promptName: string, arguments_?: Record<string, any>): Promise<any> {
     try {
       console.log(`📝 Getting prompt ${promptName} from MCP service: ${service.url}`);
+      
+      // For local servers, use the local manager
+      if (service.type === 'local-mcp') {
+        return await this.localServerManager.getPrompt(service.id, promptName, arguments_);
+      }
       
       const client = await this.getClient(service);
       
@@ -245,5 +299,8 @@ export class MCPClientManager {
       }
     }
     this.clients.clear();
+    
+    // Clean up local servers
+    await this.localServerManager.cleanup();
   }
 }

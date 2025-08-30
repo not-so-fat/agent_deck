@@ -1,7 +1,7 @@
 export interface Service {
   id: string;
   name: string;
-  type: 'mcp' | 'a2a';
+  type: 'mcp' | 'a2a' | 'local-mcp';
   url: string;
   health: 'unknown' | 'healthy' | 'unhealthy';
   description?: string;
@@ -23,11 +23,17 @@ export interface Service {
   oauthRefreshToken?: string;
   oauthTokenExpiresAt?: string;
   oauthState?: string;
+  
+  // Local MCP server fields
+  localCommand?: string;
+  localArgs?: string[];
+  localWorkingDir?: string;
+  localEnv?: Record<string, string>;
 }
 
 export interface CreateServiceInput {
   name: string;
-  type: 'mcp' | 'a2a';
+  type: 'mcp' | 'a2a' | 'local-mcp';
   url: string;
   description?: string;
   cardColor?: string;
@@ -40,6 +46,12 @@ export interface CreateServiceInput {
   oauthTokenUrl?: string;
   oauthRedirectUri?: string;
   oauthScope?: string;
+  
+  // Local MCP server fields
+  localCommand?: string;
+  localArgs?: string[];
+  localWorkingDir?: string;
+  localEnv?: Record<string, string>;
 }
 
 export interface UpdateServiceInput {
@@ -55,6 +67,12 @@ export interface UpdateServiceInput {
   oauthTokenUrl?: string;
   oauthRedirectUri?: string;
   oauthScope?: string;
+  
+  // Local MCP server fields
+  localCommand?: string;
+  localArgs?: string[];
+  localWorkingDir?: string;
+  localEnv?: Record<string, string>;
 }
 
 export interface ServiceTool {
@@ -76,3 +94,5 @@ export interface ServiceCallResult {
   serviceName?: string;
   toolName?: string;
 }
+
+// Local MCP server types are now defined in schemas/service.ts

@@ -12,6 +12,7 @@ import {
 import { DatabaseManager } from '../models/database';
 import { MCPClientManager } from './mcp-client-manager';
 import { OAuthManager } from './oauth-manager';
+import { ConfigManager } from './config-manager';
 
 interface A2AManifest {
   endpoints?: Record<string, A2AEndpoint>;
@@ -25,11 +26,15 @@ interface A2AEndpoint {
 }
 
 export class ServiceManager {
+  private configManager: ConfigManager;
+
   constructor(
     private db: DatabaseManager,
     private mcpClient: MCPClientManager,
     private oauthManager: OAuthManager
-  ) {}
+  ) {
+    this.configManager = new ConfigManager();
+  }
 
   get mcpClientManager(): MCPClientManager {
     return this.mcpClient;
@@ -90,7 +95,7 @@ export class ServiceManager {
     }
 
     try {
-      if (service.type === 'mcp') {
+      if (service.type === 'mcp' || service.type === 'local-mcp') {
         const tools = await this.mcpClient.discoverTools(service);
         return tools;
       } else if (service.type === 'a2a') {
@@ -117,7 +122,7 @@ export class ServiceManager {
     }
 
     try {
-      if (service.type === 'mcp') {
+      if (service.type === 'mcp' || service.type === 'local-mcp') {
         const result = await this.mcpClient.callTool(
           service,
           validatedInput.toolName,
@@ -155,7 +160,7 @@ export class ServiceManager {
     }
 
     try {
-      if (service.type === 'mcp') {
+      if (service.type === 'mcp' || service.type === 'local-mcp') {
         await this.mcpClient.discoverTools(service);
         await this.db.updateServiceStatus(serviceId, true, 'healthy');
         return {
@@ -232,5 +237,130 @@ export class ServiceManager {
       console.error(`Failed to call A2A tool ${toolName} for service ${service.id}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Import local MCP servers from JSON configuration
+   */
+  async importLocalServersFromConfig(jsonContent: string): Promise<Service[]> {
+    try {
+      const manifest = this.configManager.parseManifest(jsonContent);
+      const services = this.configManager.manifestToServices(manifest);
+      
+      const createdServices: Service[] = [];
+      
+      for (const serviceInput of services) {
+        // Check if service already exists
+        const existingServices = await this.db.getAllServices();
+        const existingService = existingServices.find(s => 
+          s.type === 'local-mcp' && s.name === serviceInput.name
+        );
+        
+        if (existingService) {
+          console.log(`⚠️ Local MCP server ${serviceInput.name} already exists, skipping`);
+          continue;
+        }
+        
+        // Validate command safety
+        if (!this.configManager.isCommandSafe(serviceInput.localCommand!)) {
+          console.warn(`⚠️ Skipping potentially unsafe command: ${serviceInput.localCommand}`);
+          continue;
+        }
+        
+        // Sanitize environment variables
+        if (serviceInput.localEnv) {
+          serviceInput.localEnv = this.configManager.sanitizeEnvironment(serviceInput.localEnv);
+        }
+        
+        const service = await this.createService(serviceInput);
+        createdServices.push(service);
+        console.log(`✅ Created local MCP server: ${service.name}`);
+      }
+      
+      return createdServices;
+    } catch (error) {
+      console.error('❌ Failed to import local servers from config:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get sample configuration
+   */
+  getSampleConfig(): string {
+    const sampleManifest = this.configManager.generateSampleManifest();
+    return this.configManager.manifestToJson(sampleManifest);
+  }
+
+  /**
+   * Start a local MCP server
+   */
+  async startLocalServer(serviceId: string): Promise<void> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      throw new Error('Service not found');
+    }
+    
+    if (service.type !== 'local-mcp') {
+      throw new Error('Service is not a local MCP server');
+    }
+    
+    // The MCP client manager will handle starting the server when needed
+    await this.mcpClient.discoverTools(service);
+  }
+
+  /**
+   * Stop a local MCP server
+   */
+  async stopLocalServer(serviceId: string): Promise<void> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      throw new Error('Service not found');
+    }
+    
+    if (service.type !== 'local-mcp') {
+      throw new Error('Service is not a local MCP server');
+    }
+    
+    // Get the local server manager from the MCP client manager
+    const localManager = (this.mcpClient as any).localServerManager;
+    if (localManager) {
+      await localManager.stopLocalServer(serviceId);
+    }
+  }
+
+  /**
+   * Get local MCP server status
+   */
+  async getLocalServerStatus(serviceId: string): Promise<any> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      throw new Error('Service not found');
+    }
+    
+    if (service.type !== 'local-mcp') {
+      throw new Error('Service is not a local MCP server');
+    }
+    
+    // Get the local server manager from the MCP client manager
+    const localManager = (this.mcpClient as any).localServerManager;
+    if (localManager) {
+      const processRecord = localManager.getLocalServer(serviceId);
+      if (processRecord) {
+        return {
+          isRunning: processRecord.isRunning,
+          startTime: processRecord.startTime,
+          lastActivity: processRecord.lastActivity,
+          capabilities: processRecord.capabilities
+        };
+      }
+    }
+    
+    return {
+      isRunning: false,
+      startTime: null,
+      lastActivity: null,
+      capabilities: null
+    };
   }
 }

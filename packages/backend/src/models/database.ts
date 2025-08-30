@@ -31,7 +31,7 @@ export class DatabaseManager {
       CREATE TABLE IF NOT EXISTS services (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a')),
+        type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a', 'local-mcp')),
         url TEXT NOT NULL,
         health TEXT NOT NULL DEFAULT 'unknown',
         description TEXT,
@@ -52,7 +52,13 @@ export class DatabaseManager {
         oauth_access_token TEXT,
         oauth_refresh_token TEXT,
         oauth_token_expires_at TEXT,
-        oauth_state TEXT
+        oauth_state TEXT,
+        
+        -- Local MCP server fields
+        local_command TEXT,
+        local_args TEXT,
+        local_working_dir TEXT,
+        local_env TEXT
       )
     `);
 
@@ -112,6 +118,10 @@ export class DatabaseManager {
       oauthRefreshToken: undefined,
       oauthTokenExpiresAt: undefined,
       oauthState: undefined,
+      localCommand: input.localCommand,
+      localArgs: input.localArgs,
+      localWorkingDir: input.localWorkingDir,
+      localEnv: input.localEnv,
     };
 
     const stmt = this.db.prepare(`
@@ -119,12 +129,14 @@ export class DatabaseManager {
         id, name, type, url, health, description, card_color, is_connected,
         registered_at, updated_at, headers,
         oauth_client_id, oauth_client_secret, oauth_authorization_url,
-        oauth_token_url, oauth_redirect_uri, oauth_scope
+        oauth_token_url, oauth_redirect_uri, oauth_scope,
+        local_command, local_args, local_working_dir, local_env
       ) VALUES (
         @id, @name, @type, @url, @health, @description, @card_color, @is_connected,
         @registered_at, @updated_at, @headers,
         @oauth_client_id, @oauth_client_secret, @oauth_authorization_url,
-        @oauth_token_url, @oauth_redirect_uri, @oauth_scope
+        @oauth_token_url, @oauth_redirect_uri, @oauth_scope,
+        @local_command, @local_args, @local_working_dir, @local_env
       )
     `);
 
@@ -146,6 +158,10 @@ export class DatabaseManager {
       oauth_token_url: service.oauthTokenUrl,
       oauth_redirect_uri: service.oauthRedirectUri,
       oauth_scope: service.oauthScope,
+      local_command: service.localCommand,
+      local_args: service.localArgs ? JSON.stringify(service.localArgs) : null,
+      local_working_dir: service.localWorkingDir,
+      local_env: service.localEnv ? JSON.stringify(service.localEnv) : null,
     });
 
     return service;
@@ -180,6 +196,10 @@ export class DatabaseManager {
       oauthRefreshToken: row.oauth_refresh_token,
       oauthTokenExpiresAt: row.oauth_token_expires_at,
       oauthState: row.oauth_state,
+      localCommand: row.local_command,
+      localArgs: row.local_args ? JSON.parse(row.local_args) : null,
+      localWorkingDir: row.local_working_dir,
+      localEnv: row.local_env ? JSON.parse(row.local_env) : null,
     };
   }
 
@@ -210,6 +230,10 @@ export class DatabaseManager {
       oauthRefreshToken: row.oauth_refresh_token,
       oauthTokenExpiresAt: row.oauth_token_expires_at,
       oauthState: row.oauth_state,
+      localCommand: row.local_command,
+      localArgs: row.local_args ? JSON.parse(row.local_args) : null,
+      localWorkingDir: row.local_working_dir,
+      localEnv: row.local_env ? JSON.parse(row.local_env) : null,
     }));
   }
 
@@ -229,7 +253,9 @@ export class DatabaseManager {
         updated_at = @updated_at, headers = @headers,
         oauth_client_id = @oauth_client_id, oauth_client_secret = @oauth_client_secret,
         oauth_authorization_url = @oauth_authorization_url, oauth_token_url = @oauth_token_url,
-        oauth_redirect_uri = @oauth_redirect_uri, oauth_scope = @oauth_scope
+        oauth_redirect_uri = @oauth_redirect_uri, oauth_scope = @oauth_scope,
+        local_command = @local_command, local_args = @local_args,
+        local_working_dir = @local_working_dir, local_env = @local_env
       WHERE id = @id
     `);
 
@@ -246,6 +272,10 @@ export class DatabaseManager {
       oauth_token_url: updated.oauthTokenUrl,
       oauth_redirect_uri: updated.oauthRedirectUri,
       oauth_scope: updated.oauthScope,
+      local_command: updated.localCommand,
+      local_args: updated.localArgs ? JSON.stringify(updated.localArgs) : null,
+      local_working_dir: updated.localWorkingDir,
+      local_env: updated.localEnv ? JSON.stringify(updated.localEnv) : null,
     });
 
     return updated;

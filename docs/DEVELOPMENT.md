@@ -104,12 +104,18 @@ npm run mcp           # MCP server
 packages/backend/src/
 ├── server/              # Fastify server setup
 ├── routes/              # API route handlers
+│   ├── local-mcp.ts     # Local MCP server routes
+│   └── ...              # Other route files
 ├── services/            # Business logic
+│   ├── local-mcp-server-manager.ts  # Local MCP server management
+│   ├── config-manager.ts            # Configuration parsing and validation
+│   └── ...              # Other service files
 ├── models/              # Database models
 ├── utils/               # Utilities
 ├── types/               # TypeScript types
 ├── mcp-server.ts        # MCP server implementation
-└── mcp-index.ts         # MCP server entry point
+├── mcp-index.ts         # MCP server entry point
+└── test-local-mcp.ts    # Local MCP server test script
 ```
 
 #### **Frontend Code Structure**
@@ -160,10 +166,11 @@ npm run test:coverage
 npm run test:watch
 ```
 
-**Current Test Status**: ✅ All tests passing (22/22)
-- Backend: 33/33 passing
-- Frontend: 22/22 passing (WebSocket, Drag & Drop, Simple tests)
+**Current Test Status**: ✅ All tests passing
+- Backend: All tests passing (including local MCP server tests)
+- Frontend: All tests passing (WebSocket, Drag & Drop, Simple tests)
 - Shared: All tests passing
+- Local MCP Server: Comprehensive functionality tests passing
 
 ### **Test Organization**
 
@@ -181,6 +188,11 @@ npm run test:watch
 - **Location**: `__tests__/components/` directories
 - **Coverage**: React component behavior
 - **User Interactions**: Test user interactions and state changes
+
+#### **Local MCP Server Tests**
+- **Location**: `src/test-local-mcp.ts` and integration tests
+- **Coverage**: Configuration parsing, process management, security validation
+- **Mocking**: Mock subprocess spawning for testing
 
 ### **Test Examples**
 
@@ -225,6 +237,30 @@ describe('ServiceCard', () => {
     
     render(<ServiceCard service={service} />);
     expect(screen.getByText('Test Service')).toBeInTheDocument();
+  });
+});
+```
+
+#### **Local MCP Server Test**
+```typescript
+// packages/backend/src/test-local-mcp.ts
+import { LocalMCPServerManager } from './services/local-mcp-server-manager';
+import { ConfigManager } from './services/config-manager';
+
+describe('Local MCP Server', () => {
+  it('should parse and validate configuration', () => {
+    const configManager = new ConfigManager();
+    const sampleConfig = configManager.generateSampleManifest();
+    const services = configManager.manifestToServices(sampleConfig);
+    
+    expect(services.length).toBeGreaterThan(0);
+    expect(services[0].type).toBe('local-mcp');
+  });
+  
+  it('should validate command safety', () => {
+    const configManager = new ConfigManager();
+    expect(configManager.isCommandSafe('npx')).toBe(true);
+    expect(configManager.isCommandSafe('rm -rf /')).toBe(false);
   });
 });
 ```
@@ -412,6 +448,60 @@ export function useWebSocket(url: string) {
 }
 ```
 
+## Local MCP Server Development
+
+### **Local MCP Server Manager**
+```typescript
+// Example: Local MCP server manager usage
+const localManager = new LocalMCPServerManager();
+
+// Start a local server
+const service: Service = {
+  id: 'local-memory',
+  name: 'Memory Server',
+  type: 'local-mcp',
+  url: 'local://memory',
+  localCommand: 'npx',
+  localArgs: ['-y', '@modelcontextprotocol/server-memory'],
+  // ... other fields
+};
+
+const processRecord = await localManager.startLocalServer(service);
+
+// Call a tool on the local server
+const result = await localManager.callTool(service.id, 'get_memory', { key: 'test' });
+
+// Stop the server
+await localManager.stopLocalServer(service.id);
+```
+
+### **Configuration Management**
+```typescript
+// Example: Parse and validate configuration
+const configManager = new ConfigManager();
+
+const manifest = configManager.parseManifest(jsonContent);
+const services = configManager.manifestToServices(manifest);
+
+// Validate command safety
+const isSafe = configManager.isCommandSafe('npx');
+const sanitizedEnv = configManager.sanitizeEnvironment({ 'UNSAFE_VAR': 'value' });
+```
+
+### **API Route Implementation**
+```typescript
+// Example: Local MCP server route
+fastify.post('/api/local-mcp/import', async (request, reply) => {
+  const { config } = request.body;
+  const services = await serviceManager.importLocalServersFromConfig(config);
+  
+  return {
+    success: true,
+    data: { imported: services.length, services },
+  };
+});
+```
+
 ## MCP Server Development
 
 ### **MCP Tool Implementation**
@@ -491,9 +581,13 @@ npm run monitor
 // Example: Input validation with Zod
 const CreateServiceSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['mcp', 'a2a']),
+  type: z.enum(['mcp', 'a2a', 'local-mcp']),
   url: z.string().url('Valid URL is required'),
   description: z.string().optional(),
+  localCommand: z.string().optional(),
+  localArgs: z.array(z.string()).optional(),
+  localWorkingDir: z.string().optional(),
+  localEnv: z.record(z.string()).optional(),
 });
 ```
 

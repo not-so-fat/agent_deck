@@ -10,6 +10,7 @@ import { registerDeckRoutes } from '../routes/decks';
 import { registerOAuthRoutes } from '../routes/oauth';
 import { registerWebSocketRoutes } from '../routes/websocket';
 import mcpRoutes from '../routes/mcp';
+import { registerLocalMCPRoutes } from '../routes/local-mcp';
 import { ServiceStatusUpdate, DeckUpdate, WebSocketMessage } from '@agent-deck/shared';
 
 export async function createServer() {
@@ -39,6 +40,7 @@ export async function createServer() {
   await fastify.register(registerDeckRoutes, { prefix: '/api/decks' });
   await fastify.register(registerOAuthRoutes, { prefix: '/api/oauth' });
   await fastify.register(mcpRoutes, { prefix: '/api/mcp' });
+  await fastify.register(registerLocalMCPRoutes, { prefix: '/api/local-mcp' });
 
   // Health check endpoint
   fastify.get('/health', async (request, reply) => {

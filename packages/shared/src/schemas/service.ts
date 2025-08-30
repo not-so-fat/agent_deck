@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const ServiceSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['mcp', 'a2a']),
+  type: z.enum(['mcp', 'a2a', 'local-mcp']),
   url: z.string().url('Valid URL is required'),
   health: z.enum(['unknown', 'healthy', 'unhealthy']).default('unknown'),
   description: z.string().optional(),
@@ -25,6 +25,12 @@ export const ServiceSchema = z.object({
   oauthRefreshToken: z.string().optional(),
   oauthTokenExpiresAt: z.string().datetime().optional(),
   oauthState: z.string().optional(),
+  
+  // Local MCP server fields
+  localCommand: z.string().optional(),
+  localArgs: z.array(z.string()).optional(),
+  localWorkingDir: z.string().optional(),
+  localEnv: z.record(z.string()).optional(),
 });
 
 export const CreateServiceSchema = ServiceSchema.omit({
@@ -68,3 +74,33 @@ export type UpdateServiceInput = z.infer<typeof UpdateServiceSchema>;
 export type ServiceCallInput = z.infer<typeof ServiceCallSchema>;
 export type ServiceTool = z.infer<typeof ServiceToolSchema>;
 export type ServiceCallResult = z.infer<typeof ServiceCallResultSchema>;
+
+// Local MCP server schemas
+export const LocalMCPServerConfigSchema = z.object({
+  command: z.string().min(1, 'Command is required'),
+  args: z.array(z.string()).optional().default([]),
+  workingDir: z.string().optional(),
+  env: z.record(z.string()).optional(),
+});
+
+export const MCPServersManifestSchema = z.object({
+  mcpServers: z.record(z.string(), LocalMCPServerConfigSchema),
+});
+
+export const LocalMCPServerProcessSchema = z.object({
+  id: z.string(),
+  serviceId: z.string(),
+  process: z.any(), // Node.js ChildProcess
+  isRunning: z.boolean(),
+  startTime: z.date(),
+  lastActivity: z.date(),
+  capabilities: z.object({
+    tools: z.array(ServiceToolSchema),
+    resources: z.array(z.any()),
+    prompts: z.array(z.string()),
+  }).optional(),
+});
+
+export type LocalMCPServerConfig = z.infer<typeof LocalMCPServerConfigSchema>;
+export type MCPServersManifest = z.infer<typeof MCPServersManifestSchema>;
+export type LocalMCPServerProcess = z.infer<typeof LocalMCPServerProcessSchema>;

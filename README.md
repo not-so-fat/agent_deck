@@ -42,6 +42,7 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **Resource Access**: Access resources from deck services
 - **Prompt Management**: List and retrieve prompts from services
 - **Database Integration**: Automatically reads active deck from database
+- **Local Server Support**: Spawn and manage local MCP servers via stdio transport
 
 ### **Frontend**
 - **Cyberpunk-themed UI** with card-based interface
@@ -50,6 +51,13 @@ At this moment, AgentDeck is manual favorite MCP management app.
 - **Service Registration**: Add MCP and A2A services
 - **Deck Management**: Create and manage multiple decks
 - **Search & Filter**: Find services quickly
+
+### **Local MCP Servers**
+- **JSON Configuration**: Import local servers from mcpServers manifests
+- **Stdio Transport**: Spawn subprocesses and communicate via JSON-RPC
+- **Security Features**: Command validation and environment sanitization
+- **Automatic Discovery**: Tools and capabilities discovered automatically
+- **Process Management**: Start, stop, and monitor local server processes
 
 
 ## Architecture
@@ -160,6 +168,14 @@ Recommended startup order:
 - ✅ OAuth UI integration complete (shows OAuth setup instructions)
 - ❌ OAuth flow not yet implemented (authorization, callback, token management)
 
+### **Local MCP Servers** ✅ **Fully Implemented**
+- `POST /api/local-mcp/import` - Import local servers from JSON configuration
+- `GET /api/local-mcp/sample-config` - Get sample configuration
+- `POST /api/local-mcp/:serviceId/start` - Start a local MCP server
+- `POST /api/local-mcp/:serviceId/stop` - Stop a local MCP server
+- `GET /api/local-mcp/:serviceId/status` - Get local server status
+- `GET /api/local-mcp/list` - List all local MCP servers
+
 ### **WebSocket**
 - `WS /api/ws/events` - Real-time updates
 
@@ -197,12 +213,91 @@ The MCP server (inside `@agent-deck/backend`) provides a unified interface to se
 Notes:
 - The HTTP transport requires a valid MCP session. Use an MCP client (Cursor, `use-mcp`, or the official SDK client) to connect and call tools. Direct `curl` requires session headers and is not recommended for normal use.
 
+## Local MCP Server Usage
+
+Local MCP servers are spawned as subprocesses and communicate via stdio transport. This allows you to run MCP servers locally without needing to set up HTTP endpoints.
+
+### **Configuration Format**
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "MCP_SERVER_FILESYSTEM_ROOT": "/path/to/root"
+      }
+    }
+  }
+}
+```
+
+### **Import Local Servers**
+```bash
+# Import from JSON configuration
+curl -X POST http://localhost:8000/api/local-mcp/import \
+  -H "Content-Type: application/json" \
+  -d '{"config": "{\"mcpServers\":{\"memory\":{\"command\":\"npx\",\"args\":[\"-y\",\"@modelcontextprotocol/server-memory\"]}}}"}'
+
+# Get sample configuration
+curl http://localhost:8000/api/local-mcp/sample-config
+```
+
+### **Using Local Servers (Same as Any Service)**
+```bash
+# 1. Start the local server process
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/start
+
+# 2. Add to active deck (same as any other service)
+curl -X POST http://localhost:8000/api/decks/{deckId}/services \
+  -H "Content-Type: application/json" \
+  -d '{"serviceId": "{serviceId}"}'
+
+# 3. Call tools (unified API - same for all services)
+curl -X POST http://localhost:8000/api/services/{serviceId}/call \
+  -H "Content-Type: application/json" \
+  -d '{"toolName": "get_memory", "arguments": {"key": "test"}}'
+
+# 4. Discover tools (unified API)
+curl http://localhost:8000/api/services/{serviceId}/tools
+
+# 5. Check health (unified API)
+curl http://localhost:8000/api/services/{serviceId}/health
+```
+
+### **Manage Local Servers**
+```bash
+# List all local servers
+curl http://localhost:8000/api/local-mcp/list
+
+# Start a local server
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/start
+
+# Stop a local server
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/stop
+
+# Get server status
+curl http://localhost:8000/api/local-mcp/{serviceId}/status
+```
+
+**Note**: These endpoints are for **process management only**. For **using** the services (calling tools, discovering capabilities), use the unified `/api/services/*` endpoints shown above.
+
+### **Security Features**
+- **Command Validation**: Blocks unsafe commands (rm, sudo, etc.)
+- **Environment Sanitization**: Only allows safe environment variable names
+- **Process Isolation**: Each server runs in its own process
+- **User Trust Model**: Assumes local environment trust
+
 ## Database Schema
 
 ### **Services Table**
 - `id` (TEXT PRIMARY KEY)
 - `name` (TEXT NOT NULL)
-- `type` (TEXT NOT NULL) - 'mcp' or 'a2a'
+- `type` (TEXT NOT NULL) - 'mcp', 'a2a', or 'local-mcp'
 - `url` (TEXT NOT NULL)
 - `health` (TEXT DEFAULT 'unknown')
 - `description` (TEXT)
@@ -212,6 +307,11 @@ Notes:
 - `registered_at` (TEXT NOT NULL)
 - `updated_at` (TEXT NOT NULL)
 - OAuth fields for authentication
+- Local MCP server fields:
+  - `local_command` (TEXT) - Command to execute
+  - `local_args` (TEXT) - JSON array of command arguments
+  - `local_working_dir` (TEXT) - Working directory for the process
+  - `local_env` (TEXT) - JSON object of environment variables
 
 ### **Decks Table**
 - `id` (TEXT PRIMARY KEY)
