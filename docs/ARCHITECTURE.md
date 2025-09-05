@@ -575,6 +575,9 @@ server.tool(
 #### OAuth
 - `GET /api/oauth/:serviceId/authorize` - Start OAuth flow
 - `GET /api/oauth/:serviceId/callback` - OAuth callback
+- `GET /api/oauth/callback` - Generic OAuth callback (extracts service ID from state)
+- `POST /api/oauth/:serviceId/auto-setup` - Auto-register OAuth application and start flow
+- `GET /api/oauth/:serviceId/status` - Check OAuth token status
 
 #### Local MCP Servers
 - `POST /api/local-mcp/import` - Import local servers from JSON configuration
@@ -656,10 +659,8 @@ export async function createServiceHandler(
 - **MCP Server**: Complete MCP server implementation with unified access to active deck services
 - **Local MCP Servers**: Full support for local MCP servers with stdio transport, configuration management, and security features
 - **Frontend**: React application with modern UI and real-time updates
+- **OAuth Flow Implementation**: Complete OAuth 2.0 implementation with auto-registration, token management, and status detection
 - **Testing**: 81/81 tests passing across all packages
-
-### 🔄 In Progress
-- **OAuth Flow Implementation**: OAuth discovery and UI are complete, flow implementation in progress
 
 ### 📋 Planned
 - **Enhanced Features**: Advanced deck management, service templates, Docker containerization for local servers
@@ -680,11 +681,10 @@ export async function createServiceHandler(
 
 ## Next Steps
 
-1. **Complete OAuth Flow**: Finish OAuth implementation
-2. **Enhanced Features**: Add local MCP server support
-3. **Advanced Deck Management**: Leverage new backend capabilities
-4. **Service Templates**: Add pre-configured service templates
-5. **Performance Optimization**: Optimize for large numbers of services
-6. **Security Enhancements**: Add authentication and authorization
+1. **Enhanced Features**: Advanced deck management and service templates
+2. **Performance Optimization**: Optimize for large numbers of services
+3. **Security Enhancements**: Add authentication and authorization
+4. **Docker Integration**: Containerization for local MCP servers
+5. **Advanced UI Features**: Enhanced service management and monitoring
 
 This architecture ensures we maintain all existing functionality while gaining the benefits of a modern TypeScript stack with better type safety, developer experience, and maintainability.

@@ -372,6 +372,38 @@ curl http://localhost:3000
 - **State Validation**: OAuth state parameter validation
 - **Redirect URIs**: Strict redirect URI validation
 
+## OAuth 2.0 Implementation Details
+
+### **OAuth Flow Architecture**
+The OAuth implementation follows OAuth 2.0 best practices with the following flow:
+
+1. **Discovery**: Automatic OAuth requirement detection via MCP server analysis
+2. **Auto-Registration**: Dynamic OAuth application registration with MCP services
+3. **Authorization**: Secure authorization flow with state parameter validation
+4. **Token Exchange**: Backend handles token exchange to keep credentials secure
+5. **Token Management**: Automatic token storage, expiration detection, and refresh
+6. **Status Detection**: Real-time OAuth status monitoring with UI updates
+
+### **Key Features**
+- **Auto-Discovery**: Automatically detects OAuth requirements from MCP services
+- **Dynamic Registration**: Performs OAuth client registration with MCP services
+- **Secure Flow**: Backend handles all OAuth operations, frontend never sees tokens
+- **Token Management**: Automatic token storage, expiration detection, and refresh
+- **Status Monitoring**: Real-time OAuth status with proper UI feedback
+- **Error Handling**: Comprehensive error handling with user-friendly messages
+
+### **OAuth Status States**
+- **`not_required`**: Service doesn't require OAuth authentication
+- **`required`**: OAuth is required but not authenticated
+- **`authenticated`**: Valid OAuth tokens present and not expired
+- **`expired`**: OAuth tokens exist but are expired
+
+### **Security Considerations**
+- **Redirect URI Validation**: Ensures OAuth callbacks go to correct endpoints
+- **State Parameter**: Prevents CSRF attacks with cryptographically secure state
+- **Token Storage**: OAuth tokens stored securely in database with proper headers
+- **Expiration Handling**: Automatic detection of token expiration with 5-minute buffer
+
 ### **MCP Security**
 - **Session Management**: Proper MCP session handling
 - **Tool Validation**: Validate tool calls before execution

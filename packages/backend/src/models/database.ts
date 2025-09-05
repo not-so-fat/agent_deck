@@ -312,11 +312,17 @@ export class DatabaseManager {
     refreshToken?: string, 
     expiresAt?: string
   ): Promise<void> {
+    // Create headers with Authorization Bearer token
+    const headers = {
+      Authorization: `Bearer ${accessToken}`
+    };
+
     const stmt = this.db.prepare(`
       UPDATE services SET
         oauth_access_token = @oauth_access_token,
         oauth_refresh_token = @oauth_refresh_token,
         oauth_token_expires_at = @oauth_token_expires_at,
+        headers = @headers,
         updated_at = @updated_at
       WHERE id = @id
     `);
@@ -326,6 +332,7 @@ export class DatabaseManager {
       oauth_access_token: accessToken,
       oauth_refresh_token: refreshToken,
       oauth_token_expires_at: expiresAt,
+      headers: JSON.stringify(headers),
       updated_at: new Date().toISOString(),
     });
   }

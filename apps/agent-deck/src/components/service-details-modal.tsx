@@ -94,6 +94,35 @@ export default function ServiceDetailsModal({
   // Ensure we have a valid service before running queries
   const hasValidService = Boolean(apiService && apiService.id && apiService.url);
 
+  // Helper function to determine OAuth authentication status
+  const getOAuthStatus = () => {
+    if (!mcpDiscoveryData?.data?.oauth?.required) {
+      return { status: 'not_required', message: null };
+    }
+
+    // OAuth is required, check if we have valid tokens
+    const hasAccessToken = !!apiService?.oauthAccessToken;
+    const hasHeaders = !!apiService?.headers?.Authorization;
+    
+    if (!hasAccessToken || !hasHeaders) {
+      return { status: 'required', message: 'OAuth 2.0 Authentication Required' };
+    }
+
+    // Check if token is expired
+    const expiresAt = apiService?.oauthTokenExpiresAt;
+    if (expiresAt) {
+      const expirationTime = new Date(expiresAt).getTime();
+      const now = new Date().getTime();
+      const fiveMinutesFromNow = now + (5 * 60 * 1000); // 5 minutes buffer
+      
+      if (expirationTime <= fiveMinutesFromNow) {
+        return { status: 'expired', message: 'OAuth Token Expired - Please re-authenticate' };
+      }
+    }
+
+    return { status: 'authenticated', message: null };
+  };
+
   // Query for MCP discovery analysis
   const { data: mcpDiscoveryData, isLoading: mcpDiscoveryLoading, error: mcpDiscoveryError, refetch: refetchMcpDiscovery } = useQuery({
     queryKey: ['/api/mcp/discover', apiService?.url],
@@ -116,6 +145,9 @@ export default function ServiceDetailsModal({
     staleTime: 0, // Always fetch fresh data for discovery
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
   });
+
+  // Get OAuth status after discovery data is available
+  const oauthStatus = getOAuthStatus();
 
   console.log('MCP Discovery Query Debug:', {
     apiService: apiService?.id,
@@ -150,7 +182,7 @@ export default function ServiceDetailsModal({
         throw error;
       }
     },
-    enabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || !mcpDiscoveryData?.data?.oauth?.required),
+    enabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || oauthStatus.status === 'authenticated' || oauthStatus.status === 'not_required'),
     staleTime: 0, // Always fetch fresh data for tools
     gcTime: 2 * 60 * 1000, // 2 minutes cache time
   });
@@ -160,7 +192,8 @@ export default function ServiceDetailsModal({
     apiServiceType: apiService?.type,
     isOpen,
     oauthRequired: mcpDiscoveryData?.data?.oauth?.required,
-    toolsQueryEnabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || !mcpDiscoveryData?.data?.oauth?.required),
+    oauthStatus: oauthStatus.status,
+    toolsQueryEnabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || oauthStatus.status === 'authenticated' || oauthStatus.status === 'not_required'),
     mcpToolsLoading
   });
 
@@ -198,7 +231,12 @@ export default function ServiceDetailsModal({
     mcpToolsData: mcpToolsData,
     hasA2aManifest: !!a2aManifest,
     isLoading,
-    oauthRequired: mcpDiscoveryData?.data?.oauth?.required
+    oauthRequired: mcpDiscoveryData?.data?.oauth?.required,
+    oauthStatus: oauthStatus.status,
+    oauthMessage: oauthStatus.message,
+    hasAccessToken: !!apiService?.oauthAccessToken,
+    hasHeaders: !!apiService?.headers?.Authorization,
+    expiresAt: apiService?.oauthTokenExpiresAt
   });
 
   useEffect(() => {
@@ -223,6 +261,13 @@ export default function ServiceDetailsModal({
     };
   }, [oauthPollingInterval]);
 
+  // Start OAuth polling when OAuth is required
+  useEffect(() => {
+    if (mcpDiscoveryData?.data?.oauth?.required && !oauthPollingInterval) {
+      startOauthPolling();
+    }
+  }, [mcpDiscoveryData?.data?.oauth?.required, oauthPollingInterval]);
+
   const startOauthPolling = () => {
     if (!apiService?.id) return;
     
@@ -231,19 +276,31 @@ export default function ServiceDetailsModal({
       clearInterval(oauthPollingInterval);
     }
     
+    console.log('🔄 Starting OAuth polling for service:', apiService.id);
+    
     // Start polling every 2 seconds
     const interval = setInterval(async () => {
       try {
+        console.log('🔍 OAuth polling check for service:', apiService.id);
+        
         // Check if service has been updated with OAuth tokens
         const serviceResponse = await apiRequest('GET', `/api/services/${apiService.id}`);
         if (serviceResponse.ok) {
           const updatedService = await serviceResponse.json();
           const hasAuthHeader = updatedService.headers?.Authorization?.startsWith('Bearer ');
           
+          console.log('🔍 OAuth polling result:', {
+            serviceId: apiService.id,
+            hasAuthHeader,
+            headers: updatedService.headers
+          });
+          
           if (hasAuthHeader) {
             // OAuth completed, stop polling and refetch discovery
             clearInterval(interval);
             setOauthPollingInterval(null);
+            
+            console.log('✅ OAuth completed for service:', apiService.id);
             
             toast({
               title: 'OAuth completed',
@@ -251,9 +308,15 @@ export default function ServiceDetailsModal({
               variant: 'default'
             });
             
-            // Refetch MCP discovery and tools
+            // Invalidate and refetch MCP discovery to check if OAuth is still required
+            queryClient.invalidateQueries({ queryKey: ['/api/mcp/discover', apiService.url] });
             await refetchMcpDiscovery();
-            await refetchMcpTools();
+            
+            // Wait a moment for discovery to complete, then refetch tools
+            setTimeout(async () => {
+              queryClient.invalidateQueries({ queryKey: ['/api/services', apiService.id, 'tools'] });
+              await refetchMcpTools();
+            }, 1000);
           }
         }
       } catch (error) {
@@ -899,13 +962,18 @@ export default function ServiceDetailsModal({
               </div>
             )}
 
-            {/* OAuth Required Warning - Show prominently when OAuth is needed */}
-            {service?.type === 'mcp' && mcpDiscoveryData?.data?.oauth?.required && (
-              <div className="bg-orange-500/20 border border-orange-500/30 rounded-lg p-4 mb-4">
-                <h3 className="text-orange-300 font-semibold mb-2">🔐 Authentication Required</h3>
-                <div className="text-orange-200 text-sm space-y-2">
-                  <p><strong>OAuth 2.0 Authentication Required</strong></p>
-                  <p>This MCP server requires OAuth authentication to access its tools. Please authenticate to continue.</p>
+            {/* OAuth Status Warning - Show when OAuth is required, expired, or not authenticated */}
+            {service?.type === 'mcp' && oauthStatus.status !== 'authenticated' && oauthStatus.status !== 'not_required' && (
+              <div className={`${oauthStatus.status === 'expired' ? 'bg-red-500/20 border-red-500/30' : 'bg-orange-500/20 border-orange-500/30'} rounded-lg p-4 mb-4`}>
+                <h3 className={`${oauthStatus.status === 'expired' ? 'text-red-300' : 'text-orange-300'} font-semibold mb-2`}>
+                  {oauthStatus.status === 'expired' ? '⏰ Token Expired' : '🔐 Authentication Required'}
+                </h3>
+                <div className={`${oauthStatus.status === 'expired' ? 'text-red-200' : 'text-orange-200'} text-sm space-y-2`}>
+                  <p><strong>{oauthStatus.message}</strong></p>
+                  <p>{oauthStatus.status === 'expired' 
+                    ? 'Your OAuth token has expired. Please re-authenticate to continue using this service.'
+                    : 'This MCP server requires OAuth authentication to access its tools. Please authenticate to continue.'
+                  }</p>
                   
                   {mcpDiscoveryData.data.oauth.authorizationUrl && (
                     <div className="mt-3 flex items-center gap-2">
@@ -956,6 +1024,9 @@ export default function ServiceDetailsModal({
                                 description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
                                 duration: 10000,
                               });
+                              
+                              // Start polling for OAuth completion
+                              startOauthPolling();
                             } else {
                               toast({
                                 title: 'OAuth Setup Failed',
@@ -1215,29 +1286,29 @@ export default function ServiceDetailsModal({
                                       description: 'Automatically registering OAuth application and starting authorization flow...',
                                     });
 
-                                                                      const resp = await apiRequest('POST', `/api/oauth/${apiService.id}/auto-setup`, {});
-                                  if (!resp.ok) {
-                                    const errorData = await resp.json();
-                                    
-                                    // Check if we have a registration URL to navigate to
-                                    if (errorData.data?.registrationUrl) {
-                                      // Open the registration page
-                                      window.open(errorData.data.registrationUrl, '_blank');
+                                    const resp = await apiRequest('POST', `/api/oauth/${apiService.id}/auto-setup`, {});
+                                    if (!resp.ok) {
+                                      const errorData = await resp.json();
                                       
-                                      toast({
-                                        title: 'OAuth Registration Required',
-                                        description: `${errorData.error} I've opened the registration page for you. Please create an OAuth app and then come back to add your credentials.`,
-                                        duration: 15000,
-                                      });
-                                    } else {
-                                      toast({
-                                        title: 'OAuth Setup Failed',
-                                        description: errorData.error || 'Failed to setup OAuth automatically. Please configure manually.',
-                                        variant: 'destructive',
-                                      });
+                                      // Check if we have a registration URL to navigate to
+                                      if (errorData.data?.registrationUrl) {
+                                        // Open the registration page
+                                        window.open(errorData.data.registrationUrl, '_blank');
+                                        
+                                        toast({
+                                          title: 'OAuth Registration Required',
+                                          description: `${errorData.error} I've opened the registration page for you. Please create an OAuth app and then come back to add your credentials.`,
+                                          duration: 15000,
+                                        });
+                                      } else {
+                                        toast({
+                                          title: 'OAuth Setup Failed',
+                                          description: errorData.error || 'Failed to setup OAuth automatically. Please configure manually.',
+                                          variant: 'destructive',
+                                        });
+                                      }
+                                      return;
                                     }
-                                    return;
-                                  }
 
                                     const data = await resp.json();
                                     if (data.success && data.data?.authorizationUrl) {
@@ -1249,6 +1320,9 @@ export default function ServiceDetailsModal({
                                         description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
                                         duration: 10000,
                                       });
+                                      
+                                      // Start polling for OAuth completion
+                                      startOauthPolling();
                                     } else {
                                       toast({
                                         title: 'OAuth Setup Failed',
@@ -1377,6 +1451,9 @@ export default function ServiceDetailsModal({
                                       description: 'OAuth application registered automatically! Please complete the authorization in the new window.',
                                       duration: 10000,
                                     });
+                                    
+                                    // Start polling for OAuth completion
+                                    startOauthPolling();
                                   } else {
                                     toast({
                                       title: 'OAuth Setup Failed',

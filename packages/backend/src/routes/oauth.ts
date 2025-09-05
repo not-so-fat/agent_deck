@@ -92,7 +92,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
         clientSecret: '', // Will be provided by auto-registration
         authorizationUrl: mcpDiscovery.oauth.authorizationUrl || '',
         tokenUrl: mcpDiscovery.oauth.tokenUrl || '',
-        redirectUri: `http://localhost:3000/oauth/callback`,
+        redirectUri: `http://localhost:8000/api/oauth/callback`,
         scope: mcpDiscovery.oauth.scopesSupported?.[0] || 'read write',
       };
 
@@ -121,7 +121,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
       // Initiate OAuth flow
       const { authorizationUrl, state } = await fastify.oauthManager.initiateOAuthFlow({
         serviceId: request.params.serviceId,
-        redirectUri: `http://localhost:3000/oauth/callback`,
+        redirectUri: `http://localhost:8000/api/oauth/callback`,
       });
       
       const response: ApiResponse = {
@@ -202,19 +202,12 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
         state,
       });
       
-      const response: ApiResponse<OAuthToken> = {
-        success: true,
-        data: token,
-      };
-      
-      return reply.send(response);
+      // Redirect to frontend with success status
+      return reply.redirect(`http://localhost:3000/oauth/callback?success=true&serviceId=${serviceId}`);
     } catch (error) {
-      const response: ApiResponse = {
-        success: false,
-        error: error instanceof Error ? error.message : 'OAuth callback failed',
-      };
-      
-      return reply.status(500).send(response);
+      // Redirect to frontend with error status
+      const errorMessage = error instanceof Error ? error.message : 'OAuth callback failed';
+      return reply.redirect(`http://localhost:3000/oauth/callback?success=false&error=${encodeURIComponent(errorMessage)}`);
     }
   });
 

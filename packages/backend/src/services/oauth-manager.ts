@@ -136,20 +136,18 @@ export class OAuthManager {
   }
 
   async handleOAuthCallback(input: OAuthCallbackInput): Promise<OAuthToken> {
-    // Verify state parameter - for now, we'll be more lenient since state storage is in-memory
+    // Extract service ID from state parameter
     const serviceId = this.oauthStates.get(input.state);
-    if (serviceId && serviceId !== input.serviceId) {
-      throw new Error('Invalid OAuth state parameter');
+    if (!serviceId) {
+      throw new Error('Invalid or expired OAuth state parameter');
     }
 
-    // Clean up the state if it exists
-    if (serviceId) {
-      this.oauthStates.delete(input.state);
-    }
+    // Clean up the state after successful retrieval
+    this.oauthStates.delete(input.state);
 
-    const service = await this.db.getService(input.serviceId);
+    const service = await this.db.getService(serviceId);
     if (!service) {
-      throw new Error(`Service ${input.serviceId} not found`);
+      throw new Error(`Service ${serviceId} not found`);
     }
 
     if (!service.oauthTokenUrl) {
@@ -201,7 +199,7 @@ export class OAuthManager {
 
     // Store tokens in database
     await this.db.updateOAuthTokens(
-      input.serviceId,
+      serviceId,
       token.accessToken,
       token.refreshToken,
       token.expiresAt
@@ -344,7 +342,7 @@ export class OAuthManager {
               },
               body: JSON.stringify({
                 client_name: 'AgentDeck',
-                redirect_uris: [`${baseUrl.protocol}//${baseUrl.hostname}:3000/oauth/callback`],
+                redirect_uris: [`http://localhost:8000/api/oauth/callback`],
                 grant_types: ['authorization_code', 'refresh_token'],
                 response_types: ['code'],
                 token_endpoint_auth_method: 'client_secret_basic',
@@ -405,7 +403,7 @@ export class OAuthManager {
             },
             body: JSON.stringify({
               client_name: 'AgentDeck',
-              redirect_uri: `${baseUrl.protocol}//${baseUrl.hostname}:3000/oauth/callback`,
+              redirect_uri: `http://localhost:8000/api/oauth/callback`,
               scope: config.scope || 'read write',
             }),
           });

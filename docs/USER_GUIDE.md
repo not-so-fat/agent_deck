@@ -163,10 +163,18 @@ When connected to the MCP server, you can access:
 ## OAuth Status and Troubleshooting
 
 ### **OAuth Status**
-- **Configured**: OAuth credentials are set up
-- **Authorized**: OAuth tokens are valid and working
-- **Expired**: OAuth tokens need to be refreshed
-- **Error**: OAuth configuration or authorization failed
+The system now provides real-time OAuth status detection with the following states:
+
+- **Not Required**: Service doesn't require OAuth authentication
+- **Authentication Required**: OAuth is required but not authenticated
+- **Authenticated**: Valid OAuth tokens present and not expired
+- **Token Expired**: OAuth tokens exist but are expired (requires re-authentication)
+
+### **Automatic OAuth Detection**
+- **Auto-Discovery**: The system automatically detects if a service requires OAuth
+- **Auto-Registration**: For supported services, OAuth applications are registered automatically
+- **Real-time Status**: OAuth status updates automatically without manual refresh
+- **Token Management**: Automatic token expiration detection with 5-minute buffer
 
 ### **OAuth Troubleshooting**
 

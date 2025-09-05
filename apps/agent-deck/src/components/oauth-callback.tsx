@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
-import { apiRequest } from '@/lib/queryClient';
 
 export default function OAuthCallback() {
   const [location] = useLocation();
@@ -12,53 +11,24 @@ export default function OAuthCallback() {
       try {
         // Parse URL parameters from the current location
         const url = new URL(window.location.href);
-        const code = url.searchParams.get('code');
-        const state = url.searchParams.get('state');
+        const success = url.searchParams.get('success');
         const error = url.searchParams.get('error');
 
-        if (error) {
+        if (success === 'true') {
+          setStatus('success');
+          setMessage('Authentication successful! This window will close automatically.');
+          
+          // Close the window after a short delay
+          setTimeout(() => {
+            window.close();
+          }, 2000);
+        } else if (success === 'false') {
           setStatus('error');
-          setMessage(`OAuth Error: ${error}`);
-          return;
-        }
-
-        if (!code || !state) {
-          setStatus('error');
-          setMessage('Missing authorization code or state parameter');
-          return;
-        }
-
-        // For now, we'll use a hardcoded service ID since we're testing with Notion
-        // In a production system, you'd want to encode the service ID in the state parameter
-        const serviceId = 'ae0b8862-0b01-446c-8a20-790d57a6a509'; // Notion service ID
-        
-        if (!serviceId) {
-          setStatus('error');
-          setMessage('Could not determine service ID from state');
-          return;
-        }
-
-        // Call our backend to handle the OAuth callback
-        const response = await apiRequest('GET', `/api/oauth/${serviceId}/callback?code=${code}&state=${state}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setStatus('success');
-            setMessage('Authentication successful! This window will close automatically.');
-            
-            // Close the window after a short delay
-            setTimeout(() => {
-              window.close();
-            }, 2000);
-          } else {
-            setStatus('error');
-            setMessage(data.error || 'Authentication failed');
-          }
+          setMessage(`OAuth Error: ${error || 'Authentication failed'}`);
         } else {
-          const errorData = await response.json();
+          // Legacy handling for direct OAuth provider callbacks (shouldn't happen with new flow)
           setStatus('error');
-          setMessage(errorData.error || 'Authentication failed');
+          setMessage('Invalid OAuth callback - please try again');
         }
       } catch (error) {
         setStatus('error');
