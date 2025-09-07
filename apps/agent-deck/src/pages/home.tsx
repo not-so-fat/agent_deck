@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Settings, Layers, Bolt, Server, Bot, Download, Copy, Plus, Filter } from "lucide-react";
+import AgentDeckLogo from "@/assets/AgentDeckLogo2.png";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Home() {
@@ -145,8 +146,12 @@ export default function Home() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style={{background: 'linear-gradient(135deg, #C4B643, #D4C760)'}}>
-                <Layers className="w-6 h-6" style={{color: '#0A0A07'}} />
+              <div className="w-16 h-16 rounded-xl flex items-center justify-center shadow-lg overflow-hidden" style={{background: 'linear-gradient(135deg, #C4B643, #D4C760)'}}>
+                <img 
+                  src={AgentDeckLogo} 
+                  alt="Agent Deck Logo" 
+                  className="w-14 h-14 object-contain"
+                />
               </div>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent" style={{background: 'linear-gradient(to right, #C4B643, #D4C760)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
