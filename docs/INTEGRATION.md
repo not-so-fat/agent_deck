@@ -372,6 +372,93 @@ curl http://localhost:3000
 - **State Validation**: OAuth state parameter validation
 - **Redirect URIs**: Strict redirect URI validation
 
+## Local MCP Server Integration
+
+### **Local MCP Server Overview**
+Local MCP servers are spawned as subprocesses and communicate via stdio transport. This allows you to run MCP servers locally without needing to set up HTTP endpoints.
+
+### **Configuration Format**
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+      "env": {
+        "MCP_SERVER_FILESYSTEM_ROOT": "/path/to/root"
+      }
+    }
+  }
+}
+```
+
+### **Import Local Servers**
+```bash
+# Import from JSON configuration
+curl -X POST http://localhost:8000/api/local-mcp/import \
+  -H "Content-Type: application/json" \
+  -d '{"config": "{\"mcpServers\":{\"memory\":{\"command\":\"npx\",\"args\":[\"-y\",\"@modelcontextprotocol/server-memory\"]}}}"}'
+
+# Get sample configuration
+curl http://localhost:8000/api/local-mcp/sample-config
+```
+
+### **Using Local Servers (Same as Any Service)**
+```bash
+# 1. Start the local server process
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/start
+
+# 2. Add to active deck (same as any other service)
+curl -X POST http://localhost:8000/api/decks/{deckId}/services \
+  -H "Content-Type: application/json" \
+  -d '{"serviceId": "{serviceId}"}'
+
+# 3. Call tools (unified API - same for all services)
+curl -X POST http://localhost:8000/api/services/{serviceId}/call \
+  -H "Content-Type: application/json" \
+  -d '{"toolName": "get_memory", "arguments": {"key": "test"}}'
+
+# 4. Discover tools (unified API)
+curl http://localhost:8000/api/services/{serviceId}/tools
+
+# 5. Check health (unified API)
+curl http://localhost:8000/api/services/{serviceId}/health
+```
+
+### **Manage Local Servers**
+```bash
+# List all local servers
+curl http://localhost:8000/api/local-mcp/list
+
+# Start a local server
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/start
+
+# Stop a local server
+curl -X POST http://localhost:8000/api/local-mcp/{serviceId}/stop
+
+# Get server status
+curl http://localhost:8000/api/local-mcp/{serviceId}/status
+```
+
+**Note**: These endpoints are for **process management only**. For **using** the services (calling tools, discovering capabilities), use the unified `/api/services/*` endpoints shown above.
+
+### **Security Features**
+- **Command Validation**: Blocks unsafe commands (rm, sudo, etc.)
+- **Environment Sanitization**: Only allows safe environment variable names
+- **Process Isolation**: Each server runs in its own process
+- **User Trust Model**: Assumes local environment trust
+
+### **Frontend Integration** ✅ **Fully Implemented**
+- **Tabbed Registration Modal**: Single "Register MCP" button with Remote/Local tabs
+- **Local MCP Form**: Command, arguments, and environment variables input
+- **Service Type Display**: Clear "Remote MCP" vs "Local MCP" distinction
+- **Real-time Validation**: Command safety and environment variable validation
+- **Process Management**: Start/stop local servers from the UI
+
 ## OAuth 2.0 Implementation Details
 
 ### **OAuth Flow Architecture**

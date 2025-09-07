@@ -358,6 +358,47 @@ export class ServiceManager {
 - **Validated**: Validate all inputs with Zod
 - **Documented**: Document all endpoints
 
+### **API Endpoints**
+
+#### **Services**
+- `GET /api/services` - List all services
+- `POST /api/services` - Create new service
+- `GET /api/services/:id` - Get service details
+- `PUT /api/services/:id` - Update service
+- `DELETE /api/services/:id` - Delete service
+- `GET /api/services/:id/tools` - Discover service tools
+- `POST /api/services/:id/call` - Call service tool
+- `GET /api/services/:id/health` - Check service health
+
+#### **Decks**
+- `GET /api/decks` - List all decks
+- `POST /api/decks` - Create new deck
+- `GET /api/decks/active` - Get active deck
+- `GET /api/decks/:id` - Get deck details
+- `PUT /api/decks/:id` - Update deck
+- `DELETE /api/decks/:id` - Delete deck
+- `POST /api/decks/:id/activate` - Set as active deck
+- `POST /api/decks/:id/services` - Add service to deck
+- `DELETE /api/decks/:id/services` - Remove service from deck
+- `PUT /api/decks/:id/services/reorder` - Reorder deck services
+
+#### **OAuth** ✅ **Fully Implemented**
+- `GET /api/oauth/:serviceId/discover` - Discover OAuth config
+- `GET /api/oauth/callback` - Generic OAuth callback (extracts service ID from state)
+- `POST /api/oauth/:serviceId/auto-setup` - Auto-register OAuth application and start flow
+- `GET /api/oauth/:serviceId/status` - Check OAuth token status
+
+#### **Local MCP Servers** ✅ **Fully Implemented**
+- `POST /api/local-mcp/import` - Import local servers from JSON configuration
+- `GET /api/local-mcp/sample-config` - Get sample configuration
+- `POST /api/local-mcp/:serviceId/start` - Start a local MCP server
+- `POST /api/local-mcp/:serviceId/stop` - Stop a local MCP server
+- `GET /api/local-mcp/:serviceId/status` - Get local server status
+- `GET /api/local-mcp/list` - List all local MCP servers
+
+#### **WebSocket**
+- `WS /api/ws/events` - Real-time updates
+
 ### **API Response Format**
 ```typescript
 interface ApiResponse<T = any> {
@@ -654,6 +695,125 @@ RUN npm run build
 EXPOSE 8000 3001
 CMD ["npm", "start"]
 ```
+
+## Troubleshooting
+
+### **Common Issues**
+
+#### **Native Module Error (better-sqlite3)**
+- **Symptom**: ERR_DLOPEN_FAILED / NODE_MODULE_VERSION mismatch
+- **Cause**: Node.js version mismatch - better-sqlite3 compiled against different Node version
+- **Fix**: Ensure Node 20 is active, then reinstall
+  ```bash
+  # With Homebrew Node 20 active in PATH, run from repo root:
+  rm -rf node_modules packages/*/node_modules apps/*/node_modules && npm ci
+  ```
+
+#### **Port Already in Use**
+- **Symptom**: EADDRINUSE error when starting services
+- **Cause**: Ports 3000 (frontend) or 3001 (MCP) occupied by previous run
+- **Fix**: Free the port and restart
+  ```bash
+  # macOS: Kill process on specific port
+  kill -9 $(lsof -t -iTCP:3000 -sTCP:LISTEN)  # Replace 3000 with 3001 as needed
+  
+  # Or start Vite with --strictPort to fail fast
+  npm run dev -- --port 3000 --strictPort
+  ```
+
+#### **MCP Cannot Reach Backend (ECONNREFUSED)**
+- **Symptom**: ECONNREFUSED errors in MCP logs
+- **Cause**: Backend not running or wrong port configuration
+- **Fix**: Verify backend is running and ports match
+  ```bash
+  # Check backend health
+  curl http://127.0.0.1:8000/health
+  
+  # Check MCP backend status
+  curl http://127.0.0.1:3001/backend-status
+  
+  # Ensure backend is started before MCP
+  ```
+
+#### **OAuth State Parameter Error**
+- **Symptom**: "Invalid OAuth state parameter" (400 Bad Request)
+- **Cause**: State parameter mismatch between OAuth provider and callback
+- **Fix**: Ensure OAuth flow uses consistent state management
+  - Check that redirect URIs match exactly
+  - Verify state parameter is properly generated and validated
+
+#### **Authentication Required Still Showing**
+- **Symptom**: UI shows "Authentication Required" after successful OAuth
+- **Cause**: Frontend not detecting OAuth token status correctly
+- **Fix**: Check OAuth token storage and polling mechanism
+  - Verify tokens are stored in database
+  - Check that headers field includes Authorization header
+  - Ensure polling mechanism invalidates queries after OAuth completion
+
+### **Development Environment Issues**
+
+#### **Node.js Version Management**
+```bash
+# Check current Node version
+node --version
+
+# Switch to Node 20 (if using nvm)
+nvm install 20 && nvm use 20
+
+# Switch to Node 20 (if using Homebrew)
+export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+```
+
+#### **Package Installation Issues**
+```bash
+# Clean install
+rm -rf node_modules package-lock.json
+npm install
+
+# Rebuild native modules
+npm run build
+```
+
+#### **Database Issues**
+```bash
+# Reset database (development only)
+rm packages/backend/agent_deck.db
+npm run dev:all  # Will recreate database
+```
+
+### **Log Analysis**
+
+#### **Backend Logs**
+- **Location**: `logs/backend.log`
+- **Key Information**: API requests, database operations, service health checks
+- **Common Patterns**: Look for error patterns, slow queries, connection issues
+
+#### **Frontend Logs**
+- **Location**: Browser console
+- **Key Information**: React errors, API call failures, WebSocket connection issues
+- **Common Patterns**: Network errors, component rendering issues, state management problems
+
+#### **MCP Logs**
+- **Location**: `logs/mcp_*.log`
+- **Key Information**: MCP server startup, tool calls, service connections
+- **Common Patterns**: Connection failures, tool execution errors, service discovery issues
+
+### **Performance Issues**
+
+#### **Slow API Responses**
+- Check database query performance
+- Monitor service health check frequency
+- Review WebSocket connection handling
+
+#### **Frontend Performance**
+- Check for memory leaks in React components
+- Monitor WebSocket reconnection frequency
+- Review bundle size and loading times
+
+#### **MCP Server Performance**
+- Monitor tool call response times
+- Check service connection pooling
+- Review database query optimization
 
 ## Contributing Guidelines
 
