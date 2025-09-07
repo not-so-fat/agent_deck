@@ -1,13 +1,14 @@
 # <img src="./misc/AgentDeckLogo2.png" height="30px"> Agent Deck
 
-[![Demo Video](https://img.youtube.com/vi/TeLXBKkWkFA/0.jpg)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
+<img src="./misc/Demo.gif" alt="Demo" width="50%" />
+
 [![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-red?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
 
 
 
 ## Problem: Too many MCPs on my agent
 
-<img src="./misc/CursorTooManyTools.png" alt="Cursor Too Many Tools" width="60%" />
+<img src="./misc/CursorTooManyTools.png" alt="Cursor Too Many Tools" width="30%" />
 
 People are using agent app like Cursor for many purposes, eventually they would have **many MCP servers** to provide different tools.
 However agent app slows down, and becomes inaccurate with too many MCP servers.
@@ -17,7 +18,7 @@ On the other hand, when I use Cursor, there are different contexts (Coding, docu
 
 ## Idea: Local MCP server manages context
 
-<img src="./misc/Idea.png" alt="Frontend" width="90%" />
+<img src="./misc/Idea.png" alt="Frontend" width="60%" />
 
 AgentDeck provides a local MCP server, which acts as a local context-aware MCP server. You can connect one endpoint for your agent (http://127.0.0.1:3001/mcp), which connects to your favorite MCP servers, but only to ones fit on the context you choose.
 
@@ -27,7 +28,8 @@ AgentDeck provides a local MCP server, which acts as a local context-aware MCP s
 ## Features
 
 ### Frontend UI
-<img src="./misc/UI.png" alt="Frontend" width="90%" />
+<img src="./misc/UI.png" alt="Frontend" width="60%" />
+
 1. Register as many MCP servers into your collections (Remote / Local)
     - If it requires OAuth authentication, follow the instruction on UI to configure it
 2. Create "deck" as your context
@@ -76,11 +78,13 @@ npm run dev:all
 
 ## How It Works
 
-1. **Register Services**: Add MCP servers to your collection (Remote or Local)
-2. **Create Decks**: Organize services into context-specific decks
-3. **Activate Deck**: Choose which deck your agent should use
-4. **Connect Agent**: Point your agent to `http://127.0.0.1:3001/mcp`
-5. **Use Tools**: Your agent can now access tools from services in the active deck
+1. **Access UI (`http://localhost:3000`) and Manage Services**: 
+    - Add MCP servers to your collection (Remote or Local)
+    - Create decks to organize services for different contexts
+    - Activate a deck you want to use
+2. ** Connect MCP server (`http://127.0.0.1:3001/mcp`) to use them
+    - Configure on your agent
+    - MCP server let your agent access tools in active deck
 
 ## 📚 **Documentation**
 
