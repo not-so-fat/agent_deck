@@ -1,6 +1,8 @@
 # <img src="./misc/AgentDeckLogo2.png" height="30px"> Agent Deck
 
-[![Agent Deck Demo](https://img.youtube.com/vi/TeLXBKkWkFA/0.jpg)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
+[![Demo Video](https://img.youtube.com/vi/TeLXBKkWkFA/0.jpg)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
+[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-red?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
+
 
 
 ## Problem: Too many MCPs on my agent
