@@ -1,7 +1,6 @@
 # <img src="./misc/AgentDeckLogo2.png" height="30px"> Agent Deck
 
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/TeLXBKkWkFA" title="Agent Deck Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+[![Agent Deck Demo](https://img.youtube.com/vi/TeLXBKkWkFA/0.jpg)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
 
 
 ## Problem: Too many MCPs on my agent
