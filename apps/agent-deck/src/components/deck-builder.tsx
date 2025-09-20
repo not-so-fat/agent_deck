@@ -2,7 +2,8 @@ import { Deck, Service } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Plus, Settings, Database, Cloud, Code, Brain, FileText, Mail, Calculator, BarChart } from "lucide-react";
+import { Plus } from "lucide-react";
+import agentIconUrl from "@/assets/icons/Agent2.svg";
 
 interface DeckBuilderProps {
   deck: Deck;
@@ -60,28 +61,18 @@ export default function DeckBuilder({
   };
 
   const getServiceIcon = (service: Service) => {
-    const iconMap: { [key: string]: any } = {
-      'database': Database,
-      'cloud': Cloud,
-      'code': Code,
-      'brain': Brain,
-      'file': FileText,
-      'mail': Mail,
-      'calculator': Calculator,
-      'chart': BarChart,
-      'settings': Settings,
-    };
-
-    // Try to match service name or description to icon
-    const serviceText = `${service.name} ${service.description || ''}`.toLowerCase();
-    
-    for (const [key, icon] of Object.entries(iconMap)) {
-      if (serviceText.includes(key)) {
-        return icon;
-      }
-    }
-    
-    return Settings; // Default icon
+    const color = service.cardColor || '#7ed4da';
+    return (
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          backgroundColor: color,
+          WebkitMask: `url(${agentIconUrl}) no-repeat center / contain`,
+          mask: `url(${agentIconUrl}) no-repeat center / contain`,
+        }}
+      />
+    );
   };
 
   const maxSize = 10; // Default max size for decks
@@ -156,18 +147,18 @@ export default function DeckBuilder({
                     >
                       <div className="absolute top-1 left-1 text-xs font-bold">
                         <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-                          {service.type === 'mcp' ? 'M' : 'A'}
+                          {service.type === 'mcp' ? 'RM' : service.type === 'local-mcp' ? 'LM' : 'A'}
                         </div>
                       </div>
                       <div className="absolute bottom-1 right-1 text-xs font-bold rotate-180">
                         <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-                          {service.type === 'mcp' ? 'M' : 'A'}
+                          {service.type === 'mcp' ? 'RM' : service.type === 'local-mcp' ? 'LM' : 'A'}
                         </div>
                       </div>
 
                       <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
                         <div className="mb-2" style={{ color: service.cardColor || '#7ed4da' }}>
-                          <IconComponent className="w-6 h-6" />
+                          {IconComponent}
                         </div>
                         <h3
                           className="font-bold text-xs mb-1 line-clamp-2"
@@ -180,21 +171,11 @@ export default function DeckBuilder({
                           color: service.cardColor || '#7ed4da',
                           borderColor: service.cardColor || '#7ed4da'
                         }}>
-                          {service.type.toUpperCase()}
+                          {service.type === 'mcp' ? 'Remote MCP' : service.type === 'local-mcp' ? 'Local MCP' : 'A2A'}
                         </div>
                       </div>
 
-                      <button
-                        className="absolute -top-2 -right-2 w-6 h-6 p-0 rounded-full opacity-0 group-hover:opacity-100 transition-all text-xs bg-red-500 text-white hover:bg-red-600"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeServiceFromDeck(service.id);
-                        }}
-                        title="Remove from deck"
-                        data-testid={`button-remove-from-deck-${service.id}`}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      {/* Removed trash button from Active Deck cards to match design */}
 
                       <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none"></div>
                     </div>

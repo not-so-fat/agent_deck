@@ -3,7 +3,8 @@ import { Service, Deck } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Database, Cloud, Code, Brain, FileText, Mail, Calculator, BarChart, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import agentIconUrl from "@/assets/icons/Agent2.svg";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface CardComponentProps {
@@ -21,34 +22,18 @@ interface CardComponentProps {
 
 
 const getServiceIcon = (service: Service) => {
-  const iconMap: Record<string, JSX.Element> = {
-    database: <Database className="w-6 h-6" />,
-    cloud: <Cloud className="w-6 h-6" />,
-    aws: <Cloud className="w-6 h-6" />,
-    git: <Code className="w-6 h-6" />,
-    code: <Code className="w-6 h-6" />,
-    ai: <Brain className="w-6 h-6" />,
-    gpt: <Brain className="w-6 h-6" />,
-    brain: <Brain className="w-6 h-6" />,
-    file: <FileText className="w-6 h-6" />,
-    email: <Mail className="w-6 h-6" />,
-    mail: <Mail className="w-6 h-6" />,
-    math: <Calculator className="w-6 h-6" />,
-    calc: <Calculator className="w-6 h-6" />,
-    analytics: <BarChart className="w-6 h-6" />,
-    chart: <BarChart className="w-6 h-6" />,
-  };
-
-  const serviceName = service.name.toLowerCase();
-  const serviceType = service.type.toLowerCase();
-  
-  for (const [key, icon] of Object.entries(iconMap)) {
-    if (serviceName.includes(key) || serviceType.includes(key)) {
-      return icon;
-    }
-  }
-  
-  return service.type === 'mcp' || service.type === 'local-mcp' ? <Database className="w-6 h-6" /> : <Brain className="w-6 h-6" />;
+  const color = service.cardColor || '#7ed4da';
+  return (
+    <div
+      style={{
+        width: 28,
+        height: 28,
+        backgroundColor: color,
+        WebkitMask: `url(${agentIconUrl}) no-repeat center / contain`,
+        mask: `url(${agentIconUrl}) no-repeat center / contain`,
+      }}
+    />
+  );
 };
 
 
