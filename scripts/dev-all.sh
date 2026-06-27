@@ -29,11 +29,26 @@ echo "[dev-all] Starting frontend (3000) ..."
 
 sleep 1
 
+echo "[dev-all] Building MCP App bundle ..."
+(
+  cd "$ROOT_DIR/packages/mcp-app"
+  npm run build 2>&1 | tee "$LOG_DIR/mcp_app_build.log"
+)
+
 echo "[dev-all] Starting MCP server (3001) ..."
+if lsof -i :3001 -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "[dev-all] Stopping existing MCP server on port 3001 ..."
+  lsof -ti :3001 | xargs kill 2>/dev/null || true
+  sleep 1
+fi
 (
   cd "$ROOT_DIR/packages/backend"
-  npm run mcp 2>&1 | tee "$LOG_DIR/mcp_ts_direct.log"
+  tsx src/mcp-index.ts 2>&1 | tee "$LOG_DIR/mcp_ts_direct.log"
 ) &
+
+echo "[dev-all] Verifying MCP connection (Cursor-style) ..."
+sleep 2
+node "$ROOT_DIR/scripts/test-mcp-cursor-connect.mjs" || echo "[dev-all] WARNING: MCP connect test failed — check $LOG_DIR/mcp_ts_direct.log"
 
 echo "[dev-all] All services started. Logs in $LOG_DIR"
 wait

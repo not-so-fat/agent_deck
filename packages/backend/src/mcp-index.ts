@@ -1,5 +1,13 @@
 import { AgentDeckMCPServer } from './mcp-server';
 
+process.on('uncaughtException', (error) => {
+  console.error('❌ MCP server uncaught exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('❌ MCP server unhandled rejection:', reason);
+});
+
 async function startMCPServer() {
   try {
     console.log('🚀 Starting Agent Deck MCP Server...');

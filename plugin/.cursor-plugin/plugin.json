@@ -1,0 +1,23 @@
+{
+  "name": "agent-deck",
+  "version": "0.1.0",
+  "description": "Context-aware local MCP proxy — one endpoint, many decks. Includes MCP App UI for in-chat deck switching.",
+  "author": {
+    "name": "not-so-fat"
+  },
+  "homepage": "https://github.com/not-so-fat/agent_deck",
+  "repository": "https://github.com/not-so-fat/agent_deck",
+  "license": "ISC",
+  "keywords": [
+    "mcp",
+    "mcp-app",
+    "model-context-protocol",
+    "cursor",
+    "agent",
+    "deck",
+    "context",
+    "proxy"
+  ],
+  "logo": "assets/logo.png",
+  "skills": "skills"
+}

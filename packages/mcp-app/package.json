@@ -1,0 +1,11 @@
+{
+  "name": "@agent-deck/mcp-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MCP App UI bundle for Agent Deck (built from the local dashboard)",
+  "scripts": {
+    "build": "npm run build:mcp-app --workspace @agent-deck/frontend",
+    "dev": "npm run build:mcp-app --workspace @agent-deck/frontend -- --watch",
+    "clean": "rm -rf dist"
+  }
+}

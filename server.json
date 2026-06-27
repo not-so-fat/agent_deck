@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.not-so-fat/agent-deck",
+  "title": "Agent Deck",
+  "description": "Local context-aware MCP proxy. Connect one endpoint to many MCP servers, organized into switchable decks. Includes MCP App UI for in-chat deck management.",
+  "repository": {
+    "url": "https://github.com/not-so-fat/agent_deck",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/not-so-fat/agent_deck",
+  "version": "1.0.0",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/not-so-fat/agent_deck/main/misc/AgentDeckLogo2.png",
+      "mimeType": "image/png"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@not-so-fat/agent-deck",
+      "version": "1.0.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:3001/mcp"
+      }
+    }
+  ]
+}

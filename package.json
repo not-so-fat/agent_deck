@@ -29,7 +29,7 @@
     "type": "git",
     "url": "git+https://github.com/not-so-fat/agent_deck.git"
   },
-  "keywords": ["mcp", "agent", "typescript", "react", "nextjs"],
+  "keywords": ["mcp", "mcp-app", "model-context-protocol", "cursor", "agent", "deck", "context", "proxy", "typescript", "react"],
   "author": "",
   "license": "ISC",
   "bugs": {
