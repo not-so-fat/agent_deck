@@ -4,12 +4,6 @@ set -euo pipefail
 # Quick smoke test: backend starts, health + key APIs respond, no websocket crash.
 # Run from repo root after backend-affecting changes.
 
-if command -v nvm >/dev/null 2>&1; then
-  nvm use 20 >/dev/null 2>&1 || true
-elif [[ "${OSTYPE:-}" == darwin* ]] && [[ -x "/opt/homebrew/opt/node@20/bin/node" ]]; then
-  export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
-fi
-
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.temporal/logs"
 mkdir -p "$LOG_DIR"
@@ -25,6 +19,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "[smoke-dev] Node $(node -v)"
 echo "[smoke-dev] Starting backend on port $BACKEND_PORT ..."
 (
   cd "$ROOT_DIR/packages/backend"

@@ -74,7 +74,7 @@ describe('useDragAndDrop', () => {
       )
       expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
         'application/json',
-        JSON.stringify({ serviceId: mockService.id, fromDeck: false })
+        JSON.stringify({ kind: 'service', id: mockService.id, fromDeck: false })
       )
       expect(mockDragEvent.dataTransfer.effectAllowed).toBe('copy')
     })
@@ -106,7 +106,7 @@ describe('useDragAndDrop', () => {
       )
       expect(mockDragEvent.dataTransfer.setData).toHaveBeenCalledWith(
         'application/json',
-        JSON.stringify({ serviceId: mockService.id, fromDeck: true })
+        JSON.stringify({ kind: 'service', id: mockService.id, fromDeck: true })
       )
       expect(mockDragEvent.dataTransfer.effectAllowed).toBe('move')
     })

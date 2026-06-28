@@ -12,7 +12,7 @@ Publish **in order**: shared → backend → cli.
 
 ## Prerequisites
 
-- Node.js **20+**
+- Node.js **24** (or **20+**) on the publish machine ([SETUP.md](./SETUP.md#nodejs-version-policy))
 - npm account with access to publish `@agent-deck/*` (create the [npm org](https://www.npmjs.com/org/create) if needed)
 - Logged in: `npm login`
 
@@ -41,9 +41,13 @@ MCP: `http://127.0.0.1:3001/mcp`
 
 ## Publish to npm
 
+Tests must pass first (`npm test`). Publish is blocked if any workspace test fails.
+
 ```bash
 npm run publish:packages
 ```
+
+This runs the full test suite, `build:release`, then publishes shared → backend → cli.
 
 Or step by step:
 
@@ -88,7 +92,8 @@ claude mcp add --scope user --transport http agent-deck http://127.0.0.1:3001/mc
 |--------|---------|
 | Cursor (global) | `agent-deck setup --client cursor` |
 | Cursor (project) | `agent-deck setup --client cursor --scope project` |
-| Claude Code | `agent-deck setup --client claude` (uses `claude mcp add` when available) |
+| Claude Code | `agent-deck setup --client claude` (uses `claude mcp add` → `~/.claude.json`; fallback writes same file — **not** `settings.json`) |
+| Claude Code (project) | `agent-deck setup --client claude --scope project` → `.mcp.json` |
 | Claude Desktop | `agent-deck setup --client claude-desktop` (stdio bridge via supergateway) |
 
 Add `--start` to launch Agent Deck after writing config.

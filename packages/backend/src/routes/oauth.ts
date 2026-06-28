@@ -7,7 +7,8 @@ import {
   OAuthDiscoveryResult,
   OAuthToken
 } from '@agent-deck/shared';
-import { MCPDiscoveryService } from '../services/mcp-discovery-service';
+import { resolveDashboardOrigin } from '../lib/paths';
+import { getOAuthSetupInfo, startOAuthConnect } from '../services/oauth-connect-service';
 
 interface OAuthFlowRequest {
   Params: { serviceId: string };
@@ -26,6 +27,11 @@ interface OAuthRefreshRequest {
 
 interface ServiceIdRequest {
   Params: { serviceId: string };
+}
+
+interface OAuthConnectRequest {
+  Params: { serviceId: string };
+  Body: { clientId?: string; clientSecret?: string };
 }
 
 export async function registerOAuthRoutes(fastify: FastifyInstance) {
@@ -60,87 +66,106 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Auto-register OAuth application and initiate flow
-  fastify.post<ServiceIdRequest>('/:serviceId/auto-setup', async (request, reply) => {
+  // OAuth setup guide + discovery for a service
+  fastify.get<ServiceIdRequest>('/:serviceId/setup', async (request, reply) => {
     try {
-      const service = await fastify.db.getService(request.params.serviceId);
-      if (!service) {
-        const response: ApiResponse = {
-          success: false,
-          error: 'Service not found',
-        };
-        
-        return reply.status(404).send(response);
-      }
-
-      // Use MCP discovery service to get OAuth configuration
-      const discoveryService = new MCPDiscoveryService();
-      const mcpDiscovery = await discoveryService.discoverService(service.url);
-      
-      if (!mcpDiscovery.oauth.required) {
-        const response: ApiResponse = {
-          success: false,
-          error: 'Service does not require OAuth authentication',
-        };
-        
-        return reply.status(400).send(response);
-      }
-
-      // Convert MCP discovery to OAuth config format
-      const oauthConfig = {
-        clientId: '', // Will be provided by auto-registration
-        clientSecret: '', // Will be provided by auto-registration
-        authorizationUrl: mcpDiscovery.oauth.authorizationUrl || '',
-        tokenUrl: mcpDiscovery.oauth.tokenUrl || '',
-        redirectUri: `http://localhost:8000/api/oauth/callback`,
-        scope: mcpDiscovery.oauth.scopesSupported?.[0] || 'read write',
-      };
-
-      // Auto-register OAuth application
-      const registration = await fastify.oauthManager.autoRegisterOAuthApp(service.url, oauthConfig);
-      if (!registration.success) {
-        const response: ApiResponse = {
-          success: false,
-          error: registration.error || 'Failed to auto-register OAuth application',
-          data: registration.registrationUrl ? { registrationUrl: registration.registrationUrl } : undefined,
-        };
-        
-        return reply.status(400).send(response);
-      }
-
-      // Update service with OAuth credentials
-      await fastify.db.updateService(request.params.serviceId, {
-        oauthClientId: registration.clientId,
-        oauthClientSecret: registration.clientSecret,
-        oauthAuthorizationUrl: oauthConfig.authorizationUrl,
-        oauthTokenUrl: oauthConfig.tokenUrl,
-        oauthRedirectUri: oauthConfig.redirectUri,
-        oauthScope: oauthConfig.scope,
-      });
-
-      // Initiate OAuth flow
-      const { authorizationUrl, state } = await fastify.oauthManager.initiateOAuthFlow({
-        serviceId: request.params.serviceId,
-        redirectUri: `http://localhost:8000/api/oauth/callback`,
-      });
-      
+      const { guide, discovery } = await getOAuthSetupInfo(fastify.db, request.params.serviceId);
       const response: ApiResponse = {
         success: true,
         data: {
-          authorizationUrl,
-          state,
-          clientId: registration.clientId,
-          message: 'OAuth application registered and authorization flow initiated',
+          guide,
+          oauth: discovery.oauth,
         },
       };
-      
       return reply.send(response);
     } catch (error) {
       const response: ApiResponse = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
-      
+      return reply.status(400).send(response);
+    }
+  });
+
+  // Connect OAuth (auto-register or manual client credentials)
+  fastify.post<OAuthConnectRequest>('/:serviceId/connect', async (request, reply) => {
+    try {
+      const result = await startOAuthConnect(
+        fastify.db,
+        fastify.oauthManager,
+        request.params.serviceId,
+        request.body ?? {},
+      );
+
+      if (!result.success) {
+        const response: ApiResponse = {
+          success: false,
+          error: result.error,
+          data: {
+            needsCredentials: result.needsCredentials,
+            setupMode: result.setupMode,
+            guide: result.guide,
+          },
+        };
+        return reply.status(result.needsCredentials || result.setupMode === 'unavailable' ? 400 : 400).send(response);
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          authorizationUrl: result.authorizationUrl,
+          state: result.state,
+          mode: result.mode,
+        },
+      };
+      return reply.send(response);
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+      return reply.status(400).send(response);
+    }
+  });
+
+  // Auto-register OAuth application and initiate flow (legacy alias)
+  fastify.post<OAuthConnectRequest>('/:serviceId/auto-setup', async (request, reply) => {
+    try {
+      const result = await startOAuthConnect(
+        fastify.db,
+        fastify.oauthManager,
+        request.params.serviceId,
+        request.body ?? {},
+      );
+
+      if (!result.success) {
+        const response: ApiResponse = {
+          success: false,
+          error: result.error,
+          data: {
+            needsCredentials: result.needsCredentials,
+            setupMode: result.setupMode,
+            guide: result.guide,
+          },
+        };
+        return reply.status(400).send(response);
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          authorizationUrl: result.authorizationUrl,
+          state: result.state,
+          mode: result.mode,
+          message: 'OAuth application registered and authorization flow initiated',
+        },
+      };
+      return reply.send(response);
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
       return reply.status(400).send(response);
     }
   });
@@ -203,13 +228,33 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
       });
 
       fastify.collectionWarningService.clearCache(serviceId);
-      
-      // Redirect to frontend with success status
-      return reply.redirect(`http://localhost:3000/oauth/callback?success=true&serviceId=${serviceId}`);
+
+      try {
+        await fastify.serviceManager.discoverServiceTools(serviceId);
+        fastify.broadcastServiceUpdate({
+          serviceId,
+          health: 'healthy',
+          isConnected: true,
+          lastPing: new Date().toISOString(),
+        });
+      } catch (error) {
+        fastify.log.warn(`OAuth succeeded but post-auth tool discovery failed for ${serviceId}: ${error}`);
+        fastify.broadcastServiceUpdate({
+          serviceId,
+          health: 'unknown',
+          isConnected: false,
+          lastPing: new Date().toISOString(),
+        });
+      }
+
+      const dashboardOrigin = resolveDashboardOrigin();
+      return reply.redirect(`${dashboardOrigin}/oauth/callback?success=true&serviceId=${serviceId}`);
     } catch (error) {
-      // Redirect to frontend with error status
       const errorMessage = error instanceof Error ? error.message : 'OAuth callback failed';
-      return reply.redirect(`http://localhost:3000/oauth/callback?success=false&error=${encodeURIComponent(errorMessage)}`);
+      const dashboardOrigin = resolveDashboardOrigin();
+      return reply.redirect(
+        `${dashboardOrigin}/oauth/callback?success=false&error=${encodeURIComponent(errorMessage)}`,
+      );
     }
   });
 
@@ -279,12 +324,14 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
 
       const isExpired = await fastify.oauthManager.isTokenExpired(request.params.serviceId);
       const hasToken = !!service.oauthAccessToken;
+      const authenticated = hasToken && !isExpired;
       
       const response: ApiResponse = {
         success: true,
         data: {
           hasToken,
           isExpired,
+          authenticated,
           hasRefreshToken: !!service.oauthRefreshToken,
           expiresAt: service.oauthTokenExpiresAt,
         },

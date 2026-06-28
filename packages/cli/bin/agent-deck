@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
+# Dev fallback when invoked from packages/cli/bin (repo). Published npm uses dist/bin.js directly.
 set -euo pipefail
-DIR="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ -f "$DIR/dist/bin.js" ]]; then
-  exec node "$DIR/dist/bin.js" "$@"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PKG_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [[ -f "$PKG_ROOT/dist/bin.js" ]]; then
+  exec node "$PKG_ROOT/dist/bin.js" "$@"
 fi
-exec npx tsx "$DIR/src/bin.ts" "$@"
+exec npx tsx "$PKG_ROOT/src/bin.ts" "$@"

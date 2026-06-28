@@ -1,6 +1,6 @@
 {
   "name": "agent-deck",
-  "version": "1.1.1",
+  "version": "1.1.5",
   "description": "Agent Deck - Local app for MCP access (like a browser for agents)",
   "private": true,
   "workspaces": [
@@ -16,6 +16,8 @@
     "mcp": "npm --workspace packages/backend run mcp",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:ci": "turbo run test",
+    "prepublish:check": "node scripts/pre-publish-check.mjs",
     "agent-deck": "node packages/cli/dist/bin.js",
     "agent-deck:dev": "tsx packages/cli/src/bin.ts",
     "build:release": "node scripts/prepare-release.mjs",

@@ -1,0 +1,40 @@
+{
+  "display_information": {
+    "name": "Agent Deck",
+    "description": "Connect AI agents to your Slack workspace through Agent Deck.",
+    "long_description": "Agent Deck is a workspace for organizing AI tools, credentials, and MCP services. This Slack app lets you authorize Agent Deck to access Slack on your behalf through the official Slack MCP server, so agents you run via Agent Deck can work with the channels and conversations you already use.\n\nAfter you connect, Agent Deck can help you search and read messages in channels and direct messages you belong to, draft or send messages when you approve it, and use other Slack MCP capabilities supported by your granted scopes. Each person connects individually; access is limited to what your Slack account can see.\n\nAgent Deck stores OAuth tokens locally on your machine (or your team's hosted Agent Deck instance)—not in a shared multi-tenant cloud unless you opt into hosted deployment. You can disconnect at any time from Slack's app management settings or from Agent Deck.\n\nThis app is intended for people who use Agent Deck to manage their agent toolchain. It is not a standalone Slack bot in channels unless you explicitly use posting tools.",
+    "background_color": "#2c2d30"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Agent Deck MCP",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://oauth.agent-deck.dev/api/oauth/callback"],
+    "scopes": {
+      "bot": ["users:read"],
+      "user": [
+        "search:read.public",
+        "search:read.private",
+        "search:read.mpim",
+        "search:read.im",
+        "search:read.files",
+        "search:read.users",
+        "chat:write",
+        "channels:history",
+        "groups:history",
+        "mpim:history",
+        "im:history",
+        "canvases:read",
+        "canvases:write",
+        "users:read",
+        "users:read.email"
+      ]
+    }
+  },
+  "settings": {
+    "org_deploy_enabled": true
+  }
+}

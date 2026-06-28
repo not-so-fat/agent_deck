@@ -3,7 +3,7 @@ import {
   getCredentialWarnings,
   getPlaybookWarnings,
   getServiceWarnings,
-  isOAuthTokenExpiringSoon,
+  isOAuthSessionValid,
   type CollectionCardWarning,
   type CollectionWarningKind,
   type Credential,
@@ -76,13 +76,7 @@ export class CollectionWarningService {
       return false;
     }
 
-    const hasToken = Boolean(service.oauthAccessToken);
-    const hasAuthHeader = Boolean(service.headers?.Authorization);
-    if (
-      hasToken &&
-      hasAuthHeader &&
-      !isOAuthTokenExpiringSoon(service.oauthTokenExpiresAt)
-    ) {
+    if (isOAuthSessionValid(service)) {
       return false;
     }
 

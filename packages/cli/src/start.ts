@@ -1,6 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import path from 'node:path';
-import { resolveBackendEntry, resolveUiDist } from './paths';
+import { resolveBackendEntry, resolveBackendRoot, resolveUiDist } from './paths';
+import { assertSqliteNative, assertSupportedNodeVersion, getNodeMajor, verifySqliteNative } from './node-runtime';
+import { formatPortConflict, isTcpPortOpen, listListeningPids, probeAgentDeck } from './ports';
+import { clearRunState, writeRunState } from './runtime-state';
+import { runStop } from './stop';
 import { maybeAutoUpgradeOnStart, notifyIfUpdateAvailable } from './upgrade';
 import { getAgentDeckVersion } from './version';
 
@@ -9,6 +12,7 @@ export interface StartOptions {
   mcpPort?: number;
   openBrowser?: boolean;
   skipUi?: boolean;
+  force?: boolean;
 }
 
 const children: ChildProcess[] = [];
@@ -53,7 +57,13 @@ function spawnNodeService(
     }
     const detail = signal ? `signal ${signal}` : `code ${code ?? 1}`;
     console.error(`[agent-deck] ${label} exited (${detail})`);
-    void shutdown(code ?? 1);
+    if (label === 'backend') {
+      void shutdown(code ?? 1);
+      return;
+    }
+    console.warn(
+      '[agent-deck] MCP stopped; dashboard API remains available. Run `agent-deck stop && agent-deck start` to recover MCP.',
+    );
   });
 
   children.push(child);
@@ -65,6 +75,7 @@ async function shutdown(exitCode = 0): Promise<void> {
     return;
   }
   shuttingDown = true;
+  clearRunState();
 
   for (const child of children) {
     if (!child.killed) {
@@ -76,7 +87,52 @@ async function shutdown(exitCode = 0): Promise<void> {
   process.exit(exitCode);
 }
 
+function printRunningEndpoints(host: string, backendPort: number, mcpPort: number, backendUrl: string): void {
+  console.log('');
+  console.log('Agent Deck is running');
+  console.log(`  Dashboard  ${backendUrl}  (not :3000 — that port is dev-only)`);
+  console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
+  console.log(`  API health ${backendUrl}/health`);
+  console.log('');
+  console.log('Claude Code:');
+  console.log(`  claude mcp add --scope user --transport http agent-deck http://${host}:${mcpPort}/mcp`);
+  console.log('');
+}
+
+async function ensurePortsAvailable(
+  host: string,
+  backendPort: number,
+  mcpPort: number,
+  probe: Awaited<ReturnType<typeof probeAgentDeck>>,
+): Promise<number | null> {
+  const [backendBusy, mcpBusy] = await Promise.all([
+    isTcpPortOpen(host, backendPort),
+    isTcpPortOpen(host, mcpPort),
+  ]);
+
+  if (backendBusy && !probe.backendUp) {
+    console.error(`[agent-deck] ${formatPortConflict(backendPort, 'API/dashboard', host, false)}`);
+    return 1;
+  }
+
+  if (mcpBusy && !probe.mcpUp) {
+    console.error(`[agent-deck] ${formatPortConflict(mcpPort, 'MCP', host, false)}`);
+    return 1;
+  }
+
+  return null;
+}
+
 export async function runStart(options: StartOptions = {}): Promise<number> {
+  const nodeError = assertSupportedNodeVersion();
+  if (nodeError !== null) {
+    return nodeError;
+  }
+  const sqliteError = assertSqliteNative();
+  if (sqliteError !== null) {
+    return sqliteError;
+  }
+
   await maybeAutoUpgradeOnStart();
   await notifyIfUpdateAvailable();
 
@@ -85,6 +141,26 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
   const backendUrl = `http://${host}:${backendPort}`;
   const uiDist = options.skipUi ? undefined : resolveUiDist();
+
+  const probe = await probeAgentDeck(host, backendPort, mcpPort);
+
+  if (probe.backendUp && probe.mcpUp) {
+    if (options.force) {
+      console.log('[agent-deck] Restarting existing instance (--force) ...');
+      await runStop();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } else {
+      printRunningEndpoints(host, backendPort, mcpPort, backendUrl);
+      console.log('Already running. Use `agent-deck stop` or `agent-deck start --force` to restart.');
+      return 0;
+    }
+  }
+
+  const refreshedProbe = options.force ? await probeAgentDeck(host, backendPort, mcpPort) : probe;
+  const portError = await ensurePortsAvailable(host, backendPort, mcpPort, refreshedProbe);
+  if (portError !== null) {
+    return portError;
+  }
 
   if (!options.skipUi && !uiDist) {
     console.warn(
@@ -97,7 +173,7 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   const mcpEntry = resolveBackendEntry('mcp-index');
 
   console.log('[agent-deck] Starting backend ...');
-  spawnNodeService('backend', backendEntry, {
+  const backendChild = spawnNodeService('backend', backendEntry, {
     PORT: String(backendPort),
     HOST: host,
     ...(uiDist ? { AGENT_DECK_UI_DIST: uiDist } : {}),
@@ -105,21 +181,47 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
 
   const healthy = await waitForHealth(`${backendUrl}/health`);
   if (!healthy) {
-    console.error('[agent-deck] Backend failed health check');
+    console.error('[agent-deck] Backend failed health check (port conflict or crash).');
+    console.error(`[agent-deck] Run: agent-deck status`);
     await shutdown(1);
     return 1;
   }
 
   console.log('[agent-deck] Starting MCP server ...');
-  spawnNodeService('mcp', mcpEntry, {
-    AGENT_DECK_MCP_PORT: String(mcpPort),
-    AGENT_DECK_BACKEND_URL: backendUrl,
+  let mcpPid = 0;
+
+  if (refreshedProbe.mcpUp) {
+    console.log('[agent-deck] MCP server already running — reusing existing instance');
+    mcpPid = listListeningPids(mcpPort)[0] ?? 0;
+  } else {
+    const mcpChild = spawnNodeService('mcp', mcpEntry, {
+      AGENT_DECK_MCP_PORT: String(mcpPort),
+      AGENT_DECK_BACKEND_URL: backendUrl,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const mcpProbe = await probeAgentDeck(host, backendPort, mcpPort);
+    if (!mcpProbe.mcpUp) {
+      console.error('[agent-deck] MCP server failed to start (port conflict or crash).');
+      console.error('[agent-deck] Dashboard API is still running. Run: agent-deck stop && agent-deck start');
+    } else {
+      mcpPid = mcpChild.pid ?? 0;
+    }
+  }
+  writeRunState({
+    host,
+    backendPort,
+    mcpPort,
+    backendPid: backendChild.pid ?? 0,
+    mcpPid,
+    cliPid: process.pid,
+    startedAt: new Date().toISOString(),
   });
 
   const dashboardLine = uiDist ? backendUrl : '(UI bundle missing — use npm run dev:all for dev UI)';
   console.log('');
   console.log('Agent Deck is running');
-  console.log(`  Dashboard  ${dashboardLine}`);
+  console.log(`  Dashboard  ${dashboardLine}  (not :3000 — that port is dev-only)`);
   console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
   console.log(`  API health ${backendUrl}/health`);
   console.log('');
@@ -142,20 +244,34 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
 }
 
 export async function runDoctor(): Promise<number> {
-  const nodeMajor = Number(process.versions.node.split('.')[0]);
+  const nodeMajor = getNodeMajor();
   let ok = true;
 
   console.log(`Node.js ${process.version}`);
   if (nodeMajor < 20) {
-    console.error('FAIL: Node.js 20+ required');
+    console.error('FAIL: Node.js 20+ required (24 recommended — current OS default)');
+    ok = false;
+  } else if (!( [20, 22, 23, 24, 25, 26] as number[]).includes(nodeMajor)) {
+    console.error('FAIL: Unsupported Node.js major for better-sqlite3 prebuilds');
+    console.error('     Use Node 20+; Node 24 is the default target');
     ok = false;
   } else {
     console.log('OK: Node.js version');
   }
 
+  const sqlite = verifySqliteNative();
+  if (sqlite.ok) {
+    console.log('OK: better-sqlite3 native module');
+  } else {
+    console.error('FAIL: better-sqlite3');
+    console.error(sqlite.message);
+    ok = false;
+  }
+
   try {
     resolveBackendEntry('index');
-    console.log('OK: backend build present');
+    const backendRoot = resolveBackendRoot();
+    console.log(`OK: backend at ${backendRoot}`);
   } catch (error) {
     console.error(`FAIL: ${error instanceof Error ? error.message : error}`);
     ok = false;
@@ -169,6 +285,16 @@ export async function runDoctor(): Promise<number> {
   }
 
   console.log(`Package version ${getAgentDeckVersion()}`);
+
+  const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
+  const backendPort = parsePort(process.env.AGENT_DECK_PORT, 8000);
+  const mcpPort = parsePort(process.env.AGENT_DECK_MCP_PORT, 3001);
+  const probe = await probeAgentDeck(host, backendPort, mcpPort);
+  if (probe.backendUp && probe.mcpUp) {
+    console.log(`OK: Agent Deck reachable on :${backendPort} / :${mcpPort}`);
+  } else {
+    console.warn('WARN: Agent Deck is not running (agent-deck start)');
+  }
 
   return ok ? 0 : 1;
 }

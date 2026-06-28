@@ -24,10 +24,11 @@ describe('ServiceManager', () => {
     mockDbManager = {
       createService: vi.fn(),
       getService: vi.fn(),
-      getAllServices: vi.fn(),
+      getAllServices: vi.fn().mockResolvedValue([]),
       updateService: vi.fn(),
       deleteService: vi.fn(),
-      updateServiceStatus: vi.fn(),
+      updateServiceStatus: vi.fn().mockResolvedValue(undefined),
+      getPlaybooksDependingOnService: vi.fn().mockResolvedValue([]),
     };
 
     mockMCPClientManager = {
@@ -133,6 +134,12 @@ describe('ServiceManager', () => {
 
     it('should delete a service', async () => {
       const serviceId = '123e4567-e89b-12d3-a456-426614174000';
+      mockDbManager.getService.mockResolvedValue({
+        id: serviceId,
+        name: 'Test Service',
+        type: 'mcp',
+        url: 'https://example.com',
+      });
       mockDbManager.deleteService.mockResolvedValue(true);
 
       const result = await serviceManager.deleteService(serviceId);
@@ -157,11 +164,18 @@ describe('ServiceManager', () => {
           name: 'testTool',
           description: 'A test tool',
           inputSchema: { type: 'object' },
+          enabled: true,
         },
       ];
 
       mockDbManager.getService.mockResolvedValue(service);
-      mockMCPClientManager.discoverTools.mockResolvedValue(expectedTools);
+      mockMCPClientManager.discoverTools.mockResolvedValue([
+        {
+          name: 'testTool',
+          description: 'A test tool',
+          inputSchema: { type: 'object' },
+        },
+      ]);
 
       const result = await serviceManager.discoverServiceTools(serviceId);
 
@@ -184,6 +198,7 @@ describe('ServiceManager', () => {
           name: 'testTool',
           description: 'A test tool',
           inputSchema: { type: 'object' },
+          enabled: true,
         },
       ];
 

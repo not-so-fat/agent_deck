@@ -1,8 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/** npm package root for @agent-deck/cli (dist/ → package root). */
+export function getCliPackageRoot(): string {
+  return path.join(__dirname, '..');
+}
+
 export function resolveBackendRoot(): string {
-  const mainEntry = require.resolve('@agent-deck/backend');
+  const mainEntry = require.resolve('@agent-deck/backend', {
+    paths: [getCliPackageRoot()],
+  });
   return path.join(path.dirname(mainEntry), '..');
 }
 

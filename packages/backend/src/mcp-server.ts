@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
   AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
@@ -23,44 +24,53 @@ const agentClientHeaders = {
   Accept: 'application/json',
 };
 
+type McpSession = {
+  transport: StreamableHTTPServerTransport;
+  server: McpServer;
+};
+
 export class AgentDeckMCPServer {
   private port: number;
-  private server: McpServer;
-  private transport: StreamableHTTPServerTransport;
   private app: express.Application;
   private backendUrl: string;
+  private sessions = new Map<string, McpSession>();
+  /** Set only while registerTools/registerResources run for a new session server. */
+  private mcpServerForRegistration: McpServer | undefined;
   /** Workspace root per MCP session → resolves `.agent-deck/deck.yaml`. */
   private workspaceBySession = new Map<string, string>();
   private activeSessionId: string | undefined;
 
+  private get server(): McpServer {
+    if (!this.mcpServerForRegistration) {
+      throw new Error('Internal: MCP server not in registration context');
+    }
+    return this.mcpServerForRegistration;
+  }
+
   constructor(port: number = 3001, backendUrl: string = 'http://localhost:8000') {
     this.port = port;
     this.backendUrl = backendUrl;
-    
-    // Create Express app
+
     this.app = express();
     this.app.use(express.json());
-    
-    // Create MCP server with official SDK
-    this.server = new McpServer({
-      name: "agent-deck-server",
-      version: getAgentDeckVersion(),
-    });
-    
-    // Create HTTP transport
-    this.transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      enableJsonResponse: true
-    });
-    
-    this.setupTools();
-    this.setupResources();
     this.setupRoutes();
 
     const envWorkspace = process.env.AGENT_DECK_WORKSPACE?.trim();
     if (envWorkspace) {
       this.workspaceBySession.set('default', envWorkspace);
     }
+  }
+
+  private createMcpServer(): McpServer {
+    this.mcpServerForRegistration = new McpServer({
+      name: "agent-deck-server",
+      version: getAgentDeckVersion(),
+    });
+    this.setupTools();
+    this.setupResources();
+    const server = this.mcpServerForRegistration;
+    this.mcpServerForRegistration = undefined;
+    return server;
   }
 
   private getSessionId(): string {
@@ -1106,11 +1116,16 @@ export class AgentDeckMCPServer {
   }
 
   private setupRoutes() {
-    // Handle MCP requests
     this.app.post('/mcp', async (req: Request, res: Response) => {
-      const sessionHeader = req.headers['mcp-session-id'];
-      this.activeSessionId = typeof sessionHeader === 'string' ? sessionHeader : 'default';
-      await this.transport.handleRequest(req, res, req.body);
+      await this.handleMcpPost(req, res);
+    });
+
+    this.app.get('/mcp', async (req: Request, res: Response) => {
+      await this.handleMcpSessionRequest(req, res);
+    });
+
+    this.app.delete('/mcp', async (req: Request, res: Response) => {
+      await this.handleMcpSessionRequest(req, res);
     });
 
     // Health check endpoint
@@ -1143,15 +1158,88 @@ export class AgentDeckMCPServer {
     });
   }
 
+  private getSessionIdHeader(req: Request): string | undefined {
+    const value = req.headers['mcp-session-id'];
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  private async handleMcpPost(req: Request, res: Response): Promise<void> {
+    const sessionIdHeader = this.getSessionIdHeader(req);
+    const existing = sessionIdHeader ? this.sessions.get(sessionIdHeader) : undefined;
+
+    if (existing) {
+      this.activeSessionId = sessionIdHeader;
+      await existing.transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    const body = req.body;
+    const isInit =
+      body &&
+      typeof body === 'object' &&
+      (isInitializeRequest(body) ||
+        (Array.isArray(body) && body.some((message) => isInitializeRequest(message))));
+
+    if (!isInit) {
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
+        id: null,
+      });
+      return;
+    }
+
+    const server = this.createMcpServer();
+    let sessionEntry: McpSession | undefined;
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      enableJsonResponse: true,
+      onsessioninitialized: (sessionId) => {
+        sessionEntry = { transport, server };
+        this.sessions.set(sessionId, sessionEntry);
+      },
+    });
+
+    transport.onclose = () => {
+      const sessionId = transport.sessionId;
+      if (sessionId) {
+        this.sessions.delete(sessionId);
+        this.workspaceBySession.delete(sessionId);
+      }
+    };
+
+    await server.connect(transport);
+    await transport.handleRequest(req, res, body);
+
+    if (transport.sessionId && !this.sessions.has(transport.sessionId)) {
+      this.sessions.set(transport.sessionId, { transport, server });
+    }
+    this.activeSessionId = transport.sessionId;
+  }
+
+  private async handleMcpSessionRequest(req: Request, res: Response): Promise<void> {
+    const sessionId = this.getSessionIdHeader(req);
+    if (!sessionId) {
+      res.status(400).send('Invalid or missing session ID');
+      return;
+    }
+
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    this.activeSessionId = sessionId;
+    await session.transport.handleRequest(req, res);
+  }
+
   async start() {
     try {
       console.log(`🚀 Starting Agent Deck MCP Server on port ${this.port}...`);
       console.log(`🔗 Backend API URL: ${this.backendUrl}`);
-      
-      // Connect the server to the transport (this will start the transport)
-      await this.server.connect(this.transport);
-      
-      // Start the Express server
+
       this.app.listen(this.port, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
@@ -1182,7 +1270,14 @@ export class AgentDeckMCPServer {
 
   async stop() {
     try {
-      await this.transport.close();
+      for (const [sessionId, session] of this.sessions) {
+        try {
+          await session.transport.close();
+        } catch (error) {
+          console.error(`Error closing MCP session ${sessionId}:`, error);
+        }
+      }
+      this.sessions.clear();
       console.log(`🛑 MCP server stopped`);
     } catch (error) {
       console.error(`❌ Error stopping MCP server:`, error);

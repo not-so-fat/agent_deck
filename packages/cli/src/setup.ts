@@ -72,8 +72,8 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
     return { error: '--client is required (cursor, claude, or claude-desktop)' };
   }
 
-  if (client !== 'cursor' && scope === 'project') {
-    return { error: '--scope project is only supported for cursor' };
+  if (client !== 'cursor' && client !== 'claude' && scope === 'project') {
+    return { error: '--scope project is only supported for cursor and claude' };
   }
 
   if (!Number.isFinite(mcpPort)) {
@@ -83,7 +83,7 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
   return { client, scope, host, mcpPort, start };
 }
 
-async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<boolean> {
+async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<{ ok: boolean; error?: string }> {
   return new Promise((resolve) => {
     const child = spawn(
       'claude',
@@ -97,11 +97,22 @@ async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<boolean> {
         'agent-deck',
         buildMcpUrl(endpoint),
       ],
-      { stdio: 'ignore' },
+      { stdio: ['ignore', 'pipe', 'pipe'], env: process.env },
     );
 
-    child.on('error', () => resolve(false));
-    child.on('exit', (code) => resolve(code === 0));
+    let stderr = '';
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('error', (error) => resolve({ ok: false, error: error.message }));
+    child.on('exit', (code) => {
+      if (code === 0) {
+        resolve({ ok: true });
+        return;
+      }
+      resolve({ ok: false, error: stderr.trim() || `claude mcp add exited with code ${code}` });
+    });
   });
 }
 
@@ -136,12 +147,13 @@ export async function runSetup(args: string[]): Promise<number> {
 
   if (parsed.client === 'claude') {
     const added = await tryClaudeCliAdd(endpoint);
-    if (added) {
-      console.log('Configured Claude Code via `claude mcp add`');
+    if (added.ok) {
+      console.log('Configured Claude Code via `claude mcp add` → ~/.claude.json');
       printNextSteps(endpoint, parsed.start === true);
+      console.log('Verify: claude mcp list');
       return parsed.start ? 2 : 0;
     }
-    console.warn('Claude CLI not available — writing ~/.claude/settings.json instead');
+    console.warn(`Claude CLI failed (${added.error ?? 'unknown error'}) — writing ~/.claude.json instead`);
   }
 
   const configPath = resolveConfigPath(parsed.client, parsed.scope ?? 'global');
@@ -165,10 +177,11 @@ function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean): void {
   if (shouldStart) {
     console.log('  1. Agent Deck will start now (same as `agent-deck start`)');
   } else {
-    console.log('  1. npx @agent-deck/cli@latest start');
+    console.log('  1. npx @agent-deck/cli@latest start  (or `agent-deck stop` first if ports are busy)');
   }
-  console.log(`  2. MCP endpoint → ${buildMcpUrl(endpoint)}`);
-  console.log('  3. Restart your MCP client (Cursor / Claude) if it was already open');
+  console.log(`  2. MCP endpoint → ${buildMcpUrl(endpoint)}  (Claude shows server name "agent-deck", not the URL)`);
+  console.log('  3. Restart Claude Code / Cursor if it was already open');
+  console.log('  4. Claude Code: run `claude mcp list` — should show agent-deck ✓ Connected when step 1 is running');
   console.log('');
   console.log('Optional: AGENT_DECK_AUTO_UPGRADE=1 agent-deck start  (check npm for updates on start)');
 }

@@ -7,10 +7,9 @@ This guide provides comprehensive information for developers contributing to Age
 ## Development Environment Setup
 
 ### **Prerequisites**
-- **Node.js 20.x LTS** (required)
-- **npm** or **yarn**
-- **Git**
-- **VS Code** (recommended) with TypeScript extensions
+- **Node.js 24** (default) or **20+** — [SETUP.md](./SETUP.md#nodejs-version-policy)
+- **npm**, **Git**
+- **VS Code** (recommended)
 
 ### **Initial Setup**
 ```bash
@@ -703,9 +702,9 @@ CMD ["npm", "start"]
 #### **Native Module Error (better-sqlite3)**
 - **Symptom**: ERR_DLOPEN_FAILED / NODE_MODULE_VERSION mismatch
 - **Cause**: Node.js version mismatch - better-sqlite3 compiled against different Node version
-- **Fix**: Ensure Node 20 is active, then reinstall
+- **Fix**: Reinstall on your active Node version (24 recommended), then:
   ```bash
-  # With Homebrew Node 20 active in PATH, run from repo root:
+  # From repo root on your current Node (e.g. v24):
   rm -rf node_modules packages/*/node_modules apps/*/node_modules && npm ci
   ```
 
@@ -744,24 +743,18 @@ CMD ["npm", "start"]
 
 #### **Authentication Required Still Showing**
 - **Symptom**: UI shows "Authentication Required" after successful OAuth
-- **Cause**: Frontend not detecting OAuth token status correctly
-- **Fix**: Check OAuth token storage and polling mechanism
-  - Verify tokens are stored in database
-  - Check that headers field includes Authorization header
-  - Ensure polling mechanism invalidates queries after OAuth completion
+- **Cause**: Stale UI or status not yet `authenticated`
+- **Fix**: Service modal polls `GET /api/oauth/:id/status` — look for `authenticated: true`. Invalidate/refetch services; see [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md)
 
 ### **Development Environment Issues**
 
 #### **Node.js Version Management**
+
+Policy: **24 default**, **20+ supported**. See [SETUP.md](./SETUP.md#nodejs-version-policy).
+
 ```bash
-# Check current Node version
-node --version
-
-# Switch to Node 20 (if using nvm)
-nvm install 20 && nvm use 20
-
-# Switch to Node 20 (if using Homebrew)
-export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+node -v
+npm rebuild better-sqlite3 -w @agent-deck/backend   # after switching Node major
 ```
 
 #### **Package Installation Issues**

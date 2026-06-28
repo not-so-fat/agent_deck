@@ -4,10 +4,13 @@ import {
   OAuthToken,
   OAuthFlowInput,
   OAuthCallbackInput,
-  OAuthRefreshInput
+  OAuthRefreshInput,
+  isOAuthAccessTokenExpired,
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
 import { randomBytes } from 'crypto';
+import { generatePkcePair } from '../lib/pkce';
+import { getOAuthRedirectUri } from '../config/oauth-redirect';
 
 
 
@@ -30,11 +33,16 @@ interface OAuthTokenResponse {
   scope?: string;
 }
 
+interface OAuthStateEntry {
+  serviceId: string;
+  codeVerifier: string;
+}
+
 export class OAuthManager {
-  private oauthStates = new Map<string, string>(); // state -> serviceId mapping
+  private oauthStates = new Map<string, OAuthStateEntry>();
 
   getOAuthState(state: string): string | undefined {
-    return this.oauthStates.get(state);
+    return this.oauthStates.get(state)?.serviceId;
   }
 
   constructor(private db: DatabaseManager) {}
@@ -115,19 +123,22 @@ export class OAuthManager {
       throw new Error('Service does not have OAuth configuration');
     }
 
-    // Generate state parameter for security
     const state = randomBytes(32).toString('hex');
-    
-    // Store state mapping in memory
-    this.oauthStates.set(state, input.serviceId);
+    const { codeVerifier, codeChallenge } = generatePkcePair();
 
-    // Build authorization URL
+    this.oauthStates.set(state, {
+      serviceId: input.serviceId,
+      codeVerifier,
+    });
+
     const url = new URL(service.oauthAuthorizationUrl);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('client_id', service.oauthClientId || '');
     url.searchParams.set('redirect_uri', input.redirectUri);
     url.searchParams.set('scope', service.oauthScope || 'read write');
     url.searchParams.set('state', state);
+    url.searchParams.set('code_challenge', codeChallenge);
+    url.searchParams.set('code_challenge_method', 'S256');
 
     return {
       authorizationUrl: url.toString(),
@@ -136,15 +147,14 @@ export class OAuthManager {
   }
 
   async handleOAuthCallback(input: OAuthCallbackInput): Promise<OAuthToken> {
-    // Extract service ID from state parameter
-    const serviceId = this.oauthStates.get(input.state);
-    if (!serviceId) {
+    const stateEntry = this.oauthStates.get(input.state);
+    if (!stateEntry) {
       throw new Error('Invalid or expired OAuth state parameter');
     }
 
-    // Clean up the state after successful retrieval
     this.oauthStates.delete(input.state);
 
+    const { serviceId, codeVerifier } = stateEntry;
     const service = await this.db.getService(serviceId);
     if (!service) {
       throw new Error(`Service ${serviceId} not found`);
@@ -165,19 +175,23 @@ export class OAuthManager {
       tokenUrl: service.oauthTokenUrl,
     });
 
-    // Exchange authorization code for tokens
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: service.oauthClientId || '',
+      code: input.code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    });
+    if (service.oauthClientSecret) {
+      tokenBody.set('client_secret', service.oauthClientSecret);
+    }
+
     const tokenResponse = await fetch(service.oauthTokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: service.oauthClientId || '',
-        client_secret: service.oauthClientSecret || '',
-        code: input.code,
-        redirect_uri: redirectUri,
-      }),
+      body: tokenBody,
     });
 
     if (!tokenResponse.ok) {
@@ -223,18 +237,21 @@ export class OAuthManager {
       throw new Error('Service does not have OAuth token URL configured');
     }
 
-    // Exchange refresh token for new access token
+    const refreshBody = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: service.oauthClientId || '',
+      refresh_token: input.refreshToken,
+    });
+    if (service.oauthClientSecret) {
+      refreshBody.set('client_secret', service.oauthClientSecret);
+    }
+
     const tokenResponse = await fetch(service.oauthTokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: service.oauthClientId || '',
-        client_secret: service.oauthClientSecret || '',
-        refresh_token: input.refreshToken,
-      }),
+      body: refreshBody,
     });
 
     if (!tokenResponse.ok) {
@@ -267,15 +284,10 @@ export class OAuthManager {
 
   async isTokenExpired(serviceId: string): Promise<boolean> {
     const service = await this.db.getService(serviceId);
-    if (!service || !service.oauthTokenExpiresAt) {
+    if (!service) {
       return true;
     }
-
-    const expiresAt = new Date(service.oauthTokenExpiresAt);
-    const now = new Date();
-    
-    // Consider token expired if it expires within the next 5 minutes
-    return expiresAt.getTime() <= now.getTime() + 5 * 60 * 1000;
+    return isOAuthAccessTokenExpired(service);
   }
 
   async getValidAccessToken(serviceId: string): Promise<string | null> {
@@ -284,8 +296,8 @@ export class OAuthManager {
       return null;
     }
 
-    // Check if token is expired
-    if (await this.isTokenExpired(serviceId)) {
+    // Check if token is expired (missing expiry means still valid)
+    if (isOAuthAccessTokenExpired(service)) {
       // Try to refresh the token
       if (service.oauthRefreshToken) {
         try {
@@ -333,43 +345,60 @@ export class OAuthManager {
           if (metadata.registration_endpoint) {
             console.log('Found registration endpoint:', metadata.registration_endpoint);
             
-            // Try dynamic client registration with the MCP service
-            const registrationResponse = await fetch(metadata.registration_endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-              },
-              body: JSON.stringify({
+            const oauthRedirectUri = getOAuthRedirectUri();
+            const registrationPayloads = [
+              {
                 client_name: 'AgentDeck',
-                redirect_uris: [`http://localhost:8000/api/oauth/callback`],
+                redirect_uris: [oauthRedirectUri],
+                grant_types: ['authorization_code', 'refresh_token'],
+                response_types: ['code'],
+                token_endpoint_auth_method: 'none',
+                scope: config.scope || 'read write',
+              },
+              {
+                client_name: 'AgentDeck',
+                redirect_uris: [oauthRedirectUri],
                 grant_types: ['authorization_code', 'refresh_token'],
                 response_types: ['code'],
                 token_endpoint_auth_method: 'client_secret_basic',
                 scope: config.scope || 'read write',
-              }),
-            });
+              },
+            ];
 
-            if (registrationResponse.ok) {
-              const data = await registrationResponse.json() as any;
+            for (const payload of registrationPayloads) {
+              const registrationResponse = await fetch(metadata.registration_endpoint, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!registrationResponse.ok) {
+                console.log(
+                  'MCP service registration failed:',
+                  payload.token_endpoint_auth_method,
+                  await registrationResponse.text(),
+                );
+                continue;
+              }
+
+              const data = await registrationResponse.json() as {
+                client_id?: string;
+                client_secret?: string;
+              };
               console.log('Dynamic client registration successful:', data);
-              
-              // Validate that we got real client credentials
-              if (data.client_id && data.client_secret && 
-                  typeof data.client_id === 'string' && 
-                  typeof data.client_secret === 'string' &&
-                  data.client_id.length > 10 && 
-                  data.client_secret.length > 10) {
+
+              if (data.client_id && typeof data.client_id === 'string' && data.client_id.length > 0) {
                 return {
                   success: true,
                   clientId: data.client_id,
                   clientSecret: data.client_secret,
                 };
-              } else {
-                console.log('Invalid client credentials received from MCP service');
               }
-            } else {
-              console.log('MCP service registration failed:', await registrationResponse.text());
+
+              console.log('Invalid client credentials received from MCP service');
             }
           } else {
             console.log('No registration endpoint found in MCP service OAuth metadata');
@@ -403,7 +432,7 @@ export class OAuthManager {
             },
             body: JSON.stringify({
               client_name: 'AgentDeck',
-              redirect_uri: `http://localhost:8000/api/oauth/callback`,
+              redirect_uri: getOAuthRedirectUri(),
               scope: config.scope || 'read write',
             }),
           });
@@ -412,12 +441,7 @@ export class OAuthManager {
             const data = await response.json() as any;
             console.log('MCP OAuth registration successful at:', endpoint, data);
             
-            // Validate that we got real client credentials
-            if (data.client_id && data.client_secret && 
-                typeof data.client_id === 'string' && 
-                typeof data.client_secret === 'string' &&
-                data.client_id.length > 10 && 
-                data.client_secret.length > 10) {
+            if (data.client_id && typeof data.client_id === 'string' && data.client_id.length > 0) {
               return {
                 success: true,
                 clientId: data.client_id,

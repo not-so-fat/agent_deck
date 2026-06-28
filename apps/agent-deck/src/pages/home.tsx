@@ -24,7 +24,7 @@ import { MCP_CARD_COLOR, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR, CARD_FACE_CLAS
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle } from "lucide-react";
+import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid } from "lucide-react";
 import AgentDeckLogo from "@/assets/AgentDeckLogo2.png";
 import { useToast } from "@/hooks/use-toast";
 
@@ -181,11 +181,20 @@ export default function Home() {
   const hasFatalError = servicesError || decksError;
   
   if (hasFatalError) {
+    const errorMessage =
+      (decksError instanceof Error ? decksError.message : null) ??
+      (servicesError instanceof Error ? servicesError.message : null) ??
+      "There was an error loading the application data.";
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-center">
+        <div className="text-center max-w-lg px-4">
           <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Data</h2>
-          <p className="text-gray-300 mb-4">There was an error loading the application data.</p>
+          <p className="text-gray-300 mb-2">There was an error loading the application data.</p>
+          <p className="text-gray-400 text-sm mb-4">{errorMessage}</p>
+          <p className="text-gray-500 text-xs mb-6">
+            Is the API running? Try <code className="text-gray-300">agent-deck stop &amp;&amp; agent-deck start</code>
+          </p>
           <button 
             onClick={() => window.location.reload()} 
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
@@ -323,11 +332,11 @@ export default function Home() {
               />
             </div>
             
-            {/* Add Connections */}
+            {/* Add Cards */}
             <div className="panel-surface p-4">
               <h2 className="text-lg font-bold mb-3 flex items-center">
                 <Bolt className="w-4 h-4 mr-2" style={{ color: "#92E4DD" }} />
-                <span style={{ color: "#92E4DD" }}>Add Connections</span>
+                <span style={{ color: "#92E4DD" }}>Add Cards</span>
               </h2>
               
               <div className="space-y-2">
@@ -361,7 +370,7 @@ export default function Home() {
                   data-testid="button-register-playbook"
                 >
                   <BookOpen className="w-3 h-3 mr-2" />
-                  Register playbook
+                  Register Playbook
                 </Button>
               </div>
             </div>
@@ -435,10 +444,10 @@ export default function Home() {
 
             {/* My Collection */}
             <div className="panel-surface p-4 h-80">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold flex items-center">
-                  <i className="fas fa-th-large mr-3 text-blue-400"></i>
-                  My Collection
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold flex items-center">
+                  <LayoutGrid className="w-4 h-4 mr-2" style={{ color: "#92E4DD" }} />
+                  <span style={{ color: "#92E4DD" }}>My Collection</span>
                   <span className="ml-3 text-sm font-normal text-gray-400">
                     ({collectionCount} cards)
                   </span>
@@ -543,7 +552,7 @@ export default function Home() {
                   <div className="text-gray-400 mb-4">
                     <i className="fas fa-layer-group text-4xl"></i>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">No connections yet</h3>
+                  <h3 className="text-lg font-semibold text-gray-300 mb-2">No cards yet</h3>
                   <p className="text-gray-400 text-sm mb-4">
                     {hasActiveCollectionFilters
                       ? warningsOnlyFilter

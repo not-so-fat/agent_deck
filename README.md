@@ -30,7 +30,10 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 
 ## Features
 
-### Dashboard (`localhost:3000`)
+### Dashboard
+
+**npm / `agent-deck start`:** `http://127.0.0.1:8000`  
+**dev (`npm run dev:all`):** `http://localhost:3000` (Vite — not used when installed from npm)
 
 <img src="./misc/UI.png" alt="Frontend" width="70%" />
 
@@ -87,16 +90,15 @@ Or add manually to **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
 
 ### Prerequisites
 
-- **Node.js 20.x LTS**
-- npm or yarn
+- **Node.js 24** (typical OS default) or **20+** — see [Setup](docs/SETUP.md#nodejs-version-policy)
+- npm
 
 ```bash
-# nvm
-nvm install 20 && nvm use 20
-
-# Homebrew (macOS arm64)
-export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
+node -v    # v24.x expected on new machines
+npm install
 ```
+
+Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 
 ### Install & run
 
@@ -111,12 +113,14 @@ npx @agent-deck/cli@latest setup --client cursor --start
 **Or manually:**
 
 ```bash
-npx @agent-deck/cli@latest start
-# Dashboard → http://127.0.0.1:8000
+npx @agent-deck/cli@latest start --open
+# Dashboard → http://127.0.0.1:8000  (not :3000)
 # MCP       → http://127.0.0.1:3001/mcp
 ```
 
 **Updates:** `agent-deck upgrade` checks npm and reinstalls globally. On `start`, a cached check notifies when a newer version exists. Set `AGENT_DECK_AUTO_UPGRADE=1` to upgrade automatically before starting.
+
+**Port conflicts:** `agent-deck status` shows what's running; `agent-deck stop` frees ports; `agent-deck start` reuses an existing instance; `agent-deck start --force` restarts.
 
 See [Publishing & install](docs/PUBLISHING.md) for version bumps and npm publish.
 
@@ -149,7 +153,9 @@ Or after build: `npm run build:release && npx @agent-deck/cli start`
 
 | Guide | Description |
 |-------|-------------|
-| [Setup](docs/SETUP.md) | Installation and configuration |
+| [Setup](docs/SETUP.md) | **Node version, install, ports, env vars** |
+| [OAuth & hosting](docs/OAUTH_AND_HOSTING.md) | **Local vs hosted, HTTPS, Slack paths** |
+| [OAuth requirements](docs/OAUTH_REQUIREMENTS.md) | **Product OAuth needs, marketplace, Stytch feasibility** |
 | [Publishing](docs/PUBLISHING.md) | npm publish, versioning, Claude Code install |
 | [User Guide](docs/USER_GUIDE.md) | Decks, services, OAuth |
 | [Architecture](docs/ARCHITECTURE.md) | Technical design |
@@ -157,6 +163,9 @@ Or after build: `npm run build:release && npx @agent-deck/cli start`
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
 | [Integration](docs/INTEGRATION.md) | MCP client integration |
+| [MCP integration strategy](docs/MCP_INTEGRATION_STRATEGY.md) | OAuth tiers, provider reality, deferred work |
+| [Slack OAuth app (maintainers)](docs/SLACK_OAUTH_APP.md) | Shared Slack app for one-click Connect |
+| [Slack read-only workaround](docs/SLACK_READ_WORKAROUND.md) | Skip official MCP for DM/channel read |
 
 ## Discoverability
 

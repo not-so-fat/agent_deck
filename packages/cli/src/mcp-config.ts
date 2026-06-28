@@ -23,7 +23,9 @@ export function resolveConfigPath(client: McpClient, scope: SetupScope): string 
         ? path.join(process.cwd(), '.cursor', 'mcp.json')
         : path.join(home, '.cursor', 'mcp.json');
     case 'claude':
-      return path.join(home, '.claude', 'settings.json');
+      return scope === 'project'
+        ? path.join(process.cwd(), '.mcp.json')
+        : path.join(home, '.claude.json');
     case 'claude-desktop':
       if (process.platform === 'darwin') {
         return path.join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');

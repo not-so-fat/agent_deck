@@ -99,7 +99,7 @@ export default function PlaybookRegistrationModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto border-border bg-[#161612] text-[#E8F6F4]">
         <DialogHeader>
-          <DialogTitle>Register playbook</DialogTitle>
+          <DialogTitle>Register Playbook</DialogTitle>
           <DialogDescription className="text-[#A8C4C0]">
             Prefer{" "}
             <span className="font-mono text-xs">register_playbook</span> /{" "}

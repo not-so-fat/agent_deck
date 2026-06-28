@@ -34,10 +34,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  // Route API requests to backend
-  const finalUrl = url.startsWith('/api') ? `http://localhost:8000${url}` : url;
-  
-  const res = await fetch(finalUrl, {
+  const res = await fetch(url, {
     method,
     headers: {
       ...dashboardHeaders,
@@ -57,9 +54,8 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     // Convert query key to proper API URL
-    const path = queryKey.join("/") as string;
-    const url = path.startsWith('/api') ? `http://localhost:8000${path}` : path;
-    
+    const url = queryKey.join("/") as string;
+
     const res = await fetch(url, { headers: dashboardHeaders });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

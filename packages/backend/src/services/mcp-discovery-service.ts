@@ -1,14 +1,4 @@
-import { Service } from '@agent-deck/shared';
-
-interface OAuthMetadata {
-  resource_name?: string;
-  scopes_supported?: string[];
-  bearer_methods_supported?: string[];
-  authorization_servers?: string[];
-  authorization_endpoint?: string;
-  token_endpoint?: string;
-  issuer?: string;
-}
+import { discoverMcpOAuthRequirements } from '../lib/mcp-oauth-discovery';
 
 interface MCPDiscoveryResult {
   success: boolean;
@@ -29,6 +19,7 @@ interface MCPDiscoveryResult {
     scopesSupported?: string[];
     bearerMethodsSupported?: string[];
     provider?: string;
+    supportsDynamicRegistration?: boolean;
     error?: string;
   };
   health: string;
@@ -118,91 +109,6 @@ export class MCPDiscoveryService {
   }
 
   private async detectOAuthRequirements(url: string): Promise<MCPDiscoveryResult['oauth']> {
-    const oauthInfo: MCPDiscoveryResult['oauth'] = {
-      required: false,
-    };
-
-    try {
-      // Check for OAuth metadata endpoints
-      const baseUrl = new URL(url);
-      
-      // Try OAuth Protected Resource metadata (RFC 9449)
-      const prUrl = `${baseUrl.origin}/.well-known/oauth-protected-resource`;
-      try {
-        const response = await fetch(prUrl);
-        if (response.ok) {
-          const data = await response.json() as OAuthMetadata;
-          oauthInfo.required = true;
-          oauthInfo.resourceName = data.resource_name;
-          oauthInfo.scopesSupported = data.scopes_supported || [];
-          oauthInfo.bearerMethodsSupported = data.bearer_methods_supported || [];
-          
-          // Check for authorization servers
-          const authServers = data.authorization_servers || [];
-          if (authServers.length > 0) {
-            const asUrl = authServers[0];
-            const asResponse = await fetch(`${asUrl}/.well-known/oauth-authorization-server`);
-            if (asResponse.ok) {
-              const asData = await asResponse.json() as OAuthMetadata;
-              oauthInfo.authorizationUrl = asData.authorization_endpoint;
-              oauthInfo.tokenUrl = asData.token_endpoint;
-              oauthInfo.issuer = asData.issuer;
-            }
-          }
-          
-          return oauthInfo;
-        }
-      } catch (error) {
-        // Ignore errors for this endpoint
-      }
-
-      // Try OAuth Authorization Server metadata
-      const asUrl = `${baseUrl.origin}/.well-known/oauth-authorization-server`;
-      try {
-        const response = await fetch(asUrl);
-        if (response.ok) {
-          const data = await response.json() as OAuthMetadata;
-          oauthInfo.required = true;
-          oauthInfo.authorizationUrl = data.authorization_endpoint;
-          oauthInfo.tokenUrl = data.token_endpoint;
-          oauthInfo.issuer = data.issuer;
-          oauthInfo.scopesSupported = data.scopes_supported || [];
-          return oauthInfo;
-        }
-      } catch (error) {
-        // Ignore errors for this endpoint
-      }
-
-      // Check for WWW-Authenticate header
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json, text/event-stream',
-          },
-        });
-        
-        const wwwAuth = response.headers.get('www-authenticate');
-        if (wwwAuth && wwwAuth.toLowerCase().includes('oauth')) {
-          oauthInfo.required = true;
-          
-          // Extract URLs from WWW-Authenticate header
-          const urlRegex = /https?:\/\/[^\s,;\"]+/g;
-          const urls = wwwAuth.match(urlRegex) || [];
-          if (urls.length > 0) {
-            oauthInfo.authorizationUrl = urls[0];
-          }
-          
-          return oauthInfo;
-        }
-      } catch (error) {
-        // Ignore errors for this check
-      }
-
-    } catch (error) {
-      oauthInfo.error = error instanceof Error ? error.message : 'OAuth detection failed';
-    }
-
-    return oauthInfo;
+    return discoverMcpOAuthRequirements(url);
   }
 }

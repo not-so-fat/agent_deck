@@ -1,6 +1,6 @@
 {
   "name": "@agent-deck/shared",
-  "version": "1.1.1",
+  "version": "1.1.5",
   "description": "Shared types, schemas, and utilities for Agent Deck",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,7 @@
     "dist"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsc",
@@ -16,8 +16,8 @@
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
-    "test": "vitest",
-    "prepublishOnly": "npm run build"
+    "test": "vitest run",
+    "prepublishOnly": "node ../../scripts/pre-publish-check.mjs && npm run build"
   },
   "dependencies": {
     "zod": "^3.22.4"

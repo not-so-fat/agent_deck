@@ -5,8 +5,11 @@ import {
   runCommand,
 } from './lib/runtime';
 
+import { runDebugMcp } from './debug-mcp';
 import { runDoctor, runStart } from './start';
 import { runSetup, shouldStartAfterSetup } from './setup';
+import { runStatus } from './status';
+import { runStop } from './stop';
 import { runUpgrade } from './upgrade';
 import { getAgentDeckVersion } from './version';
 
@@ -26,10 +29,13 @@ function getVaultManager(): VaultManager {
 
 function printUsage() {
   console.log(`Usage:
-  agent-deck start [--open] [--no-ui] [--port PORT] [--mcp-port PORT]
+  agent-deck start [--open] [--no-ui] [--force] [--port PORT] [--mcp-port PORT]
+  agent-deck stop
+  agent-deck status
   agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--start]
   agent-deck upgrade [--check]
   agent-deck doctor
+  agent-deck debug-mcp
   agent-deck --version
   agent-deck credential add <id> --env-name ENV_NAME --scheme bearer|header|http_basic_user [--label LABEL] [--header-name NAME] [--tags tag1,tag2]
   agent-deck credential list
@@ -234,6 +240,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case 'start': {
       let openBrowser = false;
       let skipUi = false;
+      let force = false;
       let backendPort: number | undefined;
       let mcpPort: number | undefined;
 
@@ -243,6 +250,8 @@ export async function runCli(argv: string[]): Promise<number> {
           openBrowser = true;
         } else if (arg === '--no-ui') {
           skipUi = true;
+        } else if (arg === '--force') {
+          force = true;
         } else if (arg === '--port') {
           backendPort = Number.parseInt(rest[++i] ?? '', 10);
         } else if (arg === '--mcp-port') {
@@ -253,8 +262,12 @@ export async function runCli(argv: string[]): Promise<number> {
         }
       }
 
-      return runStart({ openBrowser, skipUi, backendPort, mcpPort });
+      return runStart({ openBrowser, skipUi, force, backendPort, mcpPort });
     }
+    case 'stop':
+      return runStop();
+    case 'status':
+      return runStatus();
     case 'setup': {
       const code = await runSetup(rest);
       if (shouldStartAfterSetup(code)) {
@@ -266,6 +279,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runUpgrade(rest);
     case 'doctor':
       return runDoctor();
+    case 'debug-mcp':
+      return runDebugMcp();
     case 'credential':
       return runCredentialCommand(rest);
     case 'exec':

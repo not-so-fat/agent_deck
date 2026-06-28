@@ -33,32 +33,55 @@ export class DatabaseManager {
 
   constructor(dbPath: string = 'agent_deck.db') {
     this.db = new Database(dbPath);
-    this.initializeTables();
+    this.createTables();
     this.migrate();
+    this.createIndexes();
+  }
+
+  private tableExists(tableName: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(tableName);
+    return row !== undefined;
+  }
+
+  private addColumnIfMissing(tableName: string, columnName: string, definition: string): void {
+    if (!this.tableExists(tableName)) {
+      return;
+    }
+
+    const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === columnName)) {
+      this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    }
   }
 
   private migrate(): void {
-    const serviceColumns = this.db.prepare('PRAGMA table_info(services)').all() as Array<{ name: string }>;
-    if (!serviceColumns.some((column) => column.name === 'credential_id')) {
-      this.db.exec('ALTER TABLE services ADD COLUMN credential_id TEXT');
-    }
-    if (!serviceColumns.some((column) => column.name === 'icon_url')) {
-      this.db.exec('ALTER TABLE services ADD COLUMN icon_url TEXT');
-    }
-    if (!serviceColumns.some((column) => column.name === 'disabled_tools')) {
-      this.db.exec("ALTER TABLE services ADD COLUMN disabled_tools TEXT NOT NULL DEFAULT '[]'");
-    }
+    this.addColumnIfMissing('services', 'is_connected', 'BOOLEAN NOT NULL DEFAULT 0');
+    this.addColumnIfMissing('services', 'last_ping', 'TEXT');
+    this.addColumnIfMissing('services', 'credential_id', 'TEXT');
+    this.addColumnIfMissing('services', 'icon_url', 'TEXT');
+    this.addColumnIfMissing('services', 'disabled_tools', "TEXT NOT NULL DEFAULT '[]'");
+    this.addColumnIfMissing('services', 'oauth_client_id', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_client_secret', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_authorization_url', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_token_url', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_redirect_uri', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_scope', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_access_token', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_refresh_token', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_token_expires_at', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_state', 'TEXT');
+    this.addColumnIfMissing('services', 'local_command', 'TEXT');
+    this.addColumnIfMissing('services', 'local_args', 'TEXT');
+    this.addColumnIfMissing('services', 'local_working_dir', 'TEXT');
+    this.addColumnIfMissing('services', 'local_env', 'TEXT');
 
-    const credentialColumns = this.db.prepare('PRAGMA table_info(credentials)').all() as Array<{ name: string }>;
-    if (!credentialColumns.some((column) => column.name === 'docs_url')) {
-      this.db.exec('ALTER TABLE credentials ADD COLUMN docs_url TEXT');
-    }
-    if (!credentialColumns.some((column) => column.name === 'icon_url')) {
-      this.db.exec('ALTER TABLE credentials ADD COLUMN icon_url TEXT');
-    }
+    this.addColumnIfMissing('credentials', 'docs_url', 'TEXT');
+    this.addColumnIfMissing('credentials', 'icon_url', 'TEXT');
   }
 
-  private initializeTables(): void {
+  private createTables(): void {
     // Services table
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS services (
@@ -195,8 +218,14 @@ export class DatabaseManager {
         PRIMARY KEY (exec_run_id, credential_id)
       )
     `);
+  }
 
-    // Create indexes for better performance
+  hasAnyServices(): boolean {
+    const row = this.db.prepare('SELECT 1 FROM services LIMIT 1').get();
+    return row !== undefined;
+  }
+
+  private createIndexes(): void {
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_services_type ON services(type);
       CREATE INDEX IF NOT EXISTS idx_services_connected ON services(is_connected);

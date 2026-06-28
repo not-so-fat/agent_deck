@@ -24,6 +24,7 @@ import { CollectionWarningService } from '../services/collection-warning-service
 import { registerCollectionRoutes } from '../routes/collection';
 import { PlaybookManager } from '../playbooks/playbook-manager';
 import { getAgentDeckVersion } from '../lib/version';
+import { seedDefaultServicesIfEmpty } from '../data/seed-default-services';
 
 export async function createServer() {
   const fastify = Fastify({
@@ -41,7 +42,13 @@ export async function createServer() {
   await fastify.register(websocket);
 
   // Initialize services
-  const db = new DatabaseManager(resolveDatabasePath());
+  const databasePath = resolveDatabasePath();
+  console.log(`📁 Database: ${databasePath}`);
+  const db = new DatabaseManager(databasePath);
+  const seededCount = await seedDefaultServicesIfEmpty(db);
+  if (seededCount > 0) {
+    console.log(`Seeded ${seededCount} default MCP service cards`);
+  }
   const mcpClient = new MCPClientManager();
   const oauthManager = new OAuthManager(db);
   const serviceManager = new ServiceManager(db, mcpClient, oauthManager);
@@ -63,7 +70,12 @@ export async function createServer() {
 
   // Health check endpoint
   fastify.get('/health', async (request, reply) => {
-    return { status: 'ok', timestamp: new Date().toISOString(), version: getAgentDeckVersion() };
+    return {
+      status: 'ok',
+      service: 'agent-deck-backend',
+      timestamp: new Date().toISOString(),
+      version: getAgentDeckVersion(),
+    };
   });
 
   const uiDist = process.env.AGENT_DECK_UI_DIST?.trim();

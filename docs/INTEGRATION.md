@@ -273,6 +273,8 @@ For services requiring OAuth:
 }
 ```
 
+Redirect URI is resolved from env when using the Connect flow — see [OAUTH_AND_HOSTING.md](OAUTH_AND_HOSTING.md).
+
 2. **OAuth Flow**:
    - User initiates OAuth via frontend
    - Backend redirects to OAuth provider

@@ -1,6 +1,7 @@
 import type { Credential } from '../schemas/credential';
 import type { Playbook } from '../schemas/playbook';
 import type { Service } from '../schemas/service';
+import { isOAuthSessionValid } from './oauth-session';
 
 export type CollectionCardKind = 'service' | 'credential' | 'playbook';
 
@@ -45,9 +46,7 @@ function mcpHasOAuthConfig(service: Service): boolean {
 }
 
 function mcpHasValidOAuthSession(service: Service): boolean {
-  const hasToken = Boolean(service.oauthAccessToken);
-  const hasAuthHeader = Boolean(service.headers?.Authorization);
-  return hasToken && hasAuthHeader && !isOAuthTokenExpiringSoon(service.oauthTokenExpiresAt);
+  return isOAuthSessionValid(service);
 }
 
 export function getServiceWarnings(
@@ -78,9 +77,8 @@ export function getServiceWarnings(
   }
 
   const hasToken = Boolean(service.oauthAccessToken);
-  const hasAuthHeader = Boolean(service.headers?.Authorization);
 
-  if (!hasToken || !hasAuthHeader) {
+  if (!hasToken) {
     warnings.push({
       kind: 'oauth_required',
       message: 'OAuth authentication required',
@@ -89,7 +87,7 @@ export function getServiceWarnings(
     return warnings;
   }
 
-  if (isOAuthTokenExpiringSoon(service.oauthTokenExpiresAt)) {
+  if (!isOAuthSessionValid(service)) {
     warnings.push({
       kind: 'oauth_expired',
       message: 'OAuth token expired — re-authenticate',

@@ -7,9 +7,19 @@ Agent Deck is a local application that acts as a "browser for agents" to manage 
 ## Getting Started
 
 ### **First Launch**
-1. **Start the Application**: Run `npm run dev:all` to start all services
-2. **Open the Interface**: Navigate to http://localhost:3000 in your browser
-3. **Explore the Interface**: You'll see the main dashboard with service cards
+
+**From npm (recommended):**
+
+```bash
+npx @agent-deck/cli@latest start --open
+```
+
+Open **http://127.0.0.1:8000** (dashboard is served with the API — port **3000** is dev-only).
+
+**From source (development):**
+
+1. Run `npm run dev:all`
+2. Open **http://localhost:3000**
 
 ### **Interface Overview**
 - **Service Cards**: Display all registered services with health status
@@ -66,19 +76,23 @@ Agent Deck is a local application that acts as a "browser for agents" to manage 
 ### **Service Configuration**
 
 #### **OAuth Setup**
-For services requiring OAuth authentication:
 
-1. **Register the Service**: Add the service as normal
-2. **Configure OAuth**: Click on the service card to open details
-3. **Enter OAuth Credentials**:
-   - **Client ID**: Your OAuth application client ID
-   - **Client Secret**: Your OAuth application client secret
-   - **Authorization URL**: OAuth provider's authorization endpoint
-   - **Token URL**: OAuth provider's token endpoint
-   - **Redirect URI**: `http://localhost:8000/api/oauth/callback`
-   - **Scope**: Required OAuth scopes
-4. **Save Configuration**: Click "Save" to store the OAuth settings
-5. **Authorize**: Click "Authorize" to start the OAuth flow
+OAuth behavior depends on the provider. See **[OAUTH_AND_HOSTING.md](OAUTH_AND_HOSTING.md)** for local vs hosted, redirect URLs, and Slack.
+
+**Typical flow (dashboard):**
+
+1. Open an MCP service card (e.g. Linear, Notion, Slack).
+2. Use **Connect** in the OAuth panel (auto for Linear/Notion; manual or managed for Slack).
+3. Complete sign-in in the browser; return to the dashboard.
+
+**Redirect URI** (register in provider console when asked):
+
+- **Local dev (default):** `http://localhost:8000/api/oauth/callback`
+- **Hosted Agent Deck:** `https://your-domain/api/oauth/callback` — set `AGENT_DECK_PUBLIC_URL` on the server
+
+The UI and **Copy manifest** buttons show the URL your backend is actually using.
+
+**Status:** `authenticated` on `/api/oauth/:serviceId/status` means the service is connected (token present and not expired; missing expiry counts as valid).
 
 #### **Common OAuth Providers**
 
@@ -186,17 +200,13 @@ The system now provides real-time OAuth status detection with the following stat
 
 #### **Provider-Specific Setup**
 
-**GitHub OAuth Setup**
-1. Go to GitHub Settings → Developer settings → OAuth Apps
-2. Create a new OAuth App
-3. Set Authorization callback URL to: `http://localhost:8000/api/oauth/callback`
-4. Copy Client ID and Client Secret to Agent Deck
+See [OAUTH_AND_HOSTING.md](OAUTH_AND_HOSTING.md) for redirect URI rules (local vs HTTPS).
 
-**Notion OAuth Setup**
-1. Go to Notion Integrations page
-2. Create a new integration
-3. Set Redirect URI to: `http://localhost:8000/api/oauth/callback`
-4. Copy Client ID and Client Secret to Agent Deck
+**GitHub** — OAuth app callback: use redirect URI from the Agent Deck OAuth panel (default local: `http://localhost:8000/api/oauth/callback`).
+
+**Notion / Linear** — Use **Connect** in the dashboard; auto-registration handles redirect for local dev.
+
+**Slack** — [SLACK_OAUTH_APP.md](SLACK_OAUTH_APP.md) or [SLACK_READ_WORKAROUND.md](SLACK_READ_WORKAROUND.md).
 
 ## Real-time Features
 

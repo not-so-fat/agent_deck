@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { DatabaseManager } from './database';
 import { CreateServiceInput, CreateDeckInput } from '@agent-deck/shared';
 
@@ -13,6 +17,71 @@ describe('DatabaseManager', () => {
 
   afterEach(async () => {
     await dbManager.close();
+  });
+
+  describe('Schema migration', () => {
+    it('migrates legacy services table missing is_connected', async () => {
+      const dbPath = path.join(os.tmpdir(), `agent-deck-legacy-${Date.now()}.db`);
+      const legacyDb = new Database(dbPath);
+      legacyDb.exec(`
+        CREATE TABLE services (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          url TEXT NOT NULL,
+          health TEXT NOT NULL DEFAULT 'unknown',
+          description TEXT,
+          card_color TEXT NOT NULL DEFAULT '#7ed4da',
+          registered_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          headers TEXT
+        );
+      `);
+      legacyDb.close();
+
+      const migrated = new DatabaseManager(dbPath);
+      const service = await migrated.createService({
+        name: 'Legacy Upgrade Service',
+        type: 'mcp',
+        url: 'https://example.com',
+        cardColor: '#ff0000',
+      });
+
+      expect(service.isConnected).toBe(false);
+      await migrated.close();
+      fs.unlinkSync(dbPath);
+    });
+
+    it('creates is_connected index after migrating legacy schema', async () => {
+      const dbPath = path.join(os.tmpdir(), `agent-deck-legacy-idx-${Date.now()}.db`);
+      const legacyDb = new Database(dbPath);
+      legacyDb.exec(`
+        CREATE TABLE services (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          type TEXT NOT NULL,
+          url TEXT NOT NULL,
+          health TEXT NOT NULL DEFAULT 'unknown',
+          card_color TEXT NOT NULL DEFAULT '#7ed4da',
+          registered_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      legacyDb.close();
+
+      const migrated = new DatabaseManager(dbPath);
+      await migrated.close();
+
+      const verifyDb = new Database(dbPath);
+      const indexNames = verifyDb
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'services'")
+        .all()
+        .map((row: { name: string }) => row.name);
+      verifyDb.close();
+      fs.unlinkSync(dbPath);
+
+      expect(indexNames).toContain('idx_services_connected');
+    });
   });
 
   describe('Service Operations', () => {

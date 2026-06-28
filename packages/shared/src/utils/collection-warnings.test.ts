@@ -52,12 +52,19 @@ describe('collection-warnings', () => {
     expect(required).toHaveLength(1);
     expect(required[0].kind).toBe('oauth_required');
 
+    const tokenOnly = getServiceWarnings({
+      ...baseService,
+      id: '33333333-3333-3333-3333-333333333333',
+      oauthClientId: 'client',
+      oauthAccessToken: 'token',
+    });
+    expect(tokenOnly).toHaveLength(0);
+
     const expired = getServiceWarnings({
       ...baseService,
       id: '22222222-2222-2222-2222-222222222222',
       oauthClientId: 'client',
       oauthAccessToken: 'token',
-      headers: { Authorization: 'Bearer token' },
       oauthTokenExpiresAt: '2020-01-01T00:00:00.000Z',
     });
 

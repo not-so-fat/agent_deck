@@ -49,7 +49,9 @@ describe('useWebSocket', () => {
         wrapper: createTestWrapper()
       })
 
-      expect(global.WebSocket).toHaveBeenCalledWith('ws://localhost:5001/ws')
+      expect(global.WebSocket).toHaveBeenCalledWith(
+        `ws://${window.location.host}/api/ws/events`,
+      );
     })
   })
 

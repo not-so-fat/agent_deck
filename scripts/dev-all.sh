@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure Node 20 via nvm if available; otherwise fall back to brew node@20 on macOS
-if command -v nvm >/dev/null 2>&1; then
-  nvm install 20 >/dev/null
-  nvm use 20 >/dev/null
-elif [[ "${OSTYPE:-}" == darwin* ]] && [[ -x "/opt/homebrew/opt/node@20/bin/node" ]]; then
-  export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
-fi
+# Uses whatever Node is on PATH (24 is the expected OS default).
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/logs"
 mkdir -p "$LOG_DIR"
 
+echo "[dev-all] Node $(node -v)"
 echo "[dev-all] Starting backend (8000) ..."
 (
   cd "$ROOT_DIR/packages/backend"
@@ -37,4 +32,3 @@ echo "[dev-all] Starting MCP server (3001) ..."
 
 echo "[dev-all] All services started. Logs in $LOG_DIR"
 wait
-

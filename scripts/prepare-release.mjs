@@ -13,6 +13,9 @@ const root = path.join(__dirname, '..');
 const frontendDist = path.join(root, 'apps/agent-deck/dist');
 const backendStatic = path.join(root, 'packages/backend/static-ui');
 
+console.log('[prepare-release] Running tests ...');
+execSync('node scripts/pre-publish-check.mjs', { cwd: root, stdio: 'inherit' });
+
 console.log('[prepare-release] Building workspaces ...');
 execSync('npm run build', { cwd: root, stdio: 'inherit' });
 

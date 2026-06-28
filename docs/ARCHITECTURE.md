@@ -269,7 +269,7 @@ export interface Deck {
 ## Technology Stack
 
 ### Backend (packages/backend)
-- **Runtime**: Node.js 20+
+- **Runtime**: Node.js 24 (default), 20+ supported
 - **Framework**: Fastify (fast, low overhead web framework)
 - **Database**: SQLite with better-sqlite3
 - **Validation**: Zod
@@ -277,7 +277,7 @@ export interface Deck {
 - **Real-time**: WebSocket
 
 ### MCP Server (packages/backend/src/mcp-server.ts)
-- **Runtime**: Node.js 20+
+- **Runtime**: Node.js 24 (default), 20+ supported
 - **MCP SDK**: @modelcontextprotocol/sdk
 - **Transport**: HTTP transport with session management
 - **Validation**: Zod
