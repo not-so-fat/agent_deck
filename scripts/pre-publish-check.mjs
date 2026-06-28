@@ -8,6 +8,14 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
+console.log('[pre-publish] Rebuilding native modules for current Node...');
+try {
+  execSync('node scripts/rebuild-native.mjs', { cwd: root, stdio: 'inherit' });
+} catch {
+  console.error('[pre-publish] Native rebuild failed — publish aborted.');
+  process.exit(1);
+}
+
 console.log('[pre-publish] Running publishable package tests (shared, backend, cli, frontend) ...');
 try {
   execSync(

@@ -44,14 +44,16 @@ If you already have Node 24 from the OS, **you do not need nvm or `.nvmrc`**.
 
 ### Native module mismatch
 
-`better-sqlite3` is compiled for the Node version active during `npm install`. If you switch Node major versions:
+`better-sqlite3` is compiled for the Node version active during `npm install`. If you switch Node major versions, tests and the backend can fail with `NODE_MODULE_VERSION … was compiled against a different Node.js version`.
+
+**Automatic:** `npm install` and `npm run test` run `scripts/rebuild-native.mjs` to recompile `better-sqlite3` for the current Node.
+
+**Manual fix:**
 
 ```bash
-npm rebuild better-sqlite3 -w @agent-deck/backend
+npm rebuild better-sqlite3
 # or: rm -rf node_modules && npm install
 ```
-
-Error looks like: `NODE_MODULE_VERSION … was compiled against a different Node.js version`.
 
 ### Production / hosted backend
 

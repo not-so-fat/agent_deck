@@ -1,6 +1,7 @@
 import {
   inferOAuthProvider,
   resolveOAuthSetupMode,
+  type OAuthSetupMode,
 } from '../data/oauth-provider-guides';
 
 interface ProtectedResourceMetadata {
@@ -28,7 +29,7 @@ export type McpOAuthDiscovery = {
   scopesSupported?: string[];
   bearerMethodsSupported?: string[];
   provider?: string;
-  setupMode?: 'dynamic' | 'manual' | 'unavailable';
+  setupMode?: OAuthSetupMode;
   supportsDynamicRegistration?: boolean;
   error?: string;
 };

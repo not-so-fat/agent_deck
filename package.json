@@ -15,9 +15,10 @@
     "frontend:dev": "npm --workspace apps/agent-deck run dev -- --port 3000 --strictPort",
     "mcp": "npm --workspace packages/backend run mcp",
     "lint": "turbo run lint",
-    "test": "turbo run test",
-    "test:ci": "turbo run test",
+    "test": "node scripts/rebuild-native.mjs && turbo run test",
+    "test:ci": "node scripts/rebuild-native.mjs && turbo run test",
     "prepublish:check": "node scripts/pre-publish-check.mjs",
+    "postinstall": "node scripts/rebuild-native.mjs",
     "agent-deck": "node packages/cli/dist/bin.js",
     "agent-deck:dev": "tsx packages/cli/src/bin.ts",
     "build:release": "node scripts/prepare-release.mjs",
@@ -26,7 +27,7 @@
     "smoke:dev": "bash ./scripts/smoke-dev.sh",
     "clean": "turbo run clean",
     "type-check": "turbo run type-check",
-    "install:all": "npm install && npm run build"
+    "install:all": "npm install && node scripts/rebuild-native.mjs && npm run build"
   },
   "devDependencies": {
     "turbo": "^1.12.4",

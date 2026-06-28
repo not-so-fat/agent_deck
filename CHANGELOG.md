@@ -31,6 +31,7 @@
 
 - OAuth session expiry, oauth-manager, oauth-redirect, shared-oauth-apps, provider guides
 - MCP Streamable HTTP, PKCE, paths, CLI ports/MCP config
+- `rebuild-native.mjs` runs before tests and on `postinstall` so `better-sqlite3` matches active Node
 
 ## 1.1.4 — 2026-06-28
 
