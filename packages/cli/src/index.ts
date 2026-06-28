@@ -5,8 +5,32 @@ import {
   runCommand,
 } from './lib/runtime';
 
+import { runDoctor, runStart } from './start';
+import { runSetup, shouldStartAfterSetup } from './setup';
+import { runUpgrade } from './upgrade';
+import { getAgentDeckVersion } from './version';
+
+type VaultManager = {
+  create: (input: unknown) => Promise<unknown>;
+  get: (id: string) => Promise<{ id: string; envName: string } | null>;
+  list: () => Promise<Array<{ id: string; label: string; envName: string; scheme: string; hasSecret?: boolean }>>;
+  rotate: (id: string, input: { value: string }) => Promise<unknown | null>;
+  assertCredentialsOnDeck: (deckId: string, credentialIds: string[]) => Promise<void>;
+  resolveEnvMap: (credentialIds: string[]) => Promise<Record<string, string>>;
+  recordExecRun: (input: unknown) => Promise<unknown>;
+};
+
+function getVaultManager(): VaultManager {
+  return createCredentialManager() as VaultManager;
+}
+
 function printUsage() {
   console.log(`Usage:
+  agent-deck start [--open] [--no-ui] [--port PORT] [--mcp-port PORT]
+  agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--start]
+  agent-deck upgrade [--check]
+  agent-deck doctor
+  agent-deck --version
   agent-deck credential add <id> --env-name ENV_NAME --scheme bearer|header|http_basic_user [--label LABEL] [--header-name NAME] [--tags tag1,tag2]
   agent-deck credential list
   agent-deck credential rotate <id>
@@ -52,7 +76,7 @@ export async function runCredentialAdd(args: string[]): Promise<number> {
     return 1;
   }
 
-  const manager = createCredentialManager();
+  const manager = getVaultManager();
   await manager.create({
     id,
     label,
@@ -68,7 +92,7 @@ export async function runCredentialAdd(args: string[]): Promise<number> {
 }
 
 export async function runCredentialList(): Promise<number> {
-  const manager = createCredentialManager();
+  const manager = getVaultManager();
   const credentials = await manager.list();
 
   if (credentials.length === 0) {
@@ -97,7 +121,7 @@ export async function runCredentialRotate(id: string): Promise<number> {
     return 1;
   }
 
-  const manager = createCredentialManager();
+  const manager = getVaultManager();
   const rotated = await manager.rotate(id, { value });
   if (!rotated) {
     console.error(`Credential not found: ${id}`);
@@ -139,7 +163,7 @@ export async function runExec(args: string[]): Promise<number> {
     return 1;
   }
 
-  const manager = createCredentialManager();
+  const manager = getVaultManager();
   const startedAt = new Date().toISOString();
   const command = commandArgs.join(' ');
 
@@ -201,7 +225,47 @@ export async function runCredentialCommand(args: string[]): Promise<number> {
 export async function runCli(argv: string[]): Promise<number> {
   const [, , command, ...rest] = argv;
 
+  if (command === '--version' || command === '-V' || command === '-v') {
+    console.log(getAgentDeckVersion());
+    return 0;
+  }
+
   switch (command) {
+    case 'start': {
+      let openBrowser = false;
+      let skipUi = false;
+      let backendPort: number | undefined;
+      let mcpPort: number | undefined;
+
+      for (let i = 0; i < rest.length; i += 1) {
+        const arg = rest[i];
+        if (arg === '--open') {
+          openBrowser = true;
+        } else if (arg === '--no-ui') {
+          skipUi = true;
+        } else if (arg === '--port') {
+          backendPort = Number.parseInt(rest[++i] ?? '', 10);
+        } else if (arg === '--mcp-port') {
+          mcpPort = Number.parseInt(rest[++i] ?? '', 10);
+        } else if (arg === '--help' || arg === '-h') {
+          printUsage();
+          return 0;
+        }
+      }
+
+      return runStart({ openBrowser, skipUi, backendPort, mcpPort });
+    }
+    case 'setup': {
+      const code = await runSetup(rest);
+      if (shouldStartAfterSetup(code)) {
+        return runStart({});
+      }
+      return code;
+    }
+    case 'upgrade':
+      return runUpgrade(rest);
+    case 'doctor':
+      return runDoctor();
     case 'credential':
       return runCredentialCommand(rest);
     case 'exec':

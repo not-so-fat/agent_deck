@@ -16,6 +16,7 @@ import {
   repoDeckManifestFilePath,
 } from './scope/repo-deck';
 import { REPO_DECK_MANIFEST_PATH } from '@agent-deck/shared';
+import { getAgentDeckVersion } from './lib/version';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -43,7 +44,7 @@ export class AgentDeckMCPServer {
     // Create MCP server with official SDK
     this.server = new McpServer({
       name: "agent-deck-server",
-      version: "1.0.0"
+      version: getAgentDeckVersion(),
     });
     
     // Create HTTP transport

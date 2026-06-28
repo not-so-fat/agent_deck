@@ -65,7 +65,14 @@ Legacy aliases (`get_active_deck`, `list_active_deck_*`, …) remain for v1 comp
 
 ### Connect MCP in Cursor
 
-Add to Cursor **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
+**Recommended:** one command writes config for you:
+
+```bash
+npx @agent-deck/cli setup --client cursor
+# project-only: --scope project
+```
+
+Or add manually to **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -93,6 +100,28 @@ export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
 
 ### Install & run
 
+**One-shot setup (writes MCP config + optional start):**
+
+```bash
+npx @agent-deck/cli@latest setup --client cursor --start
+# or: --client claude | claude-desktop
+# project-scoped Cursor: --scope project
+```
+
+**Or manually:**
+
+```bash
+npx @agent-deck/cli@latest start
+# Dashboard → http://127.0.0.1:8000
+# MCP       → http://127.0.0.1:3001/mcp
+```
+
+**Updates:** `agent-deck upgrade` checks npm and reinstalls globally. On `start`, a cached check notifies when a newer version exists. Set `AGENT_DECK_AUTO_UPGRADE=1` to upgrade automatically before starting.
+
+See [Publishing & install](docs/PUBLISHING.md) for version bumps and npm publish.
+
+**From source (development):**
+
 ```bash
 git clone https://github.com/not-so-fat/agent_deck.git
 cd agent_deck
@@ -102,14 +131,16 @@ npm run dev:all
 ```
 
 This starts:
-- Dashboard → `http://localhost:3000`
+- Dashboard → `http://localhost:3000` (Vite dev server)
 - Backend API → `http://localhost:8000`
 - MCP server → `http://127.0.0.1:3001/mcp`
 
+Or after build: `npm run build:release && npx @agent-deck/cli start`
+
 ### Connect your agent
 
-1. **Set up decks** at `http://localhost:3000` — register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
-2. **Add MCP** in Cursor (Settings → Tools & MCP) — see [Connect MCP in Cursor](#connect-mcp-in-cursor) above
+1. **Set up decks** — dashboard at `http://127.0.0.1:8000` when running from npm (`agent-deck start`); `http://localhost:3000` in dev (`npm run dev:all`). Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
+2. **Add MCP** — `agent-deck setup --client cursor` (or see [Connect MCP in Cursor](#connect-mcp-in-cursor))
 3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
 4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth
 
@@ -119,6 +150,7 @@ This starts:
 | Guide | Description |
 |-------|-------------|
 | [Setup](docs/SETUP.md) | Installation and configuration |
+| [Publishing](docs/PUBLISHING.md) | npm publish, versioning, Claude Code install |
 | [User Guide](docs/USER_GUIDE.md) | Decks, services, OAuth |
 | [Architecture](docs/ARCHITECTURE.md) | Technical design |
 | [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools (Modules 1–3) |
@@ -133,13 +165,12 @@ Agent Deck can be listed on:
 | Channel | Status | Notes |
 |---------|--------|-------|
 | **GitHub** | Ready | Public repo, README, demo GIF |
-| **MCP Registry** | Future | npm publish + `server.json` metadata |
+| **npm** | Ready | `npx @agent-deck/cli setup --client cursor --start` — see [Publishing](docs/PUBLISHING.md) |
+| **MCP Registry** | Metadata ready | `server.json` — publish after npm |
 | **Cursor Marketplace** | Future | Plugin + skill packaging |
 
 ## Future Plan
 
-- Simpler install (`npx agent-deck`)
-- MCP Registry npm package publish
-- Cursor plugin + MCP App in-chat UI
+- Cursor plugin + skill packaging
 - Passthrough for downstream MCP Apps
 - Usage analytics and smarter deck recommendations

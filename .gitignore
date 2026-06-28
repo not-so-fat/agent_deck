@@ -132,6 +132,7 @@ temp/
 .idea/
 .cursor/
 .temporal/
+packages/backend/static-ui/
 *.swp
 *.swo
 *~

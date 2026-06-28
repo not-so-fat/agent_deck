@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.not-so-fat/agent-deck",
+  "title": "Agent Deck",
+  "description": "Local context-aware MCP proxy. One endpoint for your agent; switch MCP servers and API keys with decks.",
+  "version": "1.1.1",
+  "websiteUrl": "https://github.com/not-so-fat/agent_deck",
+  "repository": {
+    "url": "https://github.com/not-so-fat/agent_deck",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@agent-deck/cli",
+      "version": "1.1.1",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:3001/mcp"
+      },
+      "runtimeHint": "Run `npx @agent-deck/cli start` locally, then connect your MCP client to the URL above.",
+      "environmentVariables": [
+        {
+          "name": "AGENT_DECK_PORT",
+          "description": "Backend API and dashboard port (default 8000)",
+          "isRequired": false,
+          "format": "number"
+        },
+        {
+          "name": "AGENT_DECK_MCP_PORT",
+          "description": "MCP HTTP endpoint port (default 3001)",
+          "isRequired": false,
+          "format": "number"
+        },
+        {
+          "name": "AGENT_DECK_HOME",
+          "description": "Data directory for SQLite DB and credential metadata (default ~/.agent-deck)",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

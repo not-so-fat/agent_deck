@@ -1,21 +1,47 @@
 {
   "name": "@agent-deck/cli",
-  "version": "1.0.0",
-  "description": "Agent Deck CLI — credential vault and exec",
+  "version": "1.1.1",
+  "description": "Local MCP proxy with decks — one endpoint for Claude Code, Cursor, and other MCP clients",
+  "license": "ISC",
   "bin": {
-    "agent-deck": "./bin/agent-deck"
+    "agent-deck": "bin/agent-deck"
   },
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "mcpName": "io.github.not-so-fat/agent-deck",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/not-so-fat/agent_deck.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agent",
+    "claude",
+    "cursor",
+    "deck"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "node -e \"console.log('CLI runs via tsx')\"",
+    "build": "tsc",
     "dev": "tsx src/bin.ts",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit --skipLibCheck",
-    "test": "vitest"
+    "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agent-deck/shared": "file:../shared",
-    "better-sqlite3": "^9.4.3"
+    "@agent-deck/backend": "^1.1.1",
+    "@agent-deck/shared": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

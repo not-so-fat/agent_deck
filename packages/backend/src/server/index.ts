@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import fastifyStatic from '@fastify/static';
+import fs from 'node:fs';
+import path from 'node:path';
 import { DatabaseManager } from '../models/database';
 import { ServiceManager } from '../services/service-manager';
 import { MCPClientManager } from '../services/mcp-client-manager';
@@ -20,6 +23,7 @@ import { resolveDatabasePath } from '../lib/paths';
 import { CollectionWarningService } from '../services/collection-warning-service';
 import { registerCollectionRoutes } from '../routes/collection';
 import { PlaybookManager } from '../playbooks/playbook-manager';
+import { getAgentDeckVersion } from '../lib/version';
 
 export async function createServer() {
   const fastify = Fastify({
@@ -59,17 +63,30 @@ export async function createServer() {
 
   // Health check endpoint
   fastify.get('/health', async (request, reply) => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return { status: 'ok', timestamp: new Date().toISOString(), version: getAgentDeckVersion() };
   });
 
-  // Root endpoint
-  fastify.get('/', async (request, reply) => {
-    return { 
+  const uiDist = process.env.AGENT_DECK_UI_DIST?.trim();
+  if (uiDist && fs.existsSync(uiDist)) {
+    await fastify.register(fastifyStatic, {
+      root: path.resolve(uiDist),
+      prefix: '/',
+    });
+
+    fastify.setNotFoundHandler(async (request, reply) => {
+      if (request.url.startsWith('/api/')) {
+        return reply.status(404).send({ success: false, error: 'Not found' });
+      }
+      return reply.sendFile('index.html', path.resolve(uiDist));
+    });
+  } else if (!uiDist) {
+    // Root endpoint when UI is not bundled (API-only mode)
+    fastify.get('/', async () => ({
       name: 'Agent Deck Backend',
-      version: '1.0.0',
+      version: getAgentDeckVersion(),
       status: 'running',
-    };
-  });
+    }));
+  }
 
   // Add services to request context
   fastify.decorate('db', db);

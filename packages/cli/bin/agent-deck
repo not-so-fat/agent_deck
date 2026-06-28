@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-exec npx tsx "$ROOT_DIR/src/bin.ts" "$@"
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -f "$DIR/dist/bin.js" ]]; then
+  exec node "$DIR/dist/bin.js" "$@"
+fi
+exec npx tsx "$DIR/src/bin.ts" "$@"

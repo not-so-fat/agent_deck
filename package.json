@@ -1,6 +1,6 @@
 {
   "name": "agent-deck",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Agent Deck - Local app for MCP access (like a browser for agents)",
   "private": true,
   "workspaces": [
@@ -16,7 +16,11 @@
     "mcp": "npm --workspace packages/backend run mcp",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "agent-deck": "tsx packages/cli/src/bin.ts",
+    "agent-deck": "node packages/cli/dist/bin.js",
+    "agent-deck:dev": "tsx packages/cli/src/bin.ts",
+    "build:release": "node scripts/prepare-release.mjs",
+    "version:sync": "node scripts/sync-versions.mjs",
+    "publish:packages": "npm run build:release && npm publish -w @agent-deck/shared --access public && npm publish -w @agent-deck/backend --access public && npm publish -w @agent-deck/cli --access public",
     "smoke:dev": "bash ./scripts/smoke-dev.sh",
     "clean": "turbo run clean",
     "type-check": "turbo run type-check",
@@ -31,7 +35,13 @@
     "type": "git",
     "url": "git+https://github.com/not-so-fat/agent_deck.git"
   },
-  "keywords": ["mcp", "agent", "typescript", "react", "nextjs"],
+  "keywords": [
+    "mcp",
+    "agent",
+    "typescript",
+    "react",
+    "nextjs"
+  ],
   "author": "",
   "license": "ISC",
   "bugs": {
