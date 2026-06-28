@@ -99,6 +99,7 @@ function CardComponent({
     mutationFn: async () => apiRequest("DELETE", `/api/services/${service.id}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/collection/warnings"] });
       queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
       toast({
         title: "Service deleted",

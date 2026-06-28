@@ -42,6 +42,7 @@ export function useWebSocket() {
               console.log('Received service update:', message);
               // Invalidate service queries to refresh the UI
               queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
             } else if (message.type === 'connection_status') {
               setConnectionStatus(message.status === 'connected' ? 'connected' : 'disconnected');
             }

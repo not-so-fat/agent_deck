@@ -381,6 +381,7 @@ export default function ServiceDetailsModal({
       if (response.ok) {
         // Invalidate queries to refresh the UI
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         
@@ -423,6 +424,7 @@ export default function ServiceDetailsModal({
         }
         
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         
@@ -463,6 +465,7 @@ export default function ServiceDetailsModal({
         }
         
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         

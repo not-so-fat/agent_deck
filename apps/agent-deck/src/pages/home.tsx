@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Service, Deck, Credential, Playbook } from "@agent-deck/shared";
-import { summarizeCollectionWarnings } from "@/lib/collection-warnings";
+import {
+  toCollectionWarningsView,
+  type CollectionWarningsPayload,
+} from "@/lib/collection-warnings";
 import CardComponent from "@/components/card-component";
 import CredentialCardComponent from "@/components/credential-card-component";
 import PlaybookCardComponent from "@/components/playbook-card-component";
@@ -73,13 +76,18 @@ export default function Home() {
     queryKey: ["/api/playbooks/vault"],
   });
 
+  const { data: collectionWarningsResponse } = useQuery<{ success: boolean; data: CollectionWarningsPayload }>({
+    queryKey: ["/api/collection/warnings"],
+    staleTime: 60_000,
+  });
+
   const servicesArray = servicesResponse?.data || [];
   const credentialsArray = credentialsResponse?.data || [];
   const playbooksArray = playbooksResponse?.data || [];
 
   const collectionWarnings = useMemo(
-    () => summarizeCollectionWarnings(servicesArray, credentialsArray, playbooksArray),
-    [servicesArray, credentialsArray, playbooksArray],
+    () => toCollectionWarningsView(collectionWarningsResponse?.data),
+    [collectionWarningsResponse?.data],
   );
 
   const matchesWarningsFilter = (

@@ -17,6 +17,8 @@ import { registerPlaybookRoutes } from '../routes/playbooks';
 import { ServiceStatusUpdate, DeckUpdate, WebSocketMessage } from '@agent-deck/shared';
 import { createSecretStore, CredentialManager } from '../vault';
 import { resolveDatabasePath } from '../lib/paths';
+import { CollectionWarningService } from '../services/collection-warning-service';
+import { registerCollectionRoutes } from '../routes/collection';
 import { PlaybookManager } from '../playbooks/playbook-manager';
 
 export async function createServer() {
@@ -41,6 +43,7 @@ export async function createServer() {
   const serviceManager = new ServiceManager(db, mcpClient, oauthManager);
   const credentialManager = new CredentialManager(db, createSecretStore());
   const playbookManager = new PlaybookManager(db);
+  const collectionWarningService = new CollectionWarningService();
 
   // Register routes
   await fastify.register(registerWebSocketRoutes, { prefix: '/api/ws' });
@@ -49,6 +52,7 @@ export async function createServer() {
   await fastify.register(registerCredentialRoutes, { prefix: '/api/credentials' });
   await fastify.register(registerScopeRoutes, { prefix: '/api/scope' });
   await fastify.register(registerPlaybookRoutes, { prefix: '/api/playbooks' });
+  await fastify.register(registerCollectionRoutes, { prefix: '/api/collection' });
   await fastify.register(registerOAuthRoutes, { prefix: '/api/oauth' });
   await fastify.register(mcpRoutes, { prefix: '/api/mcp' });
   await fastify.register(registerLocalMCPRoutes, { prefix: '/api/local-mcp' });
@@ -74,6 +78,7 @@ export async function createServer() {
   fastify.decorate('oauthManager', oauthManager);
   fastify.decorate('credentialManager', credentialManager);
   fastify.decorate('playbookManager', playbookManager);
+  fastify.decorate('collectionWarningService', collectionWarningService);
 
   // Add broadcast decorators for WebSocket functionality
   fastify.decorate('broadcastServiceUpdate', (update: ServiceStatusUpdate) => {
@@ -103,6 +108,7 @@ declare module 'fastify' {
     oauthManager: OAuthManager;
     credentialManager: CredentialManager;
     playbookManager: PlaybookManager;
+    collectionWarningService: CollectionWarningService;
     broadcastServiceUpdate: (update: ServiceStatusUpdate) => void;
     broadcastDeckUpdate: (update: DeckUpdate) => void;
     broadcastToAll: (message: WebSocketMessage) => void;

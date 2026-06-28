@@ -227,6 +227,7 @@ export default function ServiceRegistrationModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
       const currentFormData = type === 'mcp' ? 
         (activeTab === 'remote' ? remoteFormData : localFormData) : 
         a2aFormData;

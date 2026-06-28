@@ -201,6 +201,8 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
         code,
         state,
       });
+
+      fastify.collectionWarningService.clearCache(serviceId);
       
       // Redirect to frontend with success status
       return reply.redirect(`http://localhost:3000/oauth/callback?success=true&serviceId=${serviceId}`);

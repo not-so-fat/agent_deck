@@ -19,6 +19,30 @@ const baseService = {
 };
 
 describe('collection-warnings', () => {
+  it('flags oauth required when live discovery says OAuth is required', () => {
+    const warnings = getServiceWarnings(
+      {
+        ...baseService,
+        name: 'GitHub',
+        url: 'https://api.githubcopilot.com/mcp/',
+      },
+      { oauthRequired: true },
+    );
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].kind).toBe('oauth_required');
+  });
+
+  it('detects oauth via authorization URL without client id', () => {
+    const warnings = getServiceWarnings({
+      ...baseService,
+      oauthAuthorizationUrl: 'https://github.com/login/oauth/authorize',
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].kind).toBe('oauth_required');
+  });
+
   it('flags oauth required and expired MCP services', () => {
     const required = getServiceWarnings({
       ...baseService,

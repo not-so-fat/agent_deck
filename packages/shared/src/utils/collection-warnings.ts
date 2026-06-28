@@ -31,7 +31,29 @@ export function isOAuthTokenExpiringSoon(expiresAt?: string): boolean {
   return new Date(expiresAt).getTime() <= Date.now() + OAUTH_EXPIRY_BUFFER_MS;
 }
 
-export function getServiceWarnings(service: Service): CollectionCardWarning[] {
+export type ServiceWarningContext = {
+  /** Live MCP discovery — OAuth required even before client credentials are stored. */
+  oauthRequired?: boolean;
+};
+
+function mcpHasOAuthConfig(service: Service): boolean {
+  return Boolean(
+    service.oauthClientId ||
+      service.oauthAuthorizationUrl ||
+      service.oauthTokenUrl,
+  );
+}
+
+function mcpHasValidOAuthSession(service: Service): boolean {
+  const hasToken = Boolean(service.oauthAccessToken);
+  const hasAuthHeader = Boolean(service.headers?.Authorization);
+  return hasToken && hasAuthHeader && !isOAuthTokenExpiringSoon(service.oauthTokenExpiresAt);
+}
+
+export function getServiceWarnings(
+  service: Service,
+  context: ServiceWarningContext = {},
+): CollectionCardWarning[] {
   const warnings: CollectionCardWarning[] = [];
 
   if (service.health === 'unhealthy') {
@@ -42,7 +64,16 @@ export function getServiceWarnings(service: Service): CollectionCardWarning[] {
     });
   }
 
-  if (service.type !== 'mcp' || !service.oauthClientId) {
+  if (service.type !== 'mcp') {
+    return warnings;
+  }
+
+  if (mcpHasValidOAuthSession(service)) {
+    return warnings;
+  }
+
+  const oauthLikely = context.oauthRequired === true || mcpHasOAuthConfig(service);
+  if (!oauthLikely) {
     return warnings;
   }
 
@@ -120,6 +151,7 @@ export function summarizeCollectionWarnings(
   services: Service[],
   credentials: Credential[],
   playbooks: Playbook[],
+  serviceWarningContext: Record<string, ServiceWarningContext> = {},
 ): {
   total: number;
   byKind: Record<CollectionWarningKind, number>;
@@ -140,7 +172,7 @@ export function summarizeCollectionWarnings(
   } satisfies Record<CollectionWarningKind, number>;
 
   for (const service of services) {
-    const warnings = getServiceWarnings(service);
+    const warnings = getServiceWarnings(service, serviceWarningContext[service.id]);
     if (warnings.length > 0) {
       serviceWarnings.set(service.id, warnings);
       for (const warning of warnings) {
