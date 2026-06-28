@@ -18,7 +18,7 @@ describe('OAuthManager PKCE', () => {
       oauthClientId: 'test-client',
       oauthAuthorizationUrl: 'https://mcp.linear.app/authorize',
       oauthTokenUrl: 'https://mcp.linear.app/token',
-      oauthRedirectUri: 'http://localhost:8000/api/oauth/callback',
+      oauthRedirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
       oauthScope: 'read write',
     });
   });
@@ -33,7 +33,7 @@ describe('OAuthManager PKCE', () => {
 
     const { authorizationUrl, state } = await oauthManager.initiateOAuthFlow({
       serviceId,
-      redirectUri: 'http://localhost:8000/api/oauth/callback',
+      redirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
     });
 
     const url = new URL(authorizationUrl);
@@ -60,7 +60,7 @@ describe('OAuthManager PKCE', () => {
 
     const { state } = await oauthManager.initiateOAuthFlow({
       serviceId,
-      redirectUri: 'http://localhost:8000/api/oauth/callback',
+      redirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
     });
 
     await oauthManager.handleOAuthCallback({

@@ -87,7 +87,7 @@ describe.skipIf(!RUN_LIVE)('MCP preset OAuth auto-setup step 1 (live)', () => {
       clientSecret: '',
       authorizationUrl: mcpDiscovery.oauth.authorizationUrl || '',
       tokenUrl: mcpDiscovery.oauth.tokenUrl || '',
-      redirectUri: 'http://localhost:8000/api/oauth/callback',
+      redirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
       scope: mcpDiscovery.oauth.scopesSupported?.join(' ') || 'read write',
     });
     expect(registration.success).toBe(true);
@@ -98,13 +98,13 @@ describe.skipIf(!RUN_LIVE)('MCP preset OAuth auto-setup step 1 (live)', () => {
       oauthClientSecret: registration.clientSecret,
       oauthAuthorizationUrl: mcpDiscovery.oauth.authorizationUrl,
       oauthTokenUrl: mcpDiscovery.oauth.tokenUrl,
-      oauthRedirectUri: 'http://localhost:8000/api/oauth/callback',
+      oauthRedirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
       oauthScope: mcpDiscovery.oauth.scopesSupported?.join(' ') || 'read write',
     });
 
     const { authorizationUrl } = await oauthManager.initiateOAuthFlow({
       serviceId: service.id,
-      redirectUri: 'http://localhost:8000/api/oauth/callback',
+      redirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
     });
 
     const url = new URL(authorizationUrl);

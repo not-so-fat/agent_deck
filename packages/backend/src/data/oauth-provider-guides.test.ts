@@ -17,12 +17,12 @@ describe('oauth-provider-guides', () => {
   it('marks google and slack as manual', () => {
     expect(resolveOAuthSetupMode('google', false)).toBe('manual');
     expect(resolveOAuthSetupMode('slack', false)).toBe('manual');
-    expect(getOAuthProviderGuide('google').redirectUri).toBe('http://localhost:8000/api/oauth/callback');
+    expect(getOAuthProviderGuide('google').redirectUri).toBe('http://127.0.0.1:8000/api/oauth/callback');
     const slack = getOAuthProviderGuide('slack');
     expect(slack.manifestJson).toBeTruthy();
     expect(slack.createAppUrl).toContain('api.slack.com');
     const manifest = JSON.parse(getSlackMcpAppManifest());
-    expect(manifest.oauth_config.redirect_urls[0]).toBe('http://localhost:8000/api/oauth/callback');
+    expect(manifest.oauth_config.redirect_urls[0]).toBe('http://127.0.0.1:8000/api/oauth/callback');
   });
 
   it('uses managed mode for slack when shared app env is set', () => {

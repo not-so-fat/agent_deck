@@ -1,5 +1,7 @@
 # Agent Deck–owned Slack OAuth app
 
+> **Status (2025):** Maintainer shared-app / one-click path is **deferred** (no hosted OAuth). Use **BYO app** (below) or [SLACK_READ_WORKAROUND.md](./SLACK_READ_WORKAROUND.md). Rationale: [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md).
+
 How to register a **shared** Slack app so Agent Deck users get one-click Connect.
 
 **Context:** [OAUTH_REQUIREMENTS.md](./OAUTH_REQUIREMENTS.md) (why + final checklist), [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md). Node **24** on server ([SETUP.md](./SETUP.md)).

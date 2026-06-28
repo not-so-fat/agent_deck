@@ -2,6 +2,8 @@
 
 **Purpose:** One place to understand why third-party MCP is hard for a new product, what OAuth Agent Deck must provide, what each vendor expects, and what you must ship for **one-click Slack** (including marketplace registration).
 
+**As-built decision (2025):** Managed Slack OAuth (Stytch broker, hosted callback, shared app one-click) is **deferred**. See [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md) for the full spike notes and architecture. **Ship today:** auto OAuth (Linear/Notion), BYO OAuth (Slack/Google/GitHub), honest fallbacks.
+
 **Related:** [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md) (operational setup), [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) (Slack app steps), [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md) (tiers and roadmap).
 
 ---
@@ -195,6 +197,8 @@ These are **in addition** to Agent Deck code; they are what unlock “Connect li
 ---
 
 ## HTTPS OAuth handling: self-host vs Stytch
+
+> **Deferred (2025):** Option A (self-hosted callback) and Option B (Stytch broker) are not pursuing for now. Spike findings and recommended tiers are in [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md). The sections below remain as historical feasibility notes.
 
 You asked whether **Stytch** can handle the **HTTPS OAuth callback** part for **Slack app / marketplace registration**, so users connect easily without you running full Agent Deck on Fly/Hetzner **only for OAuth**.
 
