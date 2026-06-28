@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import McpToolsPanel from "@/components/mcp-tools-panel";
 
 
 // API response type that matches the backend
@@ -183,9 +184,77 @@ export default function ServiceDetailsModal({
       }
     },
     enabled: hasValidService && (apiService.type === 'mcp' || apiService.type === 'local-mcp') && isOpen && (apiService.type === 'local-mcp' || oauthStatus.status === 'authenticated' || oauthStatus.status === 'not_required'),
-    staleTime: 0, // Always fetch fresh data for tools
-    gcTime: 2 * 60 * 1000, // 2 minutes cache time
+    staleTime: 0,
+    gcTime: 2 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (!isOpen || !apiService?.id) {
+      return;
+    }
+    if (apiService.type !== 'mcp' && apiService.type !== 'local-mcp') {
+      return;
+    }
+
+    const canLoadTools =
+      apiService.type === 'local-mcp' ||
+      oauthStatus.status === 'authenticated' ||
+      oauthStatus.status === 'not_required';
+    if (!canLoadTools || mcpToolsLoading) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshServiceHealth = async () => {
+      try {
+        const response = await apiRequest('GET', `/api/services/${apiService.id}`);
+        const payload = await response.json();
+        if (!cancelled && payload?.success && payload.data) {
+          setCurrentService(payload.data);
+        }
+        queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
+      } catch {
+        // Health is best-effort after tool discovery.
+      }
+    };
+
+    void refreshServiceHealth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, apiService?.id, apiService?.type, mcpToolsLoading, mcpToolsError, mcpToolsData, oauthStatus.status, queryClient]);
+
+  useEffect(() => {
+    if (!isOpen || !apiService?.id || apiService.type !== 'a2a') {
+      return;
+    }
+
+    let cancelled = false;
+
+    const probeA2aHealth = async () => {
+      try {
+        await apiRequest('GET', `/api/services/${apiService.id}/health`);
+        const response = await apiRequest('GET', `/api/services/${apiService.id}`);
+        const payload = await response.json();
+        if (!cancelled && payload?.success && payload.data) {
+          setCurrentService(payload.data);
+        }
+        queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
+      } catch {
+        // Best-effort health probe.
+      }
+    };
+
+    void probeA2aHealth();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, apiService?.id, apiService?.type, queryClient]);
 
   console.log('MCP Tools Query Debug:', {
     hasValidService,
@@ -243,7 +312,7 @@ export default function ServiceDetailsModal({
     if (service && isOpen) {
       setCurrentService(service);
       // Initialize selected color with current service color
-      setSelectedColor(service.cardColor || '#7ed4da');
+      setSelectedColor(service.cardColor || '#92E4DD');
       // Initialize editing values
       setEditingName(service.name || '');
       setEditingDescription(service.description || '');
@@ -396,7 +465,7 @@ export default function ServiceDetailsModal({
       }
     } catch (error) {
       // Revert the local state if the update failed
-      setSelectedColor(service.cardColor || '#7ed4da');
+      setSelectedColor(service.cardColor || '#92E4DD');
       toast({
         title: "Update failed",
         description: "Failed to update card color. Please try again.",
@@ -490,9 +559,8 @@ export default function ServiceDetailsModal({
   };
 
   const availableColors = [
-    { value: '#7ed4da', label: 'Default' },
+    { value: '#92E4DD', label: 'Default' },
     { value: '#F9386D', label: 'Red' },
-    { value: '#39FF14', label: 'Green' },
     { value: '#E0E0E0', label: 'Gray' },
     { value: '#FF6B00', label: 'Orange' }
   ];
@@ -589,7 +657,7 @@ export default function ServiceDetailsModal({
                   >
                     <div 
                       className="w-4 h-4 rounded-full border border-white/20" 
-                      style={{ backgroundColor: selectedColor || service.cardColor || '#7ed4da' }}
+                      style={{ backgroundColor: selectedColor || service.cardColor || '#92E4DD' }}
                     />
                   </Button>
                   
@@ -718,8 +786,22 @@ export default function ServiceDetailsModal({
                 </div>
                 <div>
                   <p className="text-gray-300 text-sm mb-1">Health Status</p>
-                  <Badge className={apiService.health === 'healthy' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}>
-                    {apiService.health || 'Unknown'}
+                  <Badge
+                    className={
+                      apiService.health === 'healthy'
+                        ? 'bg-green-500/20 text-green-300'
+                        : apiService.health === 'unhealthy'
+                          ? 'bg-red-500/20 text-red-300'
+                          : 'bg-amber-500/20 text-amber-200'
+                    }
+                  >
+                    {apiService.health === 'healthy'
+                      ? 'Healthy'
+                      : apiService.health === 'unhealthy'
+                        ? 'Unreachable'
+                        : oauthStatus.status === 'required' || oauthStatus.status === 'expired'
+                          ? 'Auth required'
+                          : 'Unknown'}
                   </Badge>
                 </div>
                 <div>
@@ -746,57 +828,12 @@ export default function ServiceDetailsModal({
               </div>
             )}
 
-            {/* MCP Tools - Playing Card Style */}
-            {(service.type === 'mcp' || service.type === 'local-mcp') && mcpTools.length > 0 && (
-              <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-                <h3 className="text-lg font-semibold mb-4 flex items-center">
-                  <Wrench className="w-5 h-5 mr-2" />
-                  Available Tools ({mcpTools.length})
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                  {mcpTools.map((tool, index) => (
-                    <div 
-                      key={index} 
-                      className="relative group cursor-pointer transform hover:scale-105 transition-all duration-300"
-                      style={{
-                        aspectRatio: '2/3',
-                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 197, 253, 0.1))',
-                        border: '2px solid rgba(59, 130, 246, 0.3)',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 20px rgba(59, 130, 246, 0.2)',
-                        minWidth: '120px',
-                        maxWidth: '160px'
-                      }}
-                    >
-                      {/* Card Corner - Top Left */}
-                      <div className="absolute top-2 left-2 text-xs font-bold">
-                        <div className="text-blue-300 leading-none">T</div>
-                      </div>
-                      
-                      {/* Card Corner - Bottom Right (upside down) */}
-                      <div className="absolute bottom-2 right-2 text-xs font-bold rotate-180">
-                        <div className="text-blue-300 leading-none">T</div>
-                      </div>
-                      
-                      {/* Card Center Content */}
-                      <div className="absolute inset-x-3 top-8 bottom-8 flex flex-col items-center justify-center text-center">
-                        <div className="text-blue-300 mb-2">
-                          <Wrench className="w-6 h-6" />
-                        </div>
-                        <h4 className="font-bold text-sm mb-2 line-clamp-2 text-white">
-                          {tool.name}
-                        </h4>
-                        <p className="text-gray-300 text-xs line-clamp-4">
-                          {tool.description}
-                        </p>
-                      </div>
-                      
-                      {/* Cyberpunk Glow Effect */}
-                      <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-transparent via-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none"></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {(service.type === 'mcp' || service.type === 'local-mcp') && (
+              <McpToolsPanel
+                serviceId={apiService.id}
+                tools={mcpTools}
+                isLoading={mcpToolsLoading}
+              />
             )}
 
             {/* A2A Agent Details - Playing Card Style */}

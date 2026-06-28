@@ -10,11 +10,28 @@ import {
 } from '@agent-deck/shared';
 import {
   applyDeckScope,
-  DashboardOnlyError,
   getClientScope,
-  requireDashboardClient,
 } from '../lib/client-scope';
+import {
+  boundDeckScopeResponse,
+  requireBoundDeckScope,
+} from '../lib/bound-deck-scope';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
+import { CredentialManager } from '../vault/credential-manager';
+
+async function enrichDecksWithCredentialSecrets(
+  credentialManager: CredentialManager,
+  decks: Deck[],
+): Promise<Deck[]> {
+  return Promise.all(
+    decks.map(async (deck) => ({
+      ...deck,
+      credentials: deck.credentials
+        ? await credentialManager.applySecretStatus(deck.credentials)
+        : [],
+    })),
+  );
+}
 
 interface CreateDeckRequest {
   Body: CreateDeckInput;
@@ -83,8 +100,14 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       }
 
       const decks = await fastify.db.getAllDecks();
-      const scopedDecks = decks.map((deck) => applyDeckScope(deck, scope, visibleDeckId));
-      
+      const decksWithSecrets = await enrichDecksWithCredentialSecrets(
+        fastify.credentialManager,
+        decks,
+      );
+      const scopedDecks = decksWithSecrets.map((deck) =>
+        applyDeckScope(deck, scope, visibleDeckId),
+      );
+
       const response: ApiResponse<Deck[]> = {
         success: true,
         data: scopedDecks,
@@ -105,19 +128,24 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
   fastify.get('/active', async (request, reply) => {
     try {
       const deck = await fastify.db.getActiveDeck();
-      
+
       if (!deck) {
         const response: ApiResponse = {
           success: false,
           error: 'No active deck found',
         };
-        
+
         return reply.status(404).send(response);
       }
-      
+
+      const [deckWithSecrets] = await enrichDecksWithCredentialSecrets(
+        fastify.credentialManager,
+        [deck],
+      );
+
       const response: ApiResponse<Deck> = {
         success: true,
-        data: deck,
+        data: deckWithSecrets,
       };
       
       return reply.send(response);
@@ -158,20 +186,24 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const scopedDeck = applyDeckScope(deck, scope, visibleDeckId);
-      
+      const [deckWithSecrets] = await enrichDecksWithCredentialSecrets(
+        fastify.credentialManager,
+        [deck],
+      );
+      const scopedDeck = applyDeckScope(deckWithSecrets, scope, visibleDeckId);
+
       const response: ApiResponse<Deck> = {
         success: true,
         data: scopedDeck,
       };
-      
+
       return reply.send(response);
     } catch (error) {
       const response: ApiResponse = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       };
-      
+
       return reply.status(500).send(response);
     }
   });
@@ -267,6 +299,8 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
   // Add service to deck
   fastify.post<AddServiceToDeckRequest>('/:id/services', async (request, reply) => {
     try {
+      await requireBoundDeckScope(request, fastify.db, request.params.id);
+
       await fastify.db.addServiceToDeck({
         deckId: request.params.id,
         serviceId: request.body.serviceId,
@@ -287,18 +321,21 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       
       return reply.send(response);
     } catch (error) {
+      const scoped = boundDeckScopeResponse(error);
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: scoped.message,
       };
       
-      return reply.status(400).send(response);
+      return reply.status(scoped.status).send(response);
     }
   });
 
   // Remove service from deck
   fastify.delete<RemoveServiceFromDeckRequest>('/:id/services', async (request, reply) => {
     try {
+      await requireBoundDeckScope(request, fastify.db, request.params.id);
+
       await fastify.db.removeServiceFromDeck({
         deckId: request.params.id,
         serviceId: request.body.serviceId,
@@ -318,18 +355,21 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       
       return reply.send(response);
     } catch (error) {
+      const scoped = boundDeckScopeResponse(error);
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: scoped.message,
       };
       
-      return reply.status(400).send(response);
+      return reply.status(scoped.status).send(response);
     }
   });
 
   // Reorder deck services
   fastify.put<ReorderDeckServicesRequest>('/:id/services/reorder', async (request, reply) => {
     try {
+      await requireBoundDeckScope(request, fastify.db, request.params.id);
+
       await fastify.db.reorderDeckServices({
         deckId: request.params.id,
         serviceIds: request.body.serviceIds,
@@ -349,18 +389,21 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       
       return reply.send(response);
     } catch (error) {
+      const scoped = boundDeckScopeResponse(error);
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: scoped.message,
       };
       
-      return reply.status(400).send(response);
+      return reply.status(scoped.status).send(response);
     }
   });
 
   // Clear all services from deck
   fastify.delete<DeckIdRequest>('/:id/services/clear', async (request, reply) => {
     try {
+      await requireBoundDeckScope(request, fastify.db, request.params.id);
+
       await fastify.db.clearDeckServices(request.params.id);
       
       // Broadcast deck update via WebSocket
@@ -377,12 +420,13 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       
       return reply.send(response);
     } catch (error) {
+      const scoped = boundDeckScopeResponse(error);
       const response: ApiResponse = {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: scoped.message,
       };
       
-      return reply.status(400).send(response);
+      return reply.status(scoped.status).send(response);
     }
   });
 
@@ -391,7 +435,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
     '/:id/credentials',
     async (request, reply) => {
       try {
-        requireDashboardClient(request);
+        await requireBoundDeckScope(request, fastify.db, request.params.id);
 
         await fastify.credentialManager.addToDeck({
           deckId: request.params.id,
@@ -412,16 +456,13 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
 
         return reply.send(response);
       } catch (error) {
+        const scoped = boundDeckScopeResponse(error);
         const response: ApiResponse = {
           success: false,
-          error: error instanceof DashboardOnlyError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'Unknown error',
+          error: scoped.message,
         };
 
-        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send(response);
+        return reply.status(scoped.status).send(response);
       }
     },
   );
@@ -431,7 +472,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
     '/:id/credentials',
     async (request, reply) => {
       try {
-        requireDashboardClient(request);
+        await requireBoundDeckScope(request, fastify.db, request.params.id);
 
         await fastify.credentialManager.removeFromDeck({
           deckId: request.params.id,
@@ -451,16 +492,13 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
 
         return reply.send(response);
       } catch (error) {
+        const scoped = boundDeckScopeResponse(error);
         const response: ApiResponse = {
           success: false,
-          error: error instanceof DashboardOnlyError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : 'Unknown error',
+          error: scoped.message,
         };
 
-        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send(response);
+        return reply.status(scoped.status).send(response);
       }
     },
   );
@@ -470,7 +508,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
     '/:id/playbooks',
     async (request, reply) => {
       try {
-        requireDashboardClient(request);
+        await requireBoundDeckScope(request, fastify.db, request.params.id);
 
         await fastify.playbookManager.addToDeck({
           deckId: request.params.id,
@@ -489,9 +527,10 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
           message: 'Playbook added to deck successfully',
         } satisfies ApiResponse);
       } catch (error) {
-        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send({
+        const scoped = boundDeckScopeResponse(error);
+        return reply.status(scoped.status).send({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: scoped.message,
         } satisfies ApiResponse);
       }
     },
@@ -502,7 +541,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
     '/:id/playbooks',
     async (request, reply) => {
       try {
-        requireDashboardClient(request);
+        await requireBoundDeckScope(request, fastify.db, request.params.id);
 
         await fastify.playbookManager.removeFromDeck({
           deckId: request.params.id,
@@ -520,9 +559,10 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
           message: 'Playbook removed from deck successfully',
         } satisfies ApiResponse);
       } catch (error) {
-        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send({
+        const scoped = boundDeckScopeResponse(error);
+        return reply.status(scoped.status).send({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: scoped.message,
         } satisfies ApiResponse);
       }
     },

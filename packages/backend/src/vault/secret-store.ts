@@ -170,6 +170,10 @@ export class MacOSKeychainStore implements SecretStore {
 
 export function createSecretStore(): SecretStore {
   if (process.env.AGENT_DECK_SECRET_STORE === 'memory') {
+    return new MemorySecretStore();
+  }
+
+  if (process.env.AGENT_DECK_SECRET_STORE === 'file') {
     return new DevFileSecretStore();
   }
 

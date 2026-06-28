@@ -119,6 +119,22 @@ export class AgentDeckMCPServer {
     }
   }
 
+  private async getBoundDeckId(): Promise<string> {
+    const deck = await this.callBackendAPI('/api/scope/deck');
+    if (!deck?.id) {
+      throw new Error('No bound deck — call bind_workspace or setup_repo_deck first');
+    }
+    return deck.id as string;
+  }
+
+  private toolResult(data: unknown) {
+    return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+  }
+
+  private toolError(error: unknown) {
+    return { content: [{ type: "text" as const, text: JSON.stringify({ error: String(error) }, null, 2) }] };
+  }
+
   private setupTools() {
     this.server.registerTool("bind_workspace", {
       title: "Bind Workspace",
@@ -546,6 +562,305 @@ export class AgentDeckMCPServer {
         return { content: [{ type: "text", text: JSON.stringify(playbook, null, 2) }] };
       } catch (error) {
         return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("list_collection_services", {
+      title: "List Collection Services",
+      description: "List all registered MCP services in the collection (metadata only)",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const services = await this.callBackendAPI('/api/services');
+        return this.toolResult(services);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("register_service", {
+      title: "Register Service",
+      description:
+        "Register an MCP service in the collection. Optionally add it to the bound deck. OAuth setup still requires the dashboard browser flow.",
+      inputSchema: {
+        name: z.string(),
+        type: z.enum(['mcp', 'a2a', 'local-mcp']),
+        url: z.string(),
+        description: z.string().optional(),
+        cardColor: z.string().optional(),
+        credentialId: z.string().optional(),
+        headers: z.record(z.string()).optional(),
+        localCommand: z.string().optional(),
+        localArgs: z.array(z.string()).optional(),
+        localWorkingDir: z.string().optional(),
+        localEnv: z.record(z.string()).optional(),
+        add_to_bound_deck: z.boolean().optional(),
+        position: z.number().optional(),
+      },
+    }, async (args) => {
+      try {
+        const { add_to_bound_deck, position, ...serviceInput } = args;
+        const service = await this.callBackendAPI('/api/services', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(serviceInput),
+        });
+
+        if (add_to_bound_deck !== false) {
+          const deckId = await this.getBoundDeckId();
+          await this.callBackendAPI(`/api/decks/${deckId}/services`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ serviceId: service.id, position }),
+          });
+        }
+
+        return this.toolResult(service);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("update_service", {
+      title: "Update Service",
+      description: "Update MCP service metadata in the collection (not OAuth tokens — use dashboard for OAuth)",
+      inputSchema: {
+        service_id: z.string(),
+        name: z.string().optional(),
+        type: z.enum(['mcp', 'a2a', 'local-mcp']).optional(),
+        url: z.string().optional(),
+        description: z.string().optional(),
+        cardColor: z.string().optional(),
+        credentialId: z.string().optional(),
+        headers: z.record(z.string()).optional(),
+        localCommand: z.string().optional(),
+        localArgs: z.array(z.string()).optional(),
+        localWorkingDir: z.string().optional(),
+        localEnv: z.record(z.string()).optional(),
+      },
+    }, async ({ service_id, ...updates }) => {
+      try {
+        const service = await this.callBackendAPI(`/api/services/${service_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+        return this.toolResult(service);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("delete_service", {
+      title: "Delete Service",
+      description: "Remove an MCP service from the collection entirely",
+      inputSchema: { service_id: z.string() },
+    }, async ({ service_id }) => {
+      try {
+        await this.callBackendAPI(`/api/services/${service_id}`, { method: 'DELETE' });
+        return this.toolResult({ success: true, service_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("add_service_to_bound_deck", {
+      title: "Add Service To Bound Deck",
+      description: "Link an existing MCP service from the collection onto the bound deck",
+      inputSchema: {
+        service_id: z.string(),
+        position: z.number().optional(),
+      },
+    }, async ({ service_id, position }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/services`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serviceId: service_id, position }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, service_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("remove_service_from_bound_deck", {
+      title: "Remove Service From Bound Deck",
+      description: "Unlink an MCP service from the bound deck (service stays in the collection)",
+      inputSchema: { service_id: z.string() },
+    }, async ({ service_id }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/services`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serviceId: service_id }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, service_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("update_service_tool_settings", {
+      title: "Update Service Tool Settings",
+      description: "Enable or disable individual tools for an MCP service on the bound deck",
+      inputSchema: {
+        service_id: z.string(),
+        disabled_tools: z.array(z.string()),
+      },
+    }, async ({ service_id, disabled_tools }) => {
+      try {
+        const service = await this.callBackendAPI(`/api/services/${service_id}/tool-settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disabledTools: disabled_tools }),
+        });
+        return this.toolResult(service);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("list_collection_credentials", {
+      title: "List Collection Credentials",
+      description:
+        "List all API key metadata in the collection (no secret values). Use credential ids to link keys to the bound deck after the user stores the secret in the dashboard.",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const credentials = await this.callBackendAPI('/api/credentials/collection');
+        return this.toolResult(credentials);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("add_credential_to_bound_deck", {
+      title: "Add Credential To Bound Deck",
+      description:
+        "Link an existing API key (by credential id) to the bound deck. The secret must already be stored via the dashboard or CLI.",
+      inputSchema: {
+        credential_id: z.string(),
+        position: z.number().optional(),
+      },
+    }, async ({ credential_id, position }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/credentials`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: credential_id, position }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, credential_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("remove_credential_from_bound_deck", {
+      title: "Remove Credential From Bound Deck",
+      description: "Unlink an API key from the bound deck (credential stays in the vault)",
+      inputSchema: { credential_id: z.string() },
+    }, async ({ credential_id }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/credentials`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credentialId: credential_id }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, credential_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("list_collection_playbooks", {
+      title: "List Collection Playbooks",
+      description: "List all playbook cards in the collection (for linking existing playbooks to the bound deck)",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const playbooks = await this.callBackendAPI('/api/playbooks/collection');
+        return this.toolResult(playbooks);
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("add_playbook_to_bound_deck", {
+      title: "Add Playbook To Bound Deck",
+      description: "Link an existing playbook card from the collection onto the bound deck",
+      inputSchema: {
+        playbook_id: z.string(),
+        position: z.number().optional(),
+      },
+    }, async ({ playbook_id, position }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/playbooks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playbookId: playbook_id, position }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, playbook_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("remove_playbook_from_bound_deck", {
+      title: "Remove Playbook From Bound Deck",
+      description: "Unlink a playbook from the bound deck (playbook stays in the collection)",
+      inputSchema: { playbook_id: z.string() },
+    }, async ({ playbook_id }) => {
+      try {
+        const deckId = await this.getBoundDeckId();
+        await this.callBackendAPI(`/api/decks/${deckId}/playbooks`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playbookId: playbook_id }),
+        });
+        return this.toolResult({ success: true, deck_id: deckId, playbook_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("delete_playbook", {
+      title: "Delete Playbook",
+      description: "Delete a playbook from the collection (must be on the bound deck for agent clients)",
+      inputSchema: { playbook_id: z.string() },
+    }, async ({ playbook_id }) => {
+      try {
+        await this.callBackendAPI(`/api/playbooks/${encodeURIComponent(playbook_id)}`, {
+          method: 'DELETE',
+        });
+        return this.toolResult({ success: true, playbook_id });
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("create_deck", {
+      title: "Create Deck",
+      description: "Create a new deck in Agent Deck",
+      inputSchema: {
+        name: z.string(),
+        description: z.string().optional(),
+      },
+    }, async ({ name, description }) => {
+      try {
+        const deck = await this.callBackendAPI('/api/decks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, description }),
+        });
+        return this.toolResult(deck);
+      } catch (error) {
+        return this.toolError(error);
       }
     });
 

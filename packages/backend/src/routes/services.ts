@@ -7,8 +7,16 @@ import {
   ServiceCallInput,
   ApiResponse,
   Service,
-  ServiceTool
+  ServiceTool,
+  UpdateServiceToolSettingsSchema,
 } from '@agent-deck/shared';
+import {
+  isDashboardClient,
+} from '../lib/client-scope';
+import {
+  boundDeckScopeResponse,
+  requireServiceOnBoundDeck,
+} from '../lib/bound-deck-scope';
 
 interface CreateServiceRequest {
   Body: CreateServiceInput;
@@ -67,7 +75,13 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request, reply) => {
     try {
       const services = await fastify.serviceManager.getAllServices();
-      
+
+      if (isDashboardClient(request)) {
+        void fastify.serviceManager.refreshUnknownServiceHealth((update) => {
+          fastify.broadcastServiceUpdate(update);
+        });
+      }
+
       const response: ApiResponse<Service[]> = {
         success: true,
         data: services,
@@ -228,7 +242,10 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
   // Discover service tools
   fastify.get<ServiceIdRequest>('/:id/tools', async (request, reply) => {
     try {
-      const tools = await fastify.serviceManager.discoverServiceTools(request.params.id);
+      const forAgent = !isDashboardClient(request);
+      const tools = await fastify.serviceManager.discoverServiceTools(request.params.id, {
+        forAgent,
+      });
       
       if ('success' in tools && !tools.success) {
         return reply.status(400).send({
@@ -250,6 +267,33 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
       };
       
       return reply.status(500).send(response);
+    }
+  });
+
+  fastify.put<ServiceIdRequest>('/:id/tool-settings', async (request, reply) => {
+    try {
+      await requireServiceOnBoundDeck(request, fastify.db, request.params.id);
+
+      const input = UpdateServiceToolSettingsSchema.parse(request.body);
+      const service = await fastify.serviceManager.updateToolSettings(request.params.id, input);
+
+      if (!service) {
+        return reply.status(404).send({
+          success: false,
+          error: 'Service not found',
+        } satisfies ApiResponse);
+      }
+
+      return reply.send({
+        success: true,
+        data: service,
+      } satisfies ApiResponse<Service>);
+    } catch (error) {
+      const scoped = boundDeckScopeResponse(error);
+      return reply.status(scoped.status).send({
+        success: false,
+        error: scoped.message,
+      } satisfies ApiResponse);
     }
   });
 

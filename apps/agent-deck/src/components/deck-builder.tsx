@@ -1,9 +1,10 @@
 import { Deck, Service, Credential, Playbook } from "@agent-deck/shared";
 import { getServiceCardColor, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR } from "@/lib/card-colors";
-import { BookOpen, KeyRound, Plus } from "lucide-react";
+import { BookOpen, Plus } from "lucide-react";
 import agentIconUrl from "@/assets/icons/Agent2.svg";
 import { getServiceIconSrc } from "@/lib/service-icon";
 import CardWarningBadge from "@/components/card-warning-badge";
+import CredentialCardIcon from "@/components/credential-card-icon";
 import type { CollectionWarningsView } from "@/lib/collection-warnings";
 
 interface DeckBuilderProps {
@@ -20,6 +21,7 @@ interface DeckBuilderProps {
   onDragEnd: (e: React.DragEvent) => void;
   onCardClick?: (service: Service) => void;
   onPlaybookClick?: (playbook: Playbook) => void;
+  onCredentialClick?: (credential: Credential) => void;
 }
 
 export default function DeckBuilder({
@@ -35,6 +37,7 @@ export default function DeckBuilder({
   onDragEnd,
   onCardClick,
   onPlaybookClick,
+  onCredentialClick,
 }: DeckBuilderProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -171,6 +174,7 @@ export default function DeckBuilder({
                     draggable
                     onDragStart={(e) => onCredentialDragStart(e, credential, true)}
                     onDragEnd={onDragEnd}
+                    onClick={() => onCredentialClick?.(credential)}
                     data-testid={`deck-card-${credential.id}`}
                   >
                     <CardWarningBadge
@@ -185,7 +189,7 @@ export default function DeckBuilder({
                     </div>
                     <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
                       <div className="mb-2" style={{ color: API_KEY_CARD_COLOR }}>
-                        <KeyRound className="h-7 w-7" strokeWidth={2.25} />
+                        <CredentialCardIcon credential={credential} color={API_KEY_CARD_COLOR} />
                       </div>
                       <h3 className="font-bold text-xs mb-1 line-clamp-2" style={{ color: API_KEY_CARD_COLOR }}>
                         {credential.label}
@@ -194,7 +198,7 @@ export default function DeckBuilder({
                         className="text-[8px] px-1 py-0.5 rounded border opacity-70"
                         style={{ color: API_KEY_CARD_COLOR, borderColor: API_KEY_CARD_COLOR }}
                       >
-                        API Key
+                        {credential.hasSecret ? "API Key" : "Missing key"}
                       </div>
                     </div>
                   </div>

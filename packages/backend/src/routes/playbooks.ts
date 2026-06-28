@@ -15,6 +15,10 @@ import {
   requireDashboardClient,
 } from '../lib/client-scope';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
+import {
+  boundDeckScopeResponse,
+  requirePlaybookOnBoundDeck,
+} from '../lib/bound-deck-scope';
 import { PlaybookDependencyError } from '../playbooks/playbook-manager';
 
 interface PlaybookIdRequest {
@@ -36,6 +40,18 @@ function dashboardOnlyResponse(error: unknown): { status: number; body: ApiRespo
 }
 
 export async function registerPlaybookRoutes(fastify: FastifyInstance) {
+  fastify.get('/collection', async (request, reply) => {
+    try {
+      const playbooks = await fastify.playbookManager.list();
+      return reply.send({ success: true, data: playbooks } satisfies ApiResponse<Playbook[]>);
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
   fastify.get('/vault', async (request, reply) => {
     try {
       requireDashboardClient(request);
@@ -219,15 +235,21 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
 
   fastify.delete<PlaybookIdRequest>('/:id', async (request, reply) => {
     try {
-      requireDashboardClient(request);
+      if (!isDashboardClient(request)) {
+        await requirePlaybookOnBoundDeck(request, fastify.db, request.params.id);
+      }
+
       const deleted = await fastify.playbookManager.delete(request.params.id);
       if (!deleted) {
         return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
       }
       return reply.send({ success: true, message: 'Playbook deleted successfully' } satisfies ApiResponse);
     } catch (error) {
-      const { status, body } = dashboardOnlyResponse(error);
-      return reply.status(status).send(body);
+      const scoped = boundDeckScopeResponse(error);
+      return reply.status(scoped.status).send({
+        success: false,
+        error: scoped.message,
+      } satisfies ApiResponse);
     }
   });
 }

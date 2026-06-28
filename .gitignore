@@ -158,7 +158,8 @@ coverage/
 # Integration test logs
 integration.log
 
-# Python lib directory (but not frontend src/lib/)
+# Python lib directory (but not frontend lib directory)
 /lib/
 # Exception: Don't ignore frontend lib directory
 !apps/agent-deck/src/lib/
+!packages/backend/src/lib/

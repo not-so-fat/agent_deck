@@ -16,6 +16,8 @@ export const CredentialSchema = z.object({
     .regex(/^[A-Z_][A-Z0-9_]*$/, 'env_name must be a valid environment variable name'),
   keychainAccount: z.string().min(1),
   tags: z.array(z.string()).default([]),
+  docsUrl: z.string().url().optional(),
+  iconUrl: z.string().optional(),
   hasSecret: z.boolean().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
@@ -33,6 +35,7 @@ export const CreateCredentialSchema = z
       .regex(/^[A-Z_][A-Z0-9_]*$/, 'env_name must be a valid environment variable name'),
     keychainAccount: z.string().min(1).optional(),
     tags: z.array(z.string()).default([]),
+    docsUrl: z.string().url().optional(),
     value: z.string().min(1, 'Secret value is required'),
   })
   .superRefine((data, ctx) => {
@@ -49,6 +52,7 @@ export const CreateCredentialSchema = z
 export const CreateCredentialSimpleSchema = z.object({
   label: z.string().min(1, 'Name is required'),
   value: z.string().min(1, 'API key is required'),
+  docsUrl: z.string().url().optional(),
 });
 
 export type CreateCredentialSimpleInput = z.infer<typeof CreateCredentialSimpleSchema>;
@@ -62,6 +66,7 @@ export const UpdateCredentialSchema = z.object({
     .regex(/^[A-Z_][A-Z0-9_]*$/)
     .optional(),
   tags: z.array(z.string()).optional(),
+  docsUrl: z.union([z.string().url(), z.literal('')]).optional(),
 });
 
 export const RotateCredentialSchema = z.object({

@@ -14,7 +14,9 @@ import DeckManagementPanel from "@/components/deck-management-panel";
 import CredentialRegistrationModal from "@/components/credential-registration-modal";
 import PlaybookRegistrationModal from "@/components/playbook-registration-modal";
 import PlaybookDetailsModal from "@/components/playbook-details-modal";
+import CredentialDetailsModal from "@/components/credential-details-modal";
 import ServiceDetailsModal from "@/components/service-details-modal";
+import McpToolsPanel from "@/components/mcp-tools-panel";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useDragAndDrop } from "@/hooks/use-drag-and-drop";
 import { useEditingDeck } from "@/hooks/use-editing-deck";
@@ -34,6 +36,8 @@ export default function Home() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [serviceDetailsModalOpen, setServiceDetailsModalOpen] = useState(false);
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string | null>(null);
+  const [credentialDetailsOpen, setCredentialDetailsOpen] = useState(false);
   const [playbookModalOpen, setPlaybookModalOpen] = useState(false);
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
   const [playbookDetailsOpen, setPlaybookDetailsOpen] = useState(false);
@@ -163,6 +167,11 @@ export default function Home() {
   const handlePlaybookClick = (playbook: Playbook) => {
     setSelectedPlaybookId(playbook.id);
     setPlaybookDetailsOpen(true);
+  };
+
+  const handleCredentialClick = (credential: Credential) => {
+    setSelectedCredentialId(credential.id);
+    setCredentialDetailsOpen(true);
   };
 
   const handleCardHover = (serviceId: string | null) => {
@@ -314,11 +323,11 @@ export default function Home() {
               />
             </div>
             
-            {/* Add connections */}
+            {/* Add Connections */}
             <div className="panel-surface p-4">
-              <h2 className="text-lg font-bold mb-3 flex items-center text-[#E8F6F4]">
-                <Bolt className="w-4 h-4 mr-2 text-[#92E4DD]" />
-                Add connections
+              <h2 className="text-lg font-bold mb-3 flex items-center">
+                <Bolt className="w-4 h-4 mr-2" style={{ color: "#92E4DD" }} />
+                <span style={{ color: "#92E4DD" }}>Add Connections</span>
               </h2>
               
               <div className="space-y-2">
@@ -378,6 +387,7 @@ export default function Home() {
                     onDragEnd={handleDragEnd}
                     onCardClick={handleCardClick}
                     onPlaybookClick={handlePlaybookClick}
+                    onCredentialClick={handleCredentialClick}
                   />
                 </div>
               ) : (
@@ -610,6 +620,7 @@ export default function Home() {
                         onDragEnd={handleDragEnd}
                         onMouseEnter={() => handleCardHover(credential.id)}
                         onMouseLeave={() => handleCardHover(null)}
+                        onCardClick={handleCredentialClick}
                         warnings={collectionWarnings.credentialWarnings.get(credential.id)}
                       />
                     </div>
@@ -666,6 +677,12 @@ export default function Home() {
       <CredentialRegistrationModal
         open={credentialModalOpen}
         onOpenChange={setCredentialModalOpen}
+      />
+
+      <CredentialDetailsModal
+        credentialId={selectedCredentialId}
+        open={credentialDetailsOpen}
+        onOpenChange={setCredentialDetailsOpen}
       />
 
       <PlaybookRegistrationModal

@@ -7,8 +7,9 @@ export const ServiceSchema = z.object({
   url: z.string().url('Valid URL is required'),
   health: z.enum(['unknown', 'healthy', 'unhealthy']).default('unknown'),
   description: z.string().optional(),
-  cardColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Valid hex color required').default('#39FF14'),
+  cardColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Valid hex color required').default('#92E4DD'),
   iconUrl: z.string().optional(),
+  disabledToolNames: z.array(z.string()).default([]),
   isConnected: z.boolean().default(false),
   lastPing: z.string().datetime().optional(),
   registeredAt: z.string().datetime(),
@@ -46,6 +47,7 @@ export const CreateServiceSchema = ServiceSchema.omit({
   oauthRefreshToken: true,
   oauthTokenExpiresAt: true,
   oauthState: true,
+  disabledToolNames: true,
 });
 
 export const UpdateServiceSchema = CreateServiceSchema.partial();
@@ -60,6 +62,11 @@ export const ServiceToolSchema = z.object({
   name: z.string().min(1, 'Tool name is required'),
   description: z.string().min(1, 'Tool description is required'),
   inputSchema: z.record(z.any()),
+  enabled: z.boolean().optional(),
+});
+
+export const UpdateServiceToolSettingsSchema = z.object({
+  disabledTools: z.array(z.string()),
 });
 
 export const ServiceCallResultSchema = z.object({
@@ -75,6 +82,7 @@ export type CreateServiceInput = z.infer<typeof CreateServiceSchema>;
 export type UpdateServiceInput = z.infer<typeof UpdateServiceSchema>;
 export type ServiceCallInput = z.infer<typeof ServiceCallSchema>;
 export type ServiceTool = z.infer<typeof ServiceToolSchema>;
+export type UpdateServiceToolSettingsInput = z.infer<typeof UpdateServiceToolSettingsSchema>;
 export type ServiceCallResult = z.infer<typeof ServiceCallResultSchema>;
 
 // Local MCP server schemas

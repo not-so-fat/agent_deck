@@ -108,7 +108,7 @@ export function getCredentialWarnings(credential: Credential): CollectionCardWar
   return [
     {
       kind: 'credential_missing_secret',
-      message: 'API key value not stored in Keychain',
+      message: 'Key missing from vault — open to add or rotate',
       severity: 'error',
     },
   ];

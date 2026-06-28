@@ -23,6 +23,21 @@ export function serviceIconApiPath(serviceId: string): string {
   return `/api/services/${serviceId}/icon`;
 }
 
+export function credentialIconApiPath(credentialId: string): string {
+  return `/api/credentials/${credentialId}/icon`;
+}
+
+export async function removeCachedIcon(entityId: string): Promise<void> {
+  try {
+    await fs.unlink(getServiceIconPath(entityId));
+  } catch (error: unknown) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
+
 /** Derive likely product domains from an MCP server URL. */
 export function brandingDomainsFromUrl(urlString: string): string[] {
   if (urlString.startsWith('local://')) {
@@ -206,6 +221,17 @@ export async function resolveIconForUrl(urlString: string): Promise<{
 }
 
 export async function cacheIconForService(serviceId: string, urlString: string): Promise<IconResolveResult> {
+  return cacheIconForEntity(serviceId, urlString);
+}
+
+export async function cacheIconForCredential(
+  credentialId: string,
+  urlString: string,
+): Promise<IconResolveResult> {
+  return cacheIconForEntity(credentialId, urlString);
+}
+
+async function cacheIconForEntity(entityId: string, urlString: string): Promise<IconResolveResult> {
   const resolved = await resolveIconForUrl(urlString);
   if (!resolved) {
     return { iconPath: null, source: null, domain: null };
@@ -213,7 +239,7 @@ export async function cacheIconForService(serviceId: string, urlString: string):
 
   const iconsDir = getServiceIconsDir();
   await fs.mkdir(iconsDir, { recursive: true });
-  const iconPath = getServiceIconPath(serviceId);
+  const iconPath = getServiceIconPath(entityId);
   await fs.writeFile(iconPath, resolved.buffer);
 
   return {

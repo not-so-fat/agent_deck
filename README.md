@@ -1,8 +1,6 @@
 # <img src="./misc/AgentDeckLogo2.png" height="30px"> Agent Deck
 
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-[![MCP Apps](https://img.shields.io/badge/MCP%20Apps-experimental-purple)](docs/MCP_APP.md)
-[![Cursor](https://img.shields.io/badge/Cursor-plugin%20ready-black)](docs/CURSOR_PLUGIN.md)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
 
 <img src="./misc/Demo.gif" alt="Demo" width="70%" />
@@ -11,7 +9,7 @@
 
 **One MCP endpoint. Many servers. Switch context with decks.**
 
-[Quick Start](#quick-start) · [MCP App in Cursor](#mcp-app-in-cursor) · [Cursor Plugin](#cursor-plugin) · [Docs](#documentation)
+[Quick Start](#quick-start) · [Docs](#documentation)
 
 
 ## Problem: Too Many MCPs on My Agent
@@ -37,39 +35,37 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 <img src="./misc/UI.png" alt="Frontend" width="70%" />
 
 - Register remote and local MCP servers (with OAuth support) and **API keys** (Keychain-backed)
-- Create **decks** — named contexts (Coding, Docs, Research, …)
-- Drag-and-drop MCP and API key cards from **My Collection** into a deck
-- Copy `.agent-deck/deck.yaml` from the deck sidebar into each repo; agents **bind** via `bind_workspace`
-- View **playbooks** (markdown procedures) in the dashboard Playbooks panel
+- **My Collection** — MCP (`#92E4DD`), API key, and playbook playing cards
+- **Deck editor** — drag-and-drop cards from collection onto a deck fan (agents can also link via MCP tools)
+- **MCP service details** — health status, per-tool enable/disable table, OAuth connect
+- **API key details** — edit name/docs link, rotate key; secret value never shown after save
+- **Collection warnings** — missing secrets, OAuth, or playbook dependencies
+- Copy `.agent-deck/deck.yaml` from the deck sidebar; agents **bind** via `bind_workspace`
 
 ### MCP Server (`localhost:3001/mcp`)
 
+Most setup and runtime work goes through the agent. **Dashboard-only (human-in-the-loop):** storing API key **secrets** and completing MCP **OAuth** in the browser.
+
 | Tool | Purpose |
 |------|---------|
-| `show_agent_deck` | **MCP App** — in-chat deck panel (Cursor 2.6+) |
-| `bind_workspace` | Bind session to repo via `.agent-deck/deck.yaml` |
-| `get_bound_deck` | Bound deck + services |
-| `list_bound_deck_services` | MCP services on bound deck |
-| `list_bound_deck_credentials` | API key metadata on bound deck (no secrets) |
-| `list_playbooks` / `get_playbook` | Read playbook cards on the bound deck |
-| `register_playbook` / `update_playbook` | Create or update playbook cards with auto-detected dependencies |
-| `list_service_tools` / `call_service_tool` | Proxy to a service on the bound deck |
+| `bind_workspace` / `setup_repo_deck` / `get_repo_deck_status` | Bind session to repo via `.agent-deck/deck.yaml` |
+| `get_decks` / `get_bound_deck` / `create_deck` | List, read, or create decks |
+| `list_bound_deck_services` / `list_bound_deck_credentials` | Cards on the bound deck |
+| `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
+| `add_service_to_bound_deck` / `remove_service_from_bound_deck` | Link or unlink MCP cards on bound deck |
+| `update_service_tool_settings` | Enable/disable individual MCP tools (bound deck) |
+| `list_collection_credentials` | API key metadata (no secrets) — use ids to link keys |
+| `add_credential_to_bound_deck` / `remove_credential_from_bound_deck` | Link or unlink API key cards |
+| `list_playbooks` / `list_collection_playbooks` / `get_playbook` | Read playbook cards |
+| `register_playbook` / `update_playbook` / `delete_playbook` | Create, update, or delete playbooks |
+| `add_playbook_to_bound_deck` / `remove_playbook_from_bound_deck` | Link or unlink playbook cards |
+| `list_service_tools` / `call_service_tool` | Discover and call tools on bound-deck MCPs |
 
-Legacy aliases (`get_active_deck`, `activate_deck`, …) remain for v1 compatibility — prefer the tools above. Details: [MVP spec](docs/MVP.md).
+Legacy aliases (`get_active_deck`, `list_active_deck_*`, …) remain for v1 compatibility. Full spec: [MVP](docs/MVP.md).
 
-### MCP App in Cursor
+### Connect MCP in Cursor
 
-Hosts with [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview) support (e.g. **Cursor 2.6+**) can render an interactive control panel in chat:
-
-1. Run Agent Deck (`npm run dev:all`)
-2. Connect MCP: `http://127.0.0.1:3001/mcp`
-3. Ask: **"Show my Agent Deck"**
-
-The app shows your active deck, connected services, deck switching, and a link to the full dashboard. See [MCP App guide](docs/MCP_APP.md).
-
-### Cursor Plugin
-
-Install via the [Cursor plugin](plugin/) or add to `~/.cursor/mcp.json`:
+Add to Cursor **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -78,8 +74,6 @@ Install via the [Cursor plugin](plugin/) or add to `~/.cursor/mcp.json`:
   }
 }
 ```
-
-Includes a skill so the agent knows how to use decks and the MCP App. See [Cursor plugin guide](docs/CURSOR_PLUGIN.md).
 
 
 ## Quick Start
@@ -114,10 +108,10 @@ This starts:
 
 ### Connect your agent
 
-1. **Set up decks** at `http://localhost:3000` — register MCPs/API keys, build a deck, copy `deck.yaml` into your repo
-2. **Add MCP** in Cursor (Settings → Tools & MCP) or use [`.cursor/mcp.json`](.cursor/mcp.json)
+1. **Set up decks** at `http://localhost:3000` — register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
+2. **Add MCP** in Cursor (Settings → Tools & MCP) — see [Connect MCP in Cursor](#connect-mcp-in-cursor) above
 3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
-4. **Try the MCP App** — ask *"Show my Agent Deck"*
+4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth
 
 
 ## Documentation
@@ -126,11 +120,8 @@ This starts:
 |-------|-------------|
 | [Setup](docs/SETUP.md) | Installation and configuration |
 | [User Guide](docs/USER_GUIDE.md) | Decks, services, OAuth |
-| [MCP App](docs/MCP_APP.md) | In-chat UI (experimental) |
-| [Cursor Plugin](docs/CURSOR_PLUGIN.md) | Marketplace plugin & skill |
-| [MCP Registry](docs/MCP_REGISTRY.md) | Publish to official registry |
 | [Architecture](docs/ARCHITECTURE.md) | Technical design |
-| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck (Modules 1–3, as-built) |
+| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools (Modules 1–3) |
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
 | [Integration](docs/INTEGRATION.md) | MCP client integration |
@@ -142,14 +133,13 @@ Agent Deck can be listed on:
 | Channel | Status | Notes |
 |---------|--------|-------|
 | **GitHub** | Ready | Public repo, README, demo GIF |
-| **Cursor Marketplace** | Plugin ready | Submit [`plugin/`](plugin/) |
-| **MCP Registry** | Metadata ready | [`server.json`](server.json) — needs npm publish |
-| **Claude Directory** | Future | Desktop extension (MCPB) path |
-| **ChatGPT Apps** | Future | Requires hosted remote MCP |
+| **MCP Registry** | Future | npm publish + `server.json` metadata |
+| **Cursor Marketplace** | Future | Plugin + skill packaging |
 
 ## Future Plan
 
 - Simpler install (`npx agent-deck`)
 - MCP Registry npm package publish
+- Cursor plugin + MCP App in-chat UI
 - Passthrough for downstream MCP Apps
 - Usage analytics and smarter deck recommendations

@@ -7,6 +7,11 @@ import {
   UpdateCredentialInput,
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
+import {
+  cacheIconForCredential,
+  credentialIconApiPath,
+  removeCachedIcon,
+} from '../services/icon-resolver';
 import { CredentialYamlSync } from './yaml-sync';
 import { SecretStore, VaultUnsupportedError } from './secret-store';
 
@@ -21,7 +26,7 @@ export class CredentialManager {
     const keychainAccount = input.keychainAccount ?? input.id;
     await this.secretStore.set(keychainAccount, input.value);
 
-    const credential = await this.db.createCredential({
+    let credential = await this.db.createCredential({
       id: input.id,
       label: input.label,
       scheme: input.scheme,
@@ -29,31 +34,65 @@ export class CredentialManager {
       envName: input.envName,
       keychainAccount,
       tags: input.tags ?? [],
+      docsUrl: input.docsUrl,
       hasSecret: true,
     });
 
+    if (input.docsUrl) {
+      credential = await this.syncIconFromDocsUrl({ ...credential, hasSecret: true });
+    }
+
     await this.yamlSync.write(credential);
-    return credential;
+    return { ...credential, hasSecret: true };
   }
 
-  async list(): Promise<Credential[]> {
-    const credentials = await this.db.getAllCredentials();
+  private async syncIconFromDocsUrl(credential: Credential): Promise<Credential> {
+    if (!credential.docsUrl) {
+      await removeCachedIcon(credential.id);
+      if (!credential.iconUrl) {
+        return credential;
+      }
+
+      const cleared = await this.db.updateCredential(credential.id, { iconUrl: undefined });
+      return cleared ? { ...cleared, hasSecret: credential.hasSecret } : credential;
+    }
+
+    const result = await cacheIconForCredential(credential.id, credential.docsUrl);
+    if (!result.iconPath) {
+      return credential;
+    }
+
+    const withIcon = await this.db.updateCredential(credential.id, {
+      iconUrl: credentialIconApiPath(credential.id),
+    });
+    return withIcon ? { ...withIcon, hasSecret: credential.hasSecret } : credential;
+  }
+
+  async applySecretStatus(credentials: Credential[]): Promise<Credential[]> {
     return Promise.all(
       credentials.map(async (credential) => ({
         ...credential,
         hasSecret: await this.secretStore.has(credential.keychainAccount),
       })),
+    );
+  }
+
+  async list(): Promise<Credential[]> {
+    const credentials = await this.db.getAllCredentials();
+    const withSecrets = await this.applySecretStatus(credentials);
+    return Promise.all(
+      withSecrets.map(async (credential) => {
+        if (credential.docsUrl && !credential.iconUrl) {
+          return this.syncIconFromDocsUrl(credential);
+        }
+        return credential;
+      }),
     );
   }
 
   async listForDeck(deckId: string): Promise<Credential[]> {
     const credentials = await this.db.getDeckCredentialsForDeck(deckId);
-    return Promise.all(
-      credentials.map(async (credential) => ({
-        ...credential,
-        hasSecret: await this.secretStore.has(credential.keychainAccount),
-      })),
-    );
+    return this.applySecretStatus(credentials);
   }
 
   async listForActiveDeck(): Promise<Credential[]> {
@@ -112,10 +151,14 @@ export class CredentialManager {
       return null;
     }
 
-    const credential = {
+    let credential = {
       ...updated,
       hasSecret: await this.secretStore.has(updated.keychainAccount),
     };
+
+    if (input.docsUrl !== undefined) {
+      credential = await this.syncIconFromDocsUrl(credential);
+    }
 
     await this.yamlSync.write(credential);
     return credential;
@@ -128,11 +171,17 @@ export class CredentialManager {
     }
 
     await this.secretStore.set(existing.keychainAccount, input.value);
+    const hasSecret = await this.secretStore.has(existing.keychainAccount);
+    if (!hasSecret) {
+      throw new Error(
+        `Failed to store secret in vault for account "${existing.keychainAccount}"`,
+      );
+    }
 
     const credential = {
       ...existing,
       updatedAt: new Date().toISOString(),
-      hasSecret: true,
+      hasSecret,
     };
 
     await this.db.touchCredential(id);
@@ -166,6 +215,7 @@ export class CredentialManager {
     const deleted = await this.db.deleteCredential(id);
     if (deleted) {
       await this.yamlSync.remove(id);
+      await removeCachedIcon(id);
     }
     return deleted;
   }

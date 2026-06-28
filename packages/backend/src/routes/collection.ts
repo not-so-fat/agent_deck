@@ -24,7 +24,7 @@ export async function registerCollectionRoutes(fastify: FastifyInstance) {
 
       const [services, credentials, playbooks] = await Promise.all([
         fastify.db.getAllServices(),
-        fastify.db.getAllCredentials(),
+        fastify.credentialManager.list(),
         fastify.db.getAllPlaybooks(),
       ]);
 

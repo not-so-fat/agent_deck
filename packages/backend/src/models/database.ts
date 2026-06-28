@@ -45,6 +45,17 @@ export class DatabaseManager {
     if (!serviceColumns.some((column) => column.name === 'icon_url')) {
       this.db.exec('ALTER TABLE services ADD COLUMN icon_url TEXT');
     }
+    if (!serviceColumns.some((column) => column.name === 'disabled_tools')) {
+      this.db.exec("ALTER TABLE services ADD COLUMN disabled_tools TEXT NOT NULL DEFAULT '[]'");
+    }
+
+    const credentialColumns = this.db.prepare('PRAGMA table_info(credentials)').all() as Array<{ name: string }>;
+    if (!credentialColumns.some((column) => column.name === 'docs_url')) {
+      this.db.exec('ALTER TABLE credentials ADD COLUMN docs_url TEXT');
+    }
+    if (!credentialColumns.some((column) => column.name === 'icon_url')) {
+      this.db.exec('ALTER TABLE credentials ADD COLUMN icon_url TEXT');
+    }
   }
 
   private initializeTables(): void {
@@ -207,6 +218,8 @@ export class DatabaseManager {
       envName: row.env_name,
       keychainAccount: row.keychain_account,
       tags: row.tags ? JSON.parse(row.tags) : [],
+      docsUrl: row.docs_url ?? undefined,
+      iconUrl: row.icon_url ?? undefined,
       hasSecret: false,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -255,6 +268,7 @@ export class DatabaseManager {
       localEnv: input.localEnv,
       credentialId: input.credentialId,
       iconUrl: input.iconUrl,
+      disabledToolNames: [],
     };
 
     const stmt = this.db.prepare(`
@@ -332,6 +346,7 @@ export class DatabaseManager {
       localEnv: row.local_env ? JSON.parse(row.local_env) : null,
       credentialId: row.credential_id ?? undefined,
       iconUrl: row.icon_url ?? undefined,
+      disabledToolNames: row.disabled_tools ? JSON.parse(row.disabled_tools) : [],
     };
   }
 
@@ -396,6 +411,28 @@ export class DatabaseManager {
     });
 
     return updated;
+  }
+
+  async updateServiceDisabledTools(id: string, disabledTools: string[]): Promise<Service | null> {
+    const existing = await this.getService(id);
+    if (!existing) {
+      return null;
+    }
+
+    const stmt = this.db.prepare(`
+      UPDATE services SET
+        disabled_tools = @disabled_tools,
+        updated_at = @updated_at
+      WHERE id = @id
+    `);
+
+    stmt.run({
+      id,
+      disabled_tools: JSON.stringify(disabledTools),
+      updated_at: new Date().toISOString(),
+    });
+
+    return this.getService(id);
   }
 
   async deleteService(id: string): Promise<boolean> {
@@ -714,9 +751,9 @@ export class DatabaseManager {
 
     const stmt = this.db.prepare(`
       INSERT INTO credentials (
-        id, label, scheme, header_name, env_name, keychain_account, tags, created_at, updated_at
+        id, label, scheme, header_name, env_name, keychain_account, tags, docs_url, icon_url, created_at, updated_at
       ) VALUES (
-        @id, @label, @scheme, @header_name, @env_name, @keychain_account, @tags, @created_at, @updated_at
+        @id, @label, @scheme, @header_name, @env_name, @keychain_account, @tags, @docs_url, @icon_url, @created_at, @updated_at
       )
     `);
 
@@ -728,6 +765,8 @@ export class DatabaseManager {
       env_name: credential.envName,
       keychain_account: credential.keychainAccount,
       tags: JSON.stringify(credential.tags ?? []),
+      docs_url: credential.docsUrl ?? null,
+      icon_url: credential.iconUrl ?? null,
       created_at: credential.createdAt,
       updated_at: credential.updatedAt,
     });
@@ -771,6 +810,8 @@ export class DatabaseManager {
         env_name = @env_name,
         keychain_account = @keychain_account,
         tags = @tags,
+        docs_url = @docs_url,
+        icon_url = @icon_url,
         updated_at = @updated_at
       WHERE id = @id
     `);
@@ -783,6 +824,8 @@ export class DatabaseManager {
       env_name: updated.envName,
       keychain_account: updated.keychainAccount,
       tags: JSON.stringify(updated.tags ?? []),
+      docs_url: updated.docsUrl ?? null,
+      icon_url: updated.iconUrl ?? null,
       updated_at: updated.updatedAt,
     });
 

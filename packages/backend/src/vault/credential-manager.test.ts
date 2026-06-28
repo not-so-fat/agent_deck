@@ -50,6 +50,27 @@ describe('CredentialManager', () => {
     expect(env.OPENAI_API_KEY).toBe('sk-test');
   });
 
+  it('rotate stores secret and reports hasSecret after metadata-only credential', async () => {
+    await db.createCredential({
+      id: 'cred_orphan',
+      label: 'Orphan',
+      scheme: 'bearer',
+      envName: 'ORPHAN_API_KEY',
+      keychainAccount: 'cred_orphan',
+      tags: [],
+      hasSecret: false,
+    });
+
+    const before = await manager.list();
+    expect(before[0].hasSecret).toBe(false);
+
+    const rotated = await manager.rotate('cred_orphan', { value: 'stored-now' });
+    expect(rotated?.hasSecret).toBe(true);
+
+    const after = await manager.get('cred_orphan');
+    expect(after?.hasSecret).toBe(true);
+  });
+
   it('records exec runs with credential ids only', async () => {
     await manager.create({
       id: 'cred_slack',

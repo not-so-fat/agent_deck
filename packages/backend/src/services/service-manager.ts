@@ -7,7 +7,9 @@ import {
   ServiceCallResult,
   CreateServiceSchema,
   UpdateServiceSchema,
-  ServiceCallSchema
+  ServiceCallSchema,
+  UpdateServiceToolSettingsInput,
+  ServiceStatusUpdate,
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
 import { MCPClientManager } from './mcp-client-manager';
@@ -81,8 +83,68 @@ export class ServiceManager {
     void this.refreshServiceIcon(service.id).catch((error) => {
       console.warn(`Failed to resolve icon for service ${service.name}:`, error);
     });
-    
+
+    void this.probeInitialHealth(service.id);
+
     return service;
+  }
+
+  private probeInitialHealth(serviceId: string): void {
+    void this.discoverServiceTools(serviceId).catch((error) => {
+      console.warn(`Initial health probe failed for service ${serviceId}:`, error);
+    });
+  }
+
+  async refreshUnknownServiceHealth(
+    onUpdate?: (update: ServiceStatusUpdate) => void,
+  ): Promise<void> {
+    const services = await this.db.getAllServices();
+
+    await Promise.all(
+      services.map(async (service) => {
+        if (!this.shouldBackgroundProbe(service)) {
+          return;
+        }
+
+        const result = await this.checkServiceHealth(service.id);
+        if (!onUpdate || !('health' in result) || !result.success) {
+          return;
+        }
+
+        onUpdate({
+          serviceId: service.id,
+          health: result.health as ServiceStatusUpdate['health'],
+          isConnected: result.isConnected,
+          lastPing: new Date().toISOString(),
+        });
+      }),
+    );
+  }
+
+  private shouldBackgroundProbe(service: Service): boolean {
+    if (service.health !== 'unknown') {
+      return false;
+    }
+
+    if (service.type === 'local-mcp' || service.type === 'a2a') {
+      return true;
+    }
+
+    if (service.type !== 'mcp') {
+      return false;
+    }
+
+    const hasOAuthConfig = Boolean(
+      service.oauthClientId ||
+        service.oauthAuthorizationUrl ||
+        service.oauthTokenUrl,
+    );
+    const hasAuth = Boolean(service.oauthAccessToken || service.headers?.Authorization);
+    if (hasOAuthConfig && !hasAuth) {
+      return false;
+    }
+
+    return true;
   }
 
   async refreshServiceIcon(serviceId: string): Promise<Service | null> {
@@ -149,25 +211,69 @@ export class ServiceManager {
     return await this.db.deleteService(id);
   }
 
-  async discoverServiceTools(serviceId: string): Promise<ServiceTool[] | { success: false; error: string }> {
+  async discoverServiceTools(
+    serviceId: string,
+    options?: { forAgent?: boolean },
+  ): Promise<ServiceTool[] | { success: false; error: string }> {
     const service = await this.db.getService(serviceId);
     if (!service) {
       return { success: false, error: 'Service not found' };
     }
 
     try {
+      let tools: ServiceTool[];
+
       if (service.type === 'mcp' || service.type === 'local-mcp') {
-        const tools = await this.mcpClient.discoverTools(service);
-        return tools;
+        tools = await this.mcpClient.discoverTools(service);
       } else if (service.type === 'a2a') {
-        return await this.discoverA2ATools(service);
+        tools = await this.discoverA2ATools(service);
       } else {
         return { success: false, error: `Unsupported service type: ${service.type}` };
       }
+
+      const annotated = this.annotateToolEnabledState(tools, service.disabledToolNames ?? []);
+      await this.db.updateServiceStatus(serviceId, true, 'healthy');
+
+      if (options?.forAgent) {
+        return annotated.filter((tool) => tool.enabled !== false);
+      }
+
+      return annotated;
     } catch (error) {
       console.error(`Failed to discover tools for service ${serviceId}:`, error);
+      await this.db.updateServiceStatus(serviceId, false, 'unhealthy');
       return { success: false, error: 'Failed to discover tools' };
     }
+  }
+
+  async updateToolSettings(
+    serviceId: string,
+    input: UpdateServiceToolSettingsInput,
+  ): Promise<Service | null> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      return null;
+    }
+
+    const discovered = await this.discoverServiceTools(serviceId);
+    if (!Array.isArray(discovered)) {
+      return this.db.updateServiceDisabledTools(serviceId, input.disabledTools);
+    }
+
+    const knownNames = new Set(discovered.map((tool) => tool.name));
+    const pruned = input.disabledTools.filter((name) => knownNames.has(name));
+    return this.db.updateServiceDisabledTools(serviceId, pruned);
+  }
+
+  private annotateToolEnabledState(
+    tools: ServiceTool[],
+    disabledToolNames: string[],
+  ): ServiceTool[] {
+    const disabled = new Set(disabledToolNames);
+    return tools.map((tool) => ({
+      ...tool,
+      enabled: !disabled.has(tool.name),
+    }));
   }
 
   async callServiceTool(input: ServiceCallInput): Promise<ServiceCallResult> {
@@ -179,6 +285,13 @@ export class ServiceManager {
       return {
         success: false,
         error: 'Service not found',
+      };
+    }
+
+    if ((service.disabledToolNames ?? []).includes(validatedInput.toolName)) {
+      return {
+        success: false,
+        error: `Tool "${validatedInput.toolName}" is disabled for this service`,
       };
     }
 
@@ -220,35 +333,20 @@ export class ServiceManager {
       return { success: false, error: 'Service not found' };
     }
 
-    try {
-      if (service.type === 'mcp' || service.type === 'local-mcp') {
-        await this.mcpClient.discoverTools(service);
-        await this.db.updateServiceStatus(serviceId, true, 'healthy');
-        return {
-          success: true,
-          health: 'healthy',
-          isConnected: true,
-        };
-      } else if (service.type === 'a2a') {
-        await this.discoverA2ATools(service);
-        await this.db.updateServiceStatus(serviceId, true, 'healthy');
-        return {
-          success: true,
-          health: 'healthy',
-          isConnected: true,
-        };
-      } else {
-        return { success: false, error: `Unsupported service type: ${service.type}` };
-      }
-    } catch (error) {
-      console.error(`Health check failed for service ${serviceId}:`, error);
-      await this.db.updateServiceStatus(serviceId, false, 'unhealthy');
+    const result = await this.discoverServiceTools(serviceId);
+    if (!Array.isArray(result)) {
       return {
         success: true,
         health: 'unhealthy',
         isConnected: false,
       };
     }
+
+    return {
+      success: true,
+      health: 'healthy',
+      isConnected: true,
+    };
   }
 
   private async discoverA2ATools(service: Service): Promise<ServiceTool[]> {

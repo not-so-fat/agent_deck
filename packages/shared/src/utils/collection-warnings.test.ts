@@ -12,7 +12,7 @@ const baseService = {
   type: 'mcp' as const,
   url: 'https://mcp.example.com',
   health: 'unknown' as const,
-  cardColor: '#39FF14',
+  cardColor: '#92E4DD',
   isConnected: false,
   registeredAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',

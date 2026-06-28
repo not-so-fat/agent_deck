@@ -42,7 +42,7 @@ export class ConfigManager {
         type: 'local-mcp',
         url: `local://${name}`, // Use a local URL scheme for local servers
         description: `Local MCP server: ${config.command} ${config.args.join(' ')}`,
-        cardColor: '#39FF14', // Green color for local servers
+        cardColor: '#92E4DD', // Cyan for local MCP servers
         localCommand: config.command,
         localArgs: config.args,
         localWorkingDir: config.workingDir,

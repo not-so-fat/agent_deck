@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import fs from 'node:fs/promises';
 import {
   ApiResponse,
   CreateCredentialSchema,
@@ -8,6 +9,7 @@ import {
   RotateCredentialSchema,
   UpdateCredentialSchema,
 } from '@agent-deck/shared';
+import { getServiceIconPath } from '../services/icon-resolver';
 import {
   DashboardOnlyError,
   isDashboardClient,
@@ -18,6 +20,19 @@ import { PlaybookDependencyError } from '../playbooks/playbook-manager';
 
 interface CredentialIdRequest {
   Params: { id: string };
+}
+
+function mimeFromIconBuffer(buffer: Buffer): string {
+  if (buffer[0] === 0x89 && buffer[1] === 0x50) {
+    return 'image/png';
+  }
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+    return 'image/jpeg';
+  }
+  if (buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0x00) {
+    return 'image/x-icon';
+  }
+  return 'application/octet-stream';
 }
 
 function dashboardOnlyResponse(error: unknown): { status: number; body: ApiResponse } {
@@ -35,6 +50,24 @@ function dashboardOnlyResponse(error: unknown): { status: number; body: ApiRespo
 }
 
 export async function registerCredentialRoutes(fastify: FastifyInstance) {
+  // Metadata for all registered credentials (no secret values) — agent-safe for linking to decks
+  fastify.get('/collection', async (_request, reply) => {
+    try {
+      const credentials = await fastify.credentialManager.list();
+      const response: ApiResponse<Credential[]> = {
+        success: true,
+        data: credentials,
+      };
+      return reply.send(response);
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+      return reply.status(500).send(response);
+    }
+  });
+
   // Full vault — dashboard only (human collection UI)
   fastify.get('/vault', async (request, reply) => {
     try {
@@ -68,6 +101,19 @@ export async function registerCredentialRoutes(fastify: FastifyInstance) {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
       return reply.status(status).send(response);
+    }
+  });
+
+  fastify.get<CredentialIdRequest>('/:id/icon', async (request, reply) => {
+    try {
+      const iconPath = getServiceIconPath(request.params.id);
+      const buffer = await fs.readFile(iconPath);
+      return reply.type(mimeFromIconBuffer(buffer)).send(buffer);
+    } catch {
+      return reply.status(404).send({
+        success: false,
+        error: 'Icon not found',
+      });
     }
   });
 
@@ -119,6 +165,7 @@ export async function registerCredentialRoutes(fastify: FastifyInstance) {
         ? CreateCredentialSchema.parse({
             ...deriveCredentialDefaults(simple.data.label),
             value: simple.data.value,
+            docsUrl: simple.data.docsUrl,
           })
         : CreateCredentialSchema.parse(request.body);
 
@@ -138,7 +185,11 @@ export async function registerCredentialRoutes(fastify: FastifyInstance) {
   fastify.put<CredentialIdRequest>('/:id', async (request, reply) => {
     try {
       requireDashboardClient(request);
-      const input = UpdateCredentialSchema.parse(request.body);
+      const parsed = UpdateCredentialSchema.parse(request.body);
+      const input = {
+        ...parsed,
+        ...(parsed.docsUrl === '' ? { docsUrl: undefined } : {}),
+      };
       const credential = await fastify.credentialManager.update(request.params.id, input);
 
       if (!credential) {

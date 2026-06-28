@@ -1,5 +1,5 @@
 /** Fixed playing-card colors by connection type. */
-export const MCP_CARD_COLOR = '#39FF14';
+export const MCP_CARD_COLOR = '#92E4DD';
 export const API_KEY_CARD_COLOR = '#F9386D';
 export const PLAYBOOK_CARD_COLOR = '#FFFFFF';
 

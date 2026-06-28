@@ -158,13 +158,36 @@ Client header `x-agent-deck-client`:
 
 | Value | Client | Credential access |
 |-------|--------|-------------------|
-| `dashboard` | Agent Deck UI | Full vault CRUD; deck linking |
-| `agent` or omitted | MCP / scripts | Bound-deck credentials only; no vault list; no CRUD |
+| `dashboard` | Agent Deck UI | Full vault CRUD; deck linking for any deck |
+| `agent` or omitted | MCP / scripts | Bound-deck mutations only; collection metadata read; no secret CRUD |
+
+**Dashboard-only (human-in-the-loop):**
+
+- API key **secret** create, rotate, update value (`POST/PUT/rotate /api/credentials`)
+- MCP **OAuth** browser flow (`/api/oauth/*`)
+
+**Agent MCP tools (collection + bound deck):**
+
+| Tool | Purpose |
+|------|---------|
+| `bind_workspace` / `setup_repo_deck` | Bind session to repo; read `deck.yaml` |
+| `get_bound_deck`, `get_decks`, `create_deck` | Deck read/create |
+| `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
+| `add_service_to_bound_deck` / `remove_service_from_bound_deck` | Link MCP cards on bound deck |
+| `update_service_tool_settings` | Enable/disable tools (service must be on bound deck) |
+| `list_collection_credentials` | API key metadata (no secrets) for linking |
+| `add_credential_to_bound_deck` / `remove_credential_from_bound_deck` | Link API key cards (secret stored in dashboard/CLI) |
+| `list_playbooks` / `list_collection_playbooks` / `register_playbook` / `update_playbook` / `delete_playbook` | Playbooks |
+| `add_playbook_to_bound_deck` / `remove_playbook_from_bound_deck` | Link playbook cards |
+| `list_bound_deck_*` | Bound deck services/credentials |
+| `list_service_tools` / `call_service_tool` | Proxy to services on bound deck |
+
+Deprecated aliases: `get_active_deck`, `list_active_deck_*`. Agents use `GET /api/credentials/collection` (metadata) — not `/api/credentials/vault`.
 
 ### Dashboard UI (Module 2)
 
-- **My Collection** — MCP, API key, and playbook playing cards (MCP `#39FF14`, API key `#F9386D`, playbook `#FFFFFF`).
-- **Deck editor** — fan of cards for the **editing deck**; drag-and-drop from collection.
+- **My Collection** — MCP, API key, and playbook playing cards (MCP `#92E4DD`, API key `#F9386D`, playbook `#FFFFFF`).
+- **Deck editor** — fan of cards for the **editing deck**; drag-and-drop from collection (agents can also link via MCP tools).
 - **Register MCP / Register API key** — modals; MCP color picker removed.
 - **MCP logos** — auto-fetched favicon on register; `iconUrl` → `GET /api/services/:id/icon`.
 
@@ -183,8 +206,14 @@ GET /api/credentials/:id
 GET /api/decks
 → agent: credentials stripped from non-bound decks
 
-POST /api/decks/:deckId/credentials   { credentialId }   (dashboard only)
-DELETE /api/decks/:deckId/credentials   { credentialId }   (dashboard only)
+POST /api/decks/:deckId/credentials   { credentialId }   (agent: bound deck only)
+DELETE /api/decks/:deckId/credentials   { credentialId }   (agent: bound deck only)
+
+GET /api/credentials/collection
+→ all credential metadata (no secrets); agent-safe for linking
+
+GET /api/playbooks/collection
+→ all playbook cards; agent-safe for linking
 ```
 
 **Legacy (v1, not used for MVP agent scoping):**
@@ -194,17 +223,7 @@ GET /api/decks/active
 POST /api/decks/:id/activate
 ```
 
-**MCP tools (primary):**
-
-| Tool | Purpose |
-|------|---------|
-| `bind_workspace` | Bind session to repo; read `deck.yaml` |
-| `get_bound_deck` | Bound deck + services |
-| `list_bound_deck_services` | MCP services on bound deck |
-| `list_bound_deck_credentials` | API key metadata on bound deck |
-| `list_service_tools` / `call_service_tool` | Proxy to services on bound deck |
-
-Deprecated aliases: `get_active_deck`, `list_active_deck_*`, `list_active_deck_credentials`. Agents must **never** call `/api/credentials/vault`.
+See **Agent MCP tools** table above for the full tool surface.
 
 **Exec injection:** `agent-deck exec --deck <id> --connections cred_a,cred_b -- <cmd>` validates each credential is on the deck when `--deck` is set. Agents run scripts; they never receive raw keys in tool results.
 

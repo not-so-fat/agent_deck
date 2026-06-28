@@ -4,10 +4,11 @@ import { Credential, Deck } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { API_KEY_CARD_COLOR } from "@/lib/card-colors";
 import CardWarningBadge from "@/components/card-warning-badge";
+import CredentialCardIcon from "@/components/credential-card-icon";
 
 interface CredentialCardComponentProps {
   credential: Credential;
@@ -18,6 +19,7 @@ interface CredentialCardComponentProps {
   onDragEnd?: (e: React.DragEvent) => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  onCardClick?: (credential: Credential) => void;
   warnings?: CollectionCardWarning[];
 }
 
@@ -30,6 +32,7 @@ function CredentialCardComponent({
   onDragEnd,
   onMouseEnter,
   onMouseLeave,
+  onCardClick,
   warnings,
 }: CredentialCardComponentProps) {
   const queryClient = useQueryClient();
@@ -89,6 +92,7 @@ function CredentialCardComponent({
       draggable={!isInActiveDeck && Boolean(onDragStart)}
       onDragStart={onDragStart ? (e) => onDragStart(e, credential) : undefined}
       onDragEnd={onDragEnd}
+      onClick={() => onCardClick?.(credential)}
       data-testid={`card-${credential.id}`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -140,7 +144,7 @@ function CredentialCardComponent({
 
         <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
           <div className="mb-2" style={{ color: cardColor }}>
-            <KeyRound className="h-7 w-7" strokeWidth={2.25} />
+            <CredentialCardIcon credential={credential} color={cardColor} />
           </div>
 
           <h3

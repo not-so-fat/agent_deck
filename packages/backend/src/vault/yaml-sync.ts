@@ -23,6 +23,7 @@ export class CredentialYamlSync {
       header_name: credential.headerName ?? null,
       env_name: credential.envName,
       tags: credential.tags,
+      docs_url: credential.docsUrl ?? null,
     };
 
     const filePath = path.join(dir, `${credential.id}.yaml`);
@@ -34,6 +35,9 @@ export class CredentialYamlSync {
       `header_name: ${payload.header_name === null ? 'null' : JSON.stringify(payload.header_name)}`,
       `env_name: ${payload.env_name}`,
       `tags: [${payload.tags.map((tag) => JSON.stringify(tag)).join(', ')}]`,
+      ...(payload.docs_url
+        ? [`docs_url: ${JSON.stringify(payload.docs_url)}`]
+        : []),
       '',
     ];
 
