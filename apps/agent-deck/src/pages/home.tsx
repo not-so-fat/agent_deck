@@ -370,6 +370,7 @@ export default function Home() {
                     credentials={editingDeck.credentials ?? []}
                     playbooks={editingDeckPlaybooks}
                     allServices={servicesArray}
+                    collectionWarnings={collectionWarnings}
                     onDrop={handleDrop}
                     onDragStart={handleDragStart}
                     onCredentialDragStart={handleCredentialDragStart}

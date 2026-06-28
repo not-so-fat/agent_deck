@@ -3,6 +3,8 @@ import { getServiceCardColor, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR } from "@/
 import { BookOpen, KeyRound, Plus } from "lucide-react";
 import agentIconUrl from "@/assets/icons/Agent2.svg";
 import { getServiceIconSrc } from "@/lib/service-icon";
+import CardWarningBadge from "@/components/card-warning-badge";
+import type { CollectionWarningsView } from "@/lib/collection-warnings";
 
 interface DeckBuilderProps {
   deck: Deck;
@@ -10,6 +12,7 @@ interface DeckBuilderProps {
   credentials?: Credential[];
   playbooks?: Playbook[];
   allServices: Service[];
+  collectionWarnings?: CollectionWarningsView;
   onDrop: (e: React.DragEvent) => void;
   onDragStart: (e: React.DragEvent, service: Service, fromDeck?: boolean) => void;
   onCredentialDragStart: (e: React.DragEvent, credential: Credential, fromDeck?: boolean) => void;
@@ -24,6 +27,7 @@ export default function DeckBuilder({
   services,
   credentials = [],
   playbooks = [],
+  collectionWarnings,
   onDrop,
   onDragStart,
   onCredentialDragStart,
@@ -92,6 +96,8 @@ export default function DeckBuilder({
         onClick={() => onPlaybookClick?.(playbook)}
         data-testid={`deck-card-${playbook.id}`}
       >
+        <CardWarningBadge warnings={collectionWarnings?.playbookWarnings.get(playbook.id)} />
+
         <div className="absolute top-1 left-1 text-xs font-bold">
           <div className="leading-none" style={{ color: PLAYBOOK_CARD_COLOR }}>PB</div>
         </div>
@@ -167,6 +173,10 @@ export default function DeckBuilder({
                     onDragEnd={onDragEnd}
                     data-testid={`deck-card-${credential.id}`}
                   >
+                    <CardWarningBadge
+                      warnings={collectionWarnings?.credentialWarnings.get(credential.id)}
+                    />
+
                     <div className="absolute top-1 left-1 text-xs font-bold">
                       <div className="leading-none" style={{ color: API_KEY_CARD_COLOR }}>AK</div>
                     </div>
@@ -217,6 +227,10 @@ export default function DeckBuilder({
                       onClick={() => onCardClick?.(service)}
                       data-testid={`deck-card-${service.id}`}
                     >
+                      <CardWarningBadge
+                        warnings={collectionWarnings?.serviceWarnings.get(service.id)}
+                      />
+
                       <div className="absolute top-1 left-1 text-xs font-bold">
                         <div className="leading-none" style={{ color: getServiceCardColor(service) }}>
                           {service.type === "mcp" ? "RM" : service.type === "local-mcp" ? "LM" : "A"}
