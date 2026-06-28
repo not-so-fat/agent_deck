@@ -1,5 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+/** Keep in sync with @agent-deck/shared constants/client-scope (CJS interop for Vite). */
+const AGENT_DECK_CLIENT_HEADER = "x-agent-deck-client";
+const AGENT_DECK_DASHBOARD_CLIENT = "dashboard";
+
+const dashboardHeaders = {
+  [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_DASHBOARD_CLIENT,
+};
+
 async function throwIfResNotOk(res: Response) {
   if (res.ok) return;
 
@@ -31,7 +39,10 @@ export async function apiRequest(
   
   const res = await fetch(finalUrl, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...dashboardHeaders,
+      ...(data ? { "Content-Type": "application/json" } : {}),
+    },
     body: data ? JSON.stringify(data) : undefined,
   });
 
@@ -49,7 +60,7 @@ export const getQueryFn: <T>(options: {
     const path = queryKey.join("/") as string;
     const url = path.startsWith('/api') ? `http://localhost:8000${path}` : path;
     
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: dashboardHeaders });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

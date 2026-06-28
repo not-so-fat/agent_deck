@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Service } from "@agent-deck/shared";
+import { MCP_CARD_COLOR, CARD_FACE_CLASS, cardAccentStyle } from "@/lib/card-colors";
 
 interface ServiceRegistrationModalProps {
   type: Service['type'];
@@ -62,7 +63,7 @@ export default function ServiceRegistrationModal({
     description: "",
     headers_enabled: false,
     headers: {},
-    cardColor: "#7ed4da",
+    cardColor: MCP_CARD_COLOR,
   });
 
   // Local MCP form data (for review stage)
@@ -73,7 +74,7 @@ export default function ServiceRegistrationModal({
     args: [""],
     env: {} as Record<string, string>,
     description: "",
-    cardColor: "#39FF14", // Green for local MCP
+    cardColor: MCP_CARD_COLOR,
   });
 
   // A2A form data
@@ -82,7 +83,7 @@ export default function ServiceRegistrationModal({
     type: 'a2a' as const,
     manifest_url: "http://localhost:8001/.well-known/a2a/manifest.json",
     description: "",
-    cardColor: "#7ed4da",
+    cardColor: MCP_CARD_COLOR,
   });
 
   const queryClient = useQueryClient();
@@ -142,7 +143,7 @@ export default function ServiceRegistrationModal({
         args: parsed.args,
         env: parsed.env || {},
         description: parsed.description || "",
-        cardColor: "#39FF14",
+        cardColor: MCP_CARD_COLOR,
       });
       
       // Check for name conflicts
@@ -187,7 +188,7 @@ export default function ServiceRegistrationModal({
       args: parsedConfig.args,
       env: parsedConfig.env || {},
       description: parsedConfig.description || "",
-      cardColor: "#39FF14",
+      cardColor: MCP_CARD_COLOR,
     });
   };
 
@@ -315,7 +316,7 @@ export default function ServiceRegistrationModal({
       description: "",
       headers_enabled: false,
       headers: {},
-      cardColor: "#7ed4da",
+      cardColor: MCP_CARD_COLOR,
     });
     setLocalFormData({
       name: "",
@@ -324,14 +325,14 @@ export default function ServiceRegistrationModal({
       args: [""],
       env: {},
       description: "",
-      cardColor: "#39FF14",
+      cardColor: MCP_CARD_COLOR,
     });
     setA2aFormData({
       name: "",
       type: 'a2a',
       manifest_url: "http://localhost:8001/.well-known/a2a/manifest.json",
       description: "",
-      cardColor: "#7ed4da",
+      cardColor: MCP_CARD_COLOR,
     });
     
     onOpenChange(false);
@@ -723,17 +724,14 @@ export default function ServiceRegistrationModal({
                     </Button>
                     <Button
                       type="button"
-                      className="flex-1 border"
-                      style={{
-                        background: 'linear-gradient(135deg, #C4B643, #D4C760)',
-                        borderColor: '#C4B643',
-                        color: '#0A0A07'
-                      }}
+                      variant="ghost"
+                      className={`flex-1 border-2 hover:opacity-90 ${CARD_FACE_CLASS}`}
+                      style={cardAccentStyle(MCP_CARD_COLOR)}
                       onClick={handleSubmit}
                       disabled={isSubmitDisabled()}
                       data-testid="button-register"
                     >
-                      <Plus className="w-4 h-4 mr-2" style={{color: '#0A0A07'}} />
+                      <Plus className="w-4 h-4 mr-2" />
                       {registerServiceMutation.isPending ? 'Registering...' : getSubmitButtonText()}
                     </Button>
                   </div>
@@ -820,51 +818,6 @@ export default function ServiceRegistrationModal({
             </div>
           </div>
         )}
-
-        {/* Color Selection - Shared for all forms */}
-        <div>
-          <Label className="text-sm font-semibold" style={{color: '#92E4DD'}}>Card Color</Label>
-          <div className="flex gap-2 mt-2">
-            {[
-              { color: "#7ed4da", name: "Default" },
-              { color: "#F9386D", name: "Pink" },
-              { color: "#39FF14", name: "Green" },
-              { color: "#E0E0E0", name: "Light Gray" },
-              { color: "#FF6B00", name: "Orange" },
-            ].map((colorOption) => {
-              const currentColor = type === 'mcp' ? 
-                (activeTab === 'remote' ? remoteFormData.cardColor : localFormData.cardColor) : 
-                a2aFormData.cardColor;
-              
-              return (
-                <button
-                  key={colorOption.color}
-                  type="button"
-                  className={`w-8 h-8 rounded-full border-2 transition-all ${
-                    currentColor === colorOption.color 
-                      ? 'border-white scale-110' 
-                      : 'border-gray-400 hover:border-gray-300'
-                  }`}
-                  style={{ backgroundColor: colorOption.color }}
-                  onClick={() => {
-                    if (type === 'mcp') {
-                      if (activeTab === 'remote') {
-                        updateRemoteFormData('cardColor', colorOption.color);
-                      } else {
-                        updateLocalFormData('cardColor', colorOption.color);
-                      }
-                    } else {
-                      updateA2aFormData('cardColor', colorOption.color);
-                    }
-                  }}
-                  title={colorOption.name}
-                  data-testid={`color-option-${colorOption.color}`}
-                />
-              );
-            })}
-          </div>
-          <p className="text-xs text-gray-400 mt-1">Choose a color for your service card</p>
-        </div>
 
         {/* Headers Configuration Section - Only for Remote MCP services */}
         {type === 'mcp' && activeTab === 'remote' && (
@@ -957,18 +910,15 @@ export default function ServiceRegistrationModal({
           </Button>
           {!(type === 'mcp' && activeTab === 'local') && (
             <Button 
-              type="button" 
-              className="flex-1 border"
-              style={{
-                background: 'linear-gradient(135deg, #C4B643, #D4C760)',
-                borderColor: '#C4B643',
-                color: '#0A0A07'
-              }}
+              type="button"
+              variant="ghost"
+              className={`flex-1 border-2 hover:opacity-90 ${CARD_FACE_CLASS}`}
+              style={cardAccentStyle(MCP_CARD_COLOR)}
               disabled={registerServiceMutation.isPending || isSubmitDisabled()}
               data-testid="button-register"
               onClick={handleSubmit}
             >
-              <Plus className="w-4 h-4 mr-2" style={{color: '#0A0A07'}} />
+              <Plus className="w-4 h-4 mr-2" />
               {registerServiceMutation.isPending ? 'Registering...' : 'Register Service'}
             </Button>
           )}

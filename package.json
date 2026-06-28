@@ -16,6 +16,8 @@
     "mcp": "npm --workspace packages/backend run mcp",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "agent-deck": "tsx packages/cli/src/bin.ts",
+    "smoke:dev": "bash ./scripts/smoke-dev.sh",
     "clean": "turbo run clean",
     "type-check": "turbo run type-check",
     "install:all": "npm install && npm run build"

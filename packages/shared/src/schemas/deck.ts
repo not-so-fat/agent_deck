@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { CredentialSchema } from './credential';
+import { PlaybookSchema } from './playbook';
 
 export const DeckSchema = z.object({
   id: z.string().uuid(),
@@ -6,6 +8,8 @@ export const DeckSchema = z.object({
   description: z.string().optional(),
   isActive: z.boolean().default(false),
   services: z.array(z.any()).default([]), // Will be populated with Service objects
+  credentials: z.array(CredentialSchema).default([]),
+  playbooks: z.array(PlaybookSchema).default([]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

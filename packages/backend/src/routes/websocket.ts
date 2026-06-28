@@ -11,14 +11,14 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
   const connections = new Map<string, WebSocketConnection>();
 
   // Enable WebSocket connections
-  fastify.get('/events', { websocket: true }, (connection, req) => {
+  fastify.get('/events', { websocket: true }, (socket, _req) => {
     const connectionId = `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     console.log(`WebSocket connection established: ${connectionId}`);
     
     const wsConnection: WebSocketConnection = {
       id: connectionId,
-      socket: connection.socket,
+      socket,
       subscriptions: new Set(['services', 'decks']) // Subscribe to all channels by default
     };
     
@@ -32,13 +32,13 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
     };
     
     try {
-      connection.socket.send(JSON.stringify(welcomeMessage));
+      socket.send(JSON.stringify(welcomeMessage));
     } catch (error) {
       console.error('Error sending welcome message:', error);
     }
     
     // Handle incoming messages
-    connection.socket.on('message', (message: string) => {
+    socket.on('message', (message: string) => {
       try {
         const parsed = JSON.parse(message);
         
@@ -61,13 +61,13 @@ export async function registerWebSocketRoutes(fastify: FastifyInstance) {
     });
     
     // Handle connection close
-    connection.socket.on('close', () => {
+    socket.on('close', () => {
       console.log(`WebSocket connection closed: ${connectionId}`);
       connections.delete(connectionId);
     });
     
     // Handle connection error
-    connection.socket.on('error', (error: any) => {
+    socket.on('error', (error: unknown) => {
       console.error(`WebSocket connection error: ${connectionId}`, error);
       connections.delete(connectionId);
     });

@@ -8,6 +8,13 @@ import {
   ApiResponse,
   Deck
 } from '@agent-deck/shared';
+import {
+  applyDeckScope,
+  DashboardOnlyError,
+  getClientScope,
+  requireDashboardClient,
+} from '../lib/client-scope';
+import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
 
 interface CreateDeckRequest {
   Body: CreateDeckInput;
@@ -62,11 +69,25 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
   // Get all decks
   fastify.get('/', async (request, reply) => {
     try {
+      const scope = getClientScope(request);
+      let visibleDeckId: string | undefined;
+
+      if (scope === 'agent') {
+        try {
+          visibleDeckId = await resolveAgentDeckId(request, fastify.db);
+        } catch (error) {
+          if (!(error instanceof AgentDeckContextError)) {
+            throw error;
+          }
+        }
+      }
+
       const decks = await fastify.db.getAllDecks();
+      const scopedDecks = decks.map((deck) => applyDeckScope(deck, scope, visibleDeckId));
       
       const response: ApiResponse<Deck[]> = {
         success: true,
-        data: decks,
+        data: scopedDecks,
       };
       
       return reply.send(response);
@@ -123,10 +144,25 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
         
         return reply.status(404).send(response);
       }
+
+      const scope = getClientScope(request);
+      let visibleDeckId: string | undefined;
+
+      if (scope === 'agent') {
+        try {
+          visibleDeckId = await resolveAgentDeckId(request, fastify.db);
+        } catch (error) {
+          if (!(error instanceof AgentDeckContextError)) {
+            throw error;
+          }
+        }
+      }
+
+      const scopedDeck = applyDeckScope(deck, scope, visibleDeckId);
       
       const response: ApiResponse<Deck> = {
         success: true,
-        data: deck,
+        data: scopedDeck,
       };
       
       return reply.send(response);
@@ -349,4 +385,146 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       return reply.status(400).send(response);
     }
   });
+
+  // Add credential to deck
+  fastify.post<{ Params: { id: string }; Body: { credentialId: string; position?: number } }>(
+    '/:id/credentials',
+    async (request, reply) => {
+      try {
+        requireDashboardClient(request);
+
+        await fastify.credentialManager.addToDeck({
+          deckId: request.params.id,
+          credentialId: request.body.credentialId,
+          position: request.body.position,
+        });
+
+        fastify.broadcastDeckUpdate({
+          deckId: request.params.id,
+          action: 'updated',
+          data: { credentialId: request.body.credentialId },
+        });
+
+        const response: ApiResponse = {
+          success: true,
+          message: 'Credential added to deck successfully',
+        };
+
+        return reply.send(response);
+      } catch (error) {
+        const response: ApiResponse = {
+          success: false,
+          error: error instanceof DashboardOnlyError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error',
+        };
+
+        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send(response);
+      }
+    },
+  );
+
+  // Remove credential from deck
+  fastify.delete<{ Params: { id: string }; Body: { credentialId: string } }>(
+    '/:id/credentials',
+    async (request, reply) => {
+      try {
+        requireDashboardClient(request);
+
+        await fastify.credentialManager.removeFromDeck({
+          deckId: request.params.id,
+          credentialId: request.body.credentialId,
+        });
+
+        fastify.broadcastDeckUpdate({
+          deckId: request.params.id,
+          action: 'updated',
+          data: { credentialId: request.body.credentialId },
+        });
+
+        const response: ApiResponse = {
+          success: true,
+          message: 'Credential removed from deck successfully',
+        };
+
+        return reply.send(response);
+      } catch (error) {
+        const response: ApiResponse = {
+          success: false,
+          error: error instanceof DashboardOnlyError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : 'Unknown error',
+        };
+
+        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send(response);
+      }
+    },
+  );
+
+  // Add playbook to deck
+  fastify.post<{ Params: { id: string }; Body: { playbookId: string; position?: number } }>(
+    '/:id/playbooks',
+    async (request, reply) => {
+      try {
+        requireDashboardClient(request);
+
+        await fastify.playbookManager.addToDeck({
+          deckId: request.params.id,
+          playbookId: request.body.playbookId,
+          position: request.body.position,
+        });
+
+        fastify.broadcastDeckUpdate({
+          deckId: request.params.id,
+          action: 'updated',
+          data: { playbookId: request.body.playbookId },
+        });
+
+        return reply.send({
+          success: true,
+          message: 'Playbook added to deck successfully',
+        } satisfies ApiResponse);
+      } catch (error) {
+        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        } satisfies ApiResponse);
+      }
+    },
+  );
+
+  // Remove playbook from deck
+  fastify.delete<{ Params: { id: string }; Body: { playbookId: string } }>(
+    '/:id/playbooks',
+    async (request, reply) => {
+      try {
+        requireDashboardClient(request);
+
+        await fastify.playbookManager.removeFromDeck({
+          deckId: request.params.id,
+          playbookId: request.body.playbookId,
+        });
+
+        fastify.broadcastDeckUpdate({
+          deckId: request.params.id,
+          action: 'updated',
+          data: { playbookId: request.body.playbookId },
+        });
+
+        return reply.send({
+          success: true,
+          message: 'Playbook removed from deck successfully',
+        } satisfies ApiResponse);
+      } catch (error) {
+        return reply.status(error instanceof DashboardOnlyError ? 403 : 400).send({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        } satisfies ApiResponse);
+      }
+    },
+  );
 }

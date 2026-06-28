@@ -1,0 +1,235 @@
+import { FastifyInstance } from 'fastify';
+import {
+  ApiResponse,
+  AgentRegisterPlaybookSchema,
+  AgentUpdatePlaybookSchema,
+  DashboardRegisterPlaybookSchema,
+  DashboardUpdatePlaybookSchema,
+  Playbook,
+  PlaybookSummary,
+  PlaybookWithDependencies,
+} from '@agent-deck/shared';
+import {
+  DashboardOnlyError,
+  isDashboardClient,
+  requireDashboardClient,
+} from '../lib/client-scope';
+import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
+import { PlaybookDependencyError } from '../playbooks/playbook-manager';
+
+interface PlaybookIdRequest {
+  Params: { id: string };
+}
+
+function dashboardOnlyResponse(error: unknown): { status: number; body: ApiResponse } {
+  const message =
+    error instanceof DashboardOnlyError
+      ? error.message
+      : error instanceof Error
+        ? error.message
+        : 'Unknown error';
+
+  return {
+    status: error instanceof DashboardOnlyError ? 403 : 400,
+    body: { success: false, error: message },
+  };
+}
+
+export async function registerPlaybookRoutes(fastify: FastifyInstance) {
+  fastify.get('/vault', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const playbooks = await fastify.playbookManager.list();
+      return reply.send({ success: true, data: playbooks } satisfies ApiResponse<Playbook[]>);
+    } catch (error) {
+      const { status, body } = dashboardOnlyResponse(error);
+      return reply.status(status).send(body);
+    }
+  });
+
+  fastify.get('/summaries', async (request, reply) => {
+    try {
+      const deckId = await resolveAgentDeckId(request, fastify.db);
+      const playbooks = await fastify.playbookManager.listSummariesForDeck(deckId);
+      return reply.send({ success: true, data: playbooks } satisfies ApiResponse<PlaybookSummary[]>);
+    } catch (error) {
+      const status = error instanceof AgentDeckContextError ? 400 : 500;
+      return reply.status(status).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.get<{ Querystring: { credentialId?: string; serviceId?: string } }>(
+    '/dependents/check',
+    async (request, reply) => {
+      try {
+        requireDashboardClient(request);
+        const { credentialId, serviceId } = request.query;
+        if (!credentialId && !serviceId) {
+          return reply.status(400).send({
+            success: false,
+            error: 'credentialId or serviceId query parameter is required',
+          } satisfies ApiResponse);
+        }
+
+        const dependents = credentialId
+          ? await fastify.playbookManager.getDependentsForCredential(credentialId)
+          : await fastify.playbookManager.getDependentsForService(serviceId!);
+
+        return reply.send({ success: true, data: dependents } satisfies ApiResponse);
+      } catch (error) {
+        const { status, body } = dashboardOnlyResponse(error);
+        return reply.status(status).send(body);
+      }
+    },
+  );
+
+  fastify.get('/', async (request, reply) => {
+    try {
+      const deckId = await resolveAgentDeckId(request, fastify.db);
+      const playbooks = await fastify.playbookManager.listForDeck(deckId);
+      return reply.send({ success: true, data: playbooks } satisfies ApiResponse<Playbook[]>);
+    } catch (error) {
+      const status = error instanceof AgentDeckContextError ? 400 : 500;
+      return reply.status(status).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.get<PlaybookIdRequest>('/:id', async (request, reply) => {
+    try {
+      let playbook: PlaybookWithDependencies | null;
+
+      if (isDashboardClient(request)) {
+        playbook = await fastify.playbookManager.getWithDependencies(request.params.id);
+      } else {
+        const deckId = await resolveAgentDeckId(request, fastify.db);
+        const onDeck = await fastify.playbookManager.isPlaybookOnDeck(deckId, request.params.id);
+        playbook = onDeck
+          ? await fastify.playbookManager.getWithDependencies(request.params.id)
+          : null;
+      }
+
+      if (!playbook) {
+        return reply.status(isDashboardClient(request) ? 404 : 403).send({
+          success: false,
+          error: isDashboardClient(request)
+            ? 'Playbook not found'
+            : 'Playbook not found on bound deck',
+        } satisfies ApiResponse);
+      }
+
+      return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+    } catch (error) {
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.post('/', async (request, reply) => {
+    try {
+      if (isDashboardClient(request)) {
+        requireDashboardClient(request);
+        const input = DashboardRegisterPlaybookSchema.parse(request.body);
+        const { autoDetectDependencies, ...createInput } = input;
+        const playbook = await fastify.playbookManager.createWithDependencies({
+          ...createInput,
+          addToBoundDeck: false,
+          autoDetectDependencies,
+        });
+        return reply
+          .status(201)
+          .send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+      }
+
+      const deckId = await resolveAgentDeckId(request, fastify.db);
+      const input = AgentRegisterPlaybookSchema.parse(request.body);
+      const playbook = await fastify.playbookManager.createWithDependencies(input);
+
+      if (input.addToBoundDeck) {
+        const alreadyOnDeck = await fastify.playbookManager.isPlaybookOnDeck(deckId, playbook.id);
+        if (!alreadyOnDeck) {
+          await fastify.playbookManager.addToDeck({ deckId, playbookId: playbook.id });
+        }
+      }
+
+      return reply
+        .status(201)
+        .send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+    } catch (error) {
+      if (error instanceof AgentDeckContextError) {
+        return reply.status(400).send({
+          success: false,
+          error: error.message,
+        } satisfies ApiResponse);
+      }
+      const { status, body } = dashboardOnlyResponse(error);
+      return reply.status(status === 403 ? 400 : status).send(body);
+    }
+  });
+
+  fastify.put<PlaybookIdRequest>('/:id', async (request, reply) => {
+    try {
+      if (isDashboardClient(request)) {
+        requireDashboardClient(request);
+        const input = DashboardUpdatePlaybookSchema.parse(request.body);
+        const playbook = await fastify.playbookManager.updateWithDependencies(
+          request.params.id,
+          input,
+        );
+        if (!playbook) {
+          return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
+        }
+        return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+      }
+
+      const deckId = await resolveAgentDeckId(request, fastify.db);
+      const onDeck = await fastify.playbookManager.isPlaybookOnDeck(deckId, request.params.id);
+      if (!onDeck) {
+        return reply.status(403).send({
+          success: false,
+          error: 'Playbook not found on bound deck',
+        } satisfies ApiResponse);
+      }
+
+      const input = AgentUpdatePlaybookSchema.parse(request.body);
+      const playbook = await fastify.playbookManager.updateWithDependencies(request.params.id, input);
+      if (!playbook) {
+        return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
+      }
+
+      return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+    } catch (error) {
+      if (error instanceof AgentDeckContextError) {
+        return reply.status(400).send({
+          success: false,
+          error: error.message,
+        } satisfies ApiResponse);
+      }
+      const { status, body } = dashboardOnlyResponse(error);
+      return reply.status(status === 403 ? 400 : status).send(body);
+    }
+  });
+
+  fastify.delete<PlaybookIdRequest>('/:id', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const deleted = await fastify.playbookManager.delete(request.params.id);
+      if (!deleted) {
+        return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
+      }
+      return reply.send({ success: true, message: 'Playbook deleted successfully' } satisfies ApiResponse);
+    } catch (error) {
+      const { status, body } = dashboardOnlyResponse(error);
+      return reply.status(status).send(body);
+    }
+  });
+}
+
+export { PlaybookDependencyError };

@@ -7,12 +7,14 @@ export const ServiceSchema = z.object({
   url: z.string().url('Valid URL is required'),
   health: z.enum(['unknown', 'healthy', 'unhealthy']).default('unknown'),
   description: z.string().optional(),
-  cardColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Valid hex color required').default('#7ed4da'),
+  cardColor: z.string().regex(/^#[0-9A-F]{6}$/i, 'Valid hex color required').default('#39FF14'),
+  iconUrl: z.string().optional(),
   isConnected: z.boolean().default(false),
   lastPing: z.string().datetime().optional(),
   registeredAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   headers: z.record(z.string()).optional(),
+  credentialId: z.string().optional(),
   
   // OAuth fields
   oauthClientId: z.string().optional(),

@@ -27,7 +27,7 @@ When coding, documenting, or trying new MCP services, you don't need every serve
 
 <img src="./misc/Idea.png" alt="Frontend" width="70%" />
 
-Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http://127.0.0.1:3001/mcp`) to your agent. It exposes only the MCP servers in your **active deck**.
+Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http://127.0.0.1:3001/mcp`) to your agent. It exposes only the MCP servers in the **deck bound to your workspace** (via `.agent-deck/deck.yaml`). See [MVP spec](docs/MVP.md) for the full Modules 1–3 behavior.
 
 
 ## Features
@@ -36,22 +36,26 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 
 <img src="./misc/UI.png" alt="Frontend" width="70%" />
 
-- Register remote and local MCP servers (with OAuth support)
+- Register remote and local MCP servers (with OAuth support) and **API keys** (Keychain-backed)
 - Create **decks** — named contexts (Coding, Docs, Research, …)
-- Drag-and-drop services into decks
-- Activate one deck at a time for your agent
+- Drag-and-drop MCP and API key cards from **My Collection** into a deck
+- Copy `.agent-deck/deck.yaml` from the deck sidebar into each repo; agents **bind** via `bind_workspace`
+- View **playbooks** (markdown procedures) in the dashboard Playbooks panel
 
 ### MCP Server (`localhost:3001/mcp`)
 
 | Tool | Purpose |
 |------|---------|
 | `show_agent_deck` | **MCP App** — in-chat deck panel (Cursor 2.6+) |
-| `activate_deck` | Switch active deck |
-| `get_decks` | List all decks |
-| `get_active_deck` | Active deck + services |
-| `list_active_deck_services` | Services in active deck |
-| `list_service_tools` | Tools for a service |
-| `call_service_tool` | Call a proxied MCP tool |
+| `bind_workspace` | Bind session to repo via `.agent-deck/deck.yaml` |
+| `get_bound_deck` | Bound deck + services |
+| `list_bound_deck_services` | MCP services on bound deck |
+| `list_bound_deck_credentials` | API key metadata on bound deck (no secrets) |
+| `list_playbooks` / `get_playbook` | Read playbook cards on the bound deck |
+| `register_playbook` / `update_playbook` | Create or update playbook cards with auto-detected dependencies |
+| `list_service_tools` / `call_service_tool` | Proxy to a service on the bound deck |
+
+Legacy aliases (`get_active_deck`, `activate_deck`, …) remain for v1 compatibility — prefer the tools above. Details: [MVP spec](docs/MVP.md).
 
 ### MCP App in Cursor
 
@@ -110,9 +114,10 @@ This starts:
 
 ### Connect your agent
 
-1. **Set up decks** at `http://localhost:3000` — add MCP servers, create decks, activate one
+1. **Set up decks** at `http://localhost:3000` — register MCPs/API keys, build a deck, copy `deck.yaml` into your repo
 2. **Add MCP** in Cursor (Settings → Tools & MCP) or use [`.cursor/mcp.json`](.cursor/mcp.json)
-3. **Try the MCP App** — ask *"Show my Agent Deck"*
+3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
+4. **Try the MCP App** — ask *"Show my Agent Deck"*
 
 
 ## Documentation
@@ -125,7 +130,9 @@ This starts:
 | [Cursor Plugin](docs/CURSOR_PLUGIN.md) | Marketplace plugin & skill |
 | [MCP Registry](docs/MCP_REGISTRY.md) | Publish to official registry |
 | [Architecture](docs/ARCHITECTURE.md) | Technical design |
-| [MVP](docs/MVP.md) | v2 MVP spec — vault, playbooks, repo deck (Modules 1–3) |
+| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck (Modules 1–3, as-built) |
+| [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
+| [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
 | [Integration](docs/INTEGRATION.md) | MCP client integration |
 
 ## Discoverability

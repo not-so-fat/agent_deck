@@ -11,7 +11,13 @@ import { registerOAuthRoutes } from '../routes/oauth';
 import { registerWebSocketRoutes } from '../routes/websocket';
 import mcpRoutes from '../routes/mcp';
 import { registerLocalMCPRoutes } from '../routes/local-mcp';
+import { registerCredentialRoutes } from '../routes/credentials';
+import { registerScopeRoutes } from '../routes/scope';
+import { registerPlaybookRoutes } from '../routes/playbooks';
 import { ServiceStatusUpdate, DeckUpdate, WebSocketMessage } from '@agent-deck/shared';
+import { createSecretStore, CredentialManager } from '../vault';
+import { resolveDatabasePath } from '../lib/paths';
+import { PlaybookManager } from '../playbooks/playbook-manager';
 
 export async function createServer() {
   const fastify = Fastify({
@@ -29,15 +35,20 @@ export async function createServer() {
   await fastify.register(websocket);
 
   // Initialize services
-  const db = new DatabaseManager();
+  const db = new DatabaseManager(resolveDatabasePath());
   const mcpClient = new MCPClientManager();
   const oauthManager = new OAuthManager(db);
   const serviceManager = new ServiceManager(db, mcpClient, oauthManager);
+  const credentialManager = new CredentialManager(db, createSecretStore());
+  const playbookManager = new PlaybookManager(db);
 
   // Register routes
   await fastify.register(registerWebSocketRoutes, { prefix: '/api/ws' });
   await fastify.register(registerServiceRoutes, { prefix: '/api/services' });
   await fastify.register(registerDeckRoutes, { prefix: '/api/decks' });
+  await fastify.register(registerCredentialRoutes, { prefix: '/api/credentials' });
+  await fastify.register(registerScopeRoutes, { prefix: '/api/scope' });
+  await fastify.register(registerPlaybookRoutes, { prefix: '/api/playbooks' });
   await fastify.register(registerOAuthRoutes, { prefix: '/api/oauth' });
   await fastify.register(mcpRoutes, { prefix: '/api/mcp' });
   await fastify.register(registerLocalMCPRoutes, { prefix: '/api/local-mcp' });
@@ -61,6 +72,8 @@ export async function createServer() {
   fastify.decorate('serviceManager', serviceManager);
   fastify.decorate('mcpClient', mcpClient);
   fastify.decorate('oauthManager', oauthManager);
+  fastify.decorate('credentialManager', credentialManager);
+  fastify.decorate('playbookManager', playbookManager);
 
   // Add broadcast decorators for WebSocket functionality
   fastify.decorate('broadcastServiceUpdate', (update: ServiceStatusUpdate) => {
@@ -88,6 +101,8 @@ declare module 'fastify' {
     serviceManager: ServiceManager;
     mcpClient: MCPClientManager;
     oauthManager: OAuthManager;
+    credentialManager: CredentialManager;
+    playbookManager: PlaybookManager;
     broadcastServiceUpdate: (update: ServiceStatusUpdate) => void;
     broadcastDeckUpdate: (update: DeckUpdate) => void;
     broadcastToAll: (message: WebSocketMessage) => void;

@@ -1,0 +1,190 @@
+import fs from 'fs/promises';
+import path from 'path';
+import { getAgentDeckHome } from './yaml-sync';
+
+export interface SecretStore {
+  set(account: string, value: string): Promise<void>;
+  get(account: string): Promise<string | null>;
+  delete(account: string): Promise<void>;
+  has(account: string): Promise<boolean>;
+}
+
+export class VaultUnsupportedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'VaultUnsupportedError';
+  }
+}
+
+export class MemorySecretStore implements SecretStore {
+  private secrets = new Map<string, string>();
+
+  async set(account: string, value: string): Promise<void> {
+    this.secrets.set(account, value);
+  }
+
+  async get(account: string): Promise<string | null> {
+    return this.secrets.get(account) ?? null;
+  }
+
+  async delete(account: string): Promise<void> {
+    this.secrets.delete(account);
+  }
+
+  async has(account: string): Promise<boolean> {
+    return this.secrets.has(account);
+  }
+}
+
+export class DevFileSecretStore implements SecretStore {
+  private readonly secretsDir: string;
+
+  constructor(secretsDir?: string) {
+    this.secretsDir = secretsDir ?? path.join(getAgentDeckHome(), 'secrets');
+  }
+
+  private secretPath(account: string): string {
+    return path.join(this.secretsDir, `${account}.secret`);
+  }
+
+  private async ensureDir(): Promise<void> {
+    await fs.mkdir(this.secretsDir, { recursive: true, mode: 0o700 });
+  }
+
+  async set(account: string, value: string): Promise<void> {
+    await this.ensureDir();
+    await fs.writeFile(this.secretPath(account), value, { encoding: 'utf8', mode: 0o600 });
+  }
+
+  async get(account: string): Promise<string | null> {
+    try {
+      return await fs.readFile(this.secretPath(account), 'utf8');
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async delete(account: string): Promise<void> {
+    try {
+      await fs.unlink(this.secretPath(account));
+    } catch (error: unknown) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+  }
+
+  async has(account: string): Promise<boolean> {
+    try {
+      await fs.access(this.secretPath(account));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+export class MacOSKeychainStore implements SecretStore {
+  private readonly serviceName = 'agent-deck';
+
+  private async runSecurity(args: string[]): Promise<{ stdout: string; stderr: string }> {
+    const { execFile } = await import('child_process');
+    const { promisify } = await import('util');
+    const execFileAsync = promisify(execFile);
+
+    try {
+      const result = await execFileAsync('security', args, { encoding: 'utf8' as BufferEncoding });
+      return {
+        stdout: String(result.stdout ?? ''),
+        stderr: String(result.stderr ?? ''),
+      };
+    } catch (error: unknown) {
+      const execError = error as { stdout?: unknown; stderr?: unknown; message?: string };
+      const stderr = String(execError.stderr ?? execError.message ?? 'Keychain operation failed');
+      const wrapped = new Error(stderr.trim() || 'Keychain operation failed');
+      throw wrapped;
+    }
+  }
+
+  async set(account: string, value: string): Promise<void> {
+    try {
+      await this.runSecurity([
+        'delete-generic-password',
+        '-s',
+        this.serviceName,
+        '-a',
+        account,
+      ]);
+    } catch {
+      // Item may not exist yet.
+    }
+
+    await this.runSecurity([
+      'add-generic-password',
+      '-s',
+      this.serviceName,
+      '-a',
+      account,
+      '-w',
+      value,
+      '-U',
+    ]);
+  }
+
+  async get(account: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.runSecurity([
+        'find-generic-password',
+        '-s',
+        this.serviceName,
+        '-a',
+        account,
+        '-w',
+      ]);
+      return stdout.trim();
+    } catch {
+      return null;
+    }
+  }
+
+  async delete(account: string): Promise<void> {
+    await this.runSecurity([
+      'delete-generic-password',
+      '-s',
+      this.serviceName,
+      '-a',
+      account,
+    ]);
+  }
+
+  async has(account: string): Promise<boolean> {
+    const value = await this.get(account);
+    return value !== null;
+  }
+}
+
+export function createSecretStore(): SecretStore {
+  if (process.env.AGENT_DECK_SECRET_STORE === 'memory') {
+    return new DevFileSecretStore();
+  }
+
+  if (process.platform === 'darwin') {
+    return new MacOSKeychainStore();
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      '[agent-deck] macOS Keychain unavailable — using dev file secret store (~/.agent-deck/secrets).',
+    );
+    return new DevFileSecretStore();
+  }
+
+  throw new VaultUnsupportedError(
+    'Secret storage is only supported on macOS for now. Set AGENT_DECK_SECRET_STORE=memory to use the dev file store on other platforms.',
+  );
+}

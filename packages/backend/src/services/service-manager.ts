@@ -13,6 +13,11 @@ import { DatabaseManager } from '../models/database';
 import { MCPClientManager } from './mcp-client-manager';
 import { OAuthManager } from './oauth-manager';
 import { ConfigManager } from './config-manager';
+import {
+  cacheIconForService,
+  getServiceIconPath,
+  serviceIconApiPath,
+} from './icon-resolver';
 
 interface A2AManifest {
   endpoints?: Record<string, A2AEndpoint>;
@@ -73,7 +78,31 @@ export class ServiceManager {
       }
     }
     
+    void this.refreshServiceIcon(service.id).catch((error) => {
+      console.warn(`Failed to resolve icon for service ${service.name}:`, error);
+    });
+    
     return service;
+  }
+
+  async refreshServiceIcon(serviceId: string): Promise<Service | null> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      return null;
+    }
+
+    if (service.type === 'local-mcp' || service.url.startsWith('local://')) {
+      return service;
+    }
+
+    const result = await cacheIconForService(serviceId, service.url);
+    if (!result.iconPath) {
+      return service;
+    }
+
+    return await this.db.updateService(serviceId, {
+      iconUrl: serviceIconApiPath(serviceId),
+    });
   }
 
   async getService(id: string): Promise<Service | null> {
@@ -105,11 +134,18 @@ export class ServiceManager {
         await this.stopLocalServer(id);
       } catch (error) {
         console.warn(`⚠️ Failed to stop local MCP server ${service.name}:`, error);
-        // Continue with deletion even if stopping fails
       }
     }
+
+    const dependents = await this.db.getPlaybooksDependingOnService(id);
+    if (dependents.length > 0) {
+      const { PlaybookDependencyError } = await import('../playbooks/playbook-manager');
+      throw new PlaybookDependencyError(
+        `Cannot delete MCP "${service.name}": referenced by playbook(s): ${dependents.map((p) => p.title).join(', ')}`,
+        dependents.map(({ id: playbookId, title }) => ({ id: playbookId, title })),
+      );
+    }
     
-    // Delete the service from database
     return await this.db.deleteService(id);
   }
 

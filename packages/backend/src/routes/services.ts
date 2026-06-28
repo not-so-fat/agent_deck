@@ -1,4 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import fs from 'node:fs/promises';
+import { getServiceIconPath } from '../services/icon-resolver';
 import { 
   CreateServiceInput, 
   UpdateServiceInput,
@@ -24,6 +26,19 @@ interface ServiceCallRequest {
 
 interface ServiceIdRequest {
   Params: { id: string };
+}
+
+function mimeFromIconBuffer(buffer: Buffer): string {
+  if (buffer[0] === 0x89 && buffer[1] === 0x50) {
+    return 'image/png';
+  }
+  if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+    return 'image/jpeg';
+  }
+  if (buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0x00) {
+    return 'image/x-icon';
+  }
+  return 'application/octet-stream';
 }
 
 export async function registerServiceRoutes(fastify: FastifyInstance) {
@@ -65,6 +80,49 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
         error: error instanceof Error ? error.message : 'Unknown error',
       };
       
+      return reply.status(500).send(response);
+    }
+  });
+
+  // Cached service icon (must be registered before /:id)
+  fastify.get<ServiceIdRequest>('/:id/icon', async (request, reply) => {
+    try {
+      const iconPath = getServiceIconPath(request.params.id);
+      const buffer = await fs.readFile(iconPath);
+      return reply.type(mimeFromIconBuffer(buffer)).send(buffer);
+    } catch {
+      return reply.status(404).send({
+        success: false,
+        error: 'Icon not found',
+      });
+    }
+  });
+
+  // Refresh favicon for a service
+  fastify.post<ServiceIdRequest>('/:id/refresh-icon', async (request, reply) => {
+    try {
+      const service = await fastify.serviceManager.refreshServiceIcon(request.params.id);
+
+      if (!service) {
+        const response: ApiResponse = {
+          success: false,
+          error: 'Service not found',
+        };
+        return reply.status(404).send(response);
+      }
+
+      const response: ApiResponse<Service> = {
+        success: true,
+        data: service,
+      };
+
+      return reply.send(response);
+    } catch (error) {
+      const response: ApiResponse = {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+
       return reply.status(500).send(response);
     }
   });
@@ -150,6 +208,14 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
       
       return reply.send(response);
     } catch (error) {
+      if (error instanceof Error && error.name === 'PlaybookDependencyError') {
+        const dependencyError = error as import('../playbooks/playbook-manager').PlaybookDependencyError;
+        return reply.status(409).send({
+          success: false,
+          error: dependencyError.message,
+          data: dependencyError.dependents,
+        } satisfies ApiResponse);
+      }
       const response: ApiResponse = {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',

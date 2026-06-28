@@ -1,0 +1,26 @@
+{
+  "name": "@agent-deck/cli",
+  "version": "1.0.0",
+  "description": "Agent Deck CLI — credential vault and exec",
+  "bin": {
+    "agent-deck": "./bin/agent-deck"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "node -e \"console.log('CLI runs via tsx')\"",
+    "dev": "tsx src/bin.ts",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit --skipLibCheck",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@agent-deck/shared": "file:../shared",
+    "better-sqlite3": "^9.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.1"
+  }
+}

@@ -1,11 +1,15 @@
 import { memo } from "react";
+import type { CollectionCardWarning } from "@/lib/collection-warnings";
 import { Service, Deck } from "@agent-deck/shared";
+import { getServiceCardColor } from "@/lib/card-colors";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2 } from "lucide-react";
 import agentIconUrl from "@/assets/icons/Agent2.svg";
+import { getServiceIconSrc } from "@/lib/service-icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import CardWarningBadge from "@/components/card-warning-badge";
 
 interface CardComponentProps {
   service: Service;
@@ -13,16 +17,28 @@ interface CardComponentProps {
   onDragEnd: (e: React.DragEvent) => void;
   isInActiveDeck: boolean;
   onCardClick?: (service: Service) => void;
-  isInCollection?: boolean; // New prop to identify if card is in collection view
+  isInCollection?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
-  activeDeck?: Deck; // Add activeDeck prop
+  activeDeck?: Deck;
+  warnings?: CollectionCardWarning[];
 }
 
-
-
 const getServiceIcon = (service: Service) => {
-  const color = service.cardColor || '#7ed4da';
+  const color = getServiceCardColor(service);
+  const iconSrc = getServiceIconSrc(service);
+
+  if (iconSrc) {
+    return (
+      <img
+        src={iconSrc}
+        alt=""
+        className="w-7 h-7 object-contain rounded-sm"
+        draggable={false}
+      />
+    );
+  }
+
   return (
     <div
       style={{
@@ -36,26 +52,35 @@ const getServiceIcon = (service: Service) => {
   );
 };
 
-
-
-function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCardClick, isInCollection = false, onMouseEnter, onMouseLeave, activeDeck }: CardComponentProps) {
+function CardComponent({
+  service,
+  onDragStart,
+  onDragEnd,
+  isInActiveDeck,
+  onCardClick,
+  isInCollection = false,
+  onMouseEnter,
+  onMouseLeave,
+  activeDeck,
+  warnings,
+}: CardComponentProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const cardColor = getServiceCardColor(service);
 
   const addToDeckMutation = useMutation({
     mutationFn: async () => {
       if (!activeDeck) {
-        throw new Error('No active deck found');
+        throw new Error("No active deck found");
       }
 
-      return apiRequest('POST', `/api/decks/${activeDeck.id}/services`, {
+      return apiRequest("POST", `/api/decks/${activeDeck.id}/services`, {
         serviceId: service.id,
-        position: 0, // Add to the end
+        position: 0,
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
       toast({
         title: "Service added to deck",
         description: `${service.name} has been added to your active deck.`,
@@ -71,13 +96,10 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
   });
 
   const deleteServiceMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest('DELETE', `/api/services/${service.id}`, {});
-    },
+    mutationFn: async () => apiRequest("DELETE", `/api/services/${service.id}`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+      queryClient.invalidateQueries({ queryKey: ["/api/services"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
       toast({
         title: "Service deleted",
         description: `${service.name} has been deleted successfully.`,
@@ -106,7 +128,7 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
 
   return (
     <div
-      className={`relative group cursor-pointer`}
+      className="relative group cursor-pointer"
       draggable={!isInActiveDeck}
       onDragStart={(e) => onDragStart(e, service)}
       onDragEnd={onDragEnd}
@@ -115,38 +137,34 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <div className={`
+      <div
+        className={`
         w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 
         transform transition-all duration-300 shadow-lg hover:shadow-2xl
         bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900
         relative overflow-hidden
-        ${isInActiveDeck ? 'opacity-60' : ''}
-        ${isInCollection ? 'hover:scale-110 hover:rotate-0' : 'hover:scale-105'}
+        ${isInActiveDeck ? "opacity-60" : ""}
+        ${isInCollection ? "hover:scale-110 hover:rotate-0" : "hover:scale-105"}
       `}
-      style={{
-        borderColor: service.cardColor || '#7ed4da',
-        boxShadow: `0 0 20px ${service.cardColor ? `${service.cardColor}20` : '#7ed4da20'}`
-      }}>
-        
-        {/* Playing Card Corner - Top Left */}
-        <div className="absolute top-1 left-1 text-xs font-bold">
-          <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-            {service.type === 'mcp' ? 'RM' : 
-             service.type === 'local-mcp' ? 'LM' : 'A'}
-          </div>
-        </div>
-        
-        {/* Playing Card Corner - Bottom Right (upside down) */}
-        <div className="absolute bottom-1 right-1 text-xs font-bold rotate-180">
-          <div className="leading-none" style={{ color: service.cardColor || '#7ed4da' }}>
-            {service.type === 'mcp' ? 'RM' : 
-             service.type === 'local-mcp' ? 'LM' : 'A'}
-          </div>
-        </div>
-        
+        style={{
+          borderColor: cardColor,
+          boxShadow: `0 0 20px ${cardColor}20`,
+        }}
+      >
+        <CardWarningBadge warnings={warnings} />
 
-        
-        {/* Delete Button Overlay */}
+        <div className="absolute top-1 left-1 text-xs font-bold">
+          <div className="leading-none" style={{ color: cardColor }}>
+            {service.type === "mcp" ? "RM" : service.type === "local-mcp" ? "LM" : "A"}
+          </div>
+        </div>
+
+        <div className="absolute bottom-1 right-1 text-xs font-bold rotate-180">
+          <div className="leading-none" style={{ color: cardColor }}>
+            {service.type === "mcp" ? "RM" : service.type === "local-mcp" ? "LM" : "A"}
+          </div>
+        </div>
+
         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
           <Button
             size="sm"
@@ -158,55 +176,46 @@ function CardComponent({ service, onDragStart, onDragEnd, isInActiveDeck, onCard
             <Trash2 className="w-3 h-3" />
           </Button>
         </div>
-        
-        {/* Card Center Content */}
+
         <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
-          {/* Main Icon */}
-          <div className="mb-2" style={{ color: service.cardColor || '#7ed4da' }}>
+          <div className="mb-2" style={{ color: cardColor }}>
             {getServiceIcon(service)}
           </div>
-          
-          {/* Service Name */}
-          <h3 
-            className="font-bold text-xs mb-1 line-clamp-2" 
+
+          <h3
+            className="font-bold text-xs mb-1 line-clamp-2"
             data-testid={`text-service-name-${service.id}`}
-            style={{ color: service.cardColor || '#7ed4da' }}
+            style={{ color: cardColor }}
           >
             {service.name}
           </h3>
-          
-          {/* Service Type Badge */}
-          <div className="text-[8px] px-1 py-0.5 rounded border opacity-70" style={{ 
-            color: service.cardColor || '#7ed4da',
-            borderColor: service.cardColor || '#7ed4da'
-          }}>
-            {service.type === 'mcp' ? 'Remote MCP' : 
-             service.type === 'local-mcp' ? 'Local MCP' : 
-             'A2A'}
-          </div>
-          
 
+          <div
+            className="text-[8px] px-1 py-0.5 rounded border opacity-70"
+            style={{ color: cardColor, borderColor: cardColor }}
+          >
+            {service.type === "mcp"
+              ? "Remote MCP"
+              : service.type === "local-mcp"
+                ? "Local MCP"
+                : "A2A"}
+          </div>
         </div>
-        
-        {/* Bottom Action Area */}
+
         <div className="absolute bottom-6 inset-x-1">
           <Button
             size="sm"
             className="w-full text-[8px] px-1 py-1 h-5 bg-black/20 hover:bg-black/40 border"
-            style={{
-              color: service.cardColor || '#7ed4da',
-              borderColor: service.cardColor || '#7ed4da'
-            }}
+            style={{ color: cardColor, borderColor: cardColor }}
             onClick={handleAddToDeck}
             disabled={isInActiveDeck || addToDeckMutation.isPending}
             data-testid={`button-add-to-deck-${service.id}`}
           >
-            {isInActiveDeck ? 'IN DECK' : 'ADD'}
+            {isInActiveDeck ? "IN DECK" : "ADD"}
           </Button>
         </div>
-        
-        {/* Cyberpunk Glow Effect */}
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none"></div>
+
+        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none" />
       </div>
     </div>
   );

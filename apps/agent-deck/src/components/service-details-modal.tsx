@@ -382,7 +382,7 @@ export default function ServiceDetailsModal({
         // Invalidate queries to refresh the UI
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         
         toast({
           title: "Color updated",
@@ -424,7 +424,7 @@ export default function ServiceDetailsModal({
         
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         
         toast({
           title: "Name updated",
@@ -464,7 +464,7 @@ export default function ServiceDetailsModal({
         
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
         queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
         
         toast({
           title: "Description updated",

@@ -1,8 +1,26 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { z } from "zod";
+import {
+  AGENT_DECK_AGENT_CLIENT,
+  AGENT_DECK_CLIENT_HEADER,
+  AGENT_DECK_WORKSPACE_HEADER,
+} from '@agent-deck/shared';
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { z } from 'zod';
+import {
+  formatRepoDeckManifest,
+  loadRepoDeckManifest,
+  repoDeckManifestFilePath,
+} from './scope/repo-deck';
+import { REPO_DECK_MANIFEST_PATH } from '@agent-deck/shared';
+
+const agentClientHeaders = {
+  [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
+  Accept: 'application/json',
+};
 
 export class AgentDeckMCPServer {
   private port: number;
@@ -10,6 +28,9 @@ export class AgentDeckMCPServer {
   private transport: StreamableHTTPServerTransport;
   private app: express.Application;
   private backendUrl: string;
+  /** Workspace root per MCP session → resolves `.agent-deck/deck.yaml`. */
+  private workspaceBySession = new Map<string, string>();
+  private activeSessionId: string | undefined;
 
   constructor(port: number = 3001, backendUrl: string = 'http://localhost:8000') {
     this.port = port;
@@ -34,13 +55,49 @@ export class AgentDeckMCPServer {
     this.setupTools();
     this.setupResources();
     this.setupRoutes();
+
+    const envWorkspace = process.env.AGENT_DECK_WORKSPACE?.trim();
+    if (envWorkspace) {
+      this.workspaceBySession.set('default', envWorkspace);
+    }
   }
 
-  private async callBackendAPI(endpoint: string): Promise<any> {
+  private getSessionId(): string {
+    return this.activeSessionId ?? 'default';
+  }
+
+  private getBoundWorkspace(): string | undefined {
+    const sessionId = this.getSessionId();
+    return this.workspaceBySession.get(sessionId) ?? process.env.AGENT_DECK_WORKSPACE?.trim();
+  }
+
+  private getAgentHeaders(): Record<string, string> {
+    const workspace = this.getBoundWorkspace();
+    return {
+      ...agentClientHeaders,
+      ...(workspace ? { [AGENT_DECK_WORKSPACE_HEADER]: workspace } : {}),
+    };
+  }
+
+  private async callBackendAPI(endpoint: string, init: RequestInit = {}): Promise<any> {
     try {
-      const response = await fetch(`${this.backendUrl}${endpoint}`);
+      const response = await fetch(`${this.backendUrl}${endpoint}`, {
+        ...init,
+        headers: {
+          ...this.getAgentHeaders(),
+          ...(init.headers ?? {}),
+        },
+      });
       if (!response.ok) {
-        throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+        const text = await response.text();
+        let message = `Backend API error: ${response.status} ${response.statusText}`;
+        try {
+          const body = JSON.parse(text);
+          if (body.error) message = String(body.error);
+        } catch {
+          if (text.trim()) message = text;
+        }
+        throw new Error(message);
       }
       const body = await response.json();
 
@@ -63,7 +120,222 @@ export class AgentDeckMCPServer {
   }
 
   private setupTools() {
-    // Get all decks (useful for seeing available decks)
+    this.server.registerTool("bind_workspace", {
+      title: "Bind Workspace",
+      description:
+        "Bind an MCP session to a repo workspace root. Reads .agent-deck/deck.yaml to resolve the deck for this project.",
+      inputSchema: { workspaceRoot: z.string() },
+    }, async ({ workspaceRoot }) => {
+      try {
+        const sessionId = this.getSessionId();
+        this.workspaceBySession.set(sessionId, workspaceRoot);
+
+        const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
+          method: 'POST',
+          headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceRoot }),
+        });
+        const body = (await resolved.json()) as {
+          success: boolean;
+          error?: string;
+          data?: {
+            manifestPath: string;
+            manifest: { deck_id: string };
+            deck: { name: string };
+          };
+        };
+        if (!body.success || !body.data) {
+          throw new Error(body.error ?? 'Failed to resolve workspace deck');
+        }
+
+        const { data } = body;
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              workspaceRoot,
+              manifestPath: data.manifestPath,
+              deck_id: data.manifest.deck_id,
+              deck_name: data.deck.name,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        const message = String(error);
+        const hint = message.includes('deck.yaml')
+          ? ' Call setup_repo_deck with workspaceRoot and deckId to create .agent-deck/deck.yaml, or get_repo_deck_status to diagnose.'
+          : '';
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: message + hint }, null, 2) }],
+        };
+      }
+    });
+
+    this.server.registerTool("get_repo_deck_status", {
+      title: "Get Repo Deck Status",
+      description:
+        "Check whether .agent-deck/deck.yaml exists in a workspace and whether it links to a valid deck",
+      inputSchema: { workspaceRoot: z.string() },
+    }, async ({ workspaceRoot }) => {
+      try {
+        const filePath = repoDeckManifestFilePath(workspaceRoot);
+        const manifest = await loadRepoDeckManifest(workspaceRoot);
+
+        if (!manifest) {
+          const decks = await this.callBackendAPI('/api/decks');
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                status: 'missing',
+                workspaceRoot,
+                expectedPath: REPO_DECK_MANIFEST_PATH,
+                message: 'No .agent-deck/deck.yaml found. Use setup_repo_deck to create one.',
+                availableDecks: Array.isArray(decks)
+                  ? decks.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name }))
+                  : decks,
+              }, null, 2),
+            }],
+          };
+        }
+
+        const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
+          method: 'POST',
+          headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceRoot }),
+        });
+        const body = (await resolved.json()) as {
+          success: boolean;
+          error?: string;
+          data?: { manifest: { deck_id: string; name?: string }; deck: { name: string } };
+        };
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              status: body.success ? 'ok' : 'invalid',
+              workspaceRoot,
+              filePath,
+              manifest,
+              deck: body.data?.deck,
+              error: body.success ? undefined : body.error,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
+        };
+      }
+    });
+
+    this.server.registerTool("setup_repo_deck", {
+      title: "Setup Repo Deck",
+      description:
+        "Create or verify .agent-deck/deck.yaml in a repo. Links the workspace to an Agent Deck by deck_id. Optionally writes the file.",
+      inputSchema: {
+        workspaceRoot: z.string(),
+        deckId: z.string().uuid().optional(),
+        deckName: z.string().optional(),
+        writeFile: z.boolean().optional(),
+      },
+    }, async ({ workspaceRoot, deckId, deckName, writeFile = true }) => {
+      try {
+        const sessionId = this.getSessionId();
+        const existing = await loadRepoDeckManifest(workspaceRoot);
+
+        if (existing) {
+          this.workspaceBySession.set(sessionId, workspaceRoot);
+          const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
+            method: 'POST',
+            headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ workspaceRoot }),
+          });
+          const body = (await resolved.json()) as {
+            success: boolean;
+            error?: string;
+            data?: { manifestPath: string; manifest: { deck_id: string }; deck: { name: string } };
+          };
+          if (!body.success || !body.data) {
+            throw new Error(body.error ?? 'Existing manifest is invalid');
+          }
+
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                status: 'existing',
+                workspaceRoot,
+                manifestPath: body.data.manifestPath,
+                deck_id: body.data.manifest.deck_id,
+                deck_name: body.data.deck.name,
+                message: 'Workspace already linked. Session bound to this deck.',
+              }, null, 2),
+            }],
+          };
+        }
+
+        if (!deckId) {
+          const decks = await this.callBackendAPI('/api/decks');
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                status: 'needs_deck_id',
+                workspaceRoot,
+                expectedPath: REPO_DECK_MANIFEST_PATH,
+                message:
+                  'Pick a deck id from the dashboard (My Decks → copy icon) and call setup_repo_deck again with deckId.',
+                availableDecks: Array.isArray(decks)
+                  ? decks.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name }))
+                  : decks,
+              }, null, 2),
+            }],
+          };
+        }
+
+        const deck = await this.callBackendAPI(`/api/decks/${deckId}`);
+        if (!deck?.id) {
+          throw new Error(`Deck not found: ${deckId}`);
+        }
+
+        const content = formatRepoDeckManifest(deckId, deckName ?? deck.name);
+        const dirPath = path.join(path.resolve(workspaceRoot), '.agent-deck');
+        const filePath = repoDeckManifestFilePath(workspaceRoot);
+
+        if (writeFile) {
+          await fs.mkdir(dirPath, { recursive: true });
+          await fs.writeFile(filePath, content, 'utf8');
+        }
+
+        this.workspaceBySession.set(sessionId, workspaceRoot);
+
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              status: writeFile ? 'created' : 'preview',
+              workspaceRoot,
+              filePath,
+              deck_id: deckId,
+              deck_name: deck.name,
+              manifestContent: content,
+              message: writeFile
+                ? 'Created .agent-deck/deck.yaml and bound this session to the deck.'
+                : 'Preview only — set writeFile true to write the file.',
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
+        };
+      }
+    });
+
+    // Get all decks (metadata only; credentials stripped unless bound)
     this.server.registerTool("get_decks", {
       title: "Get Decks",
       description: "Get all available decks from Agent Deck",
@@ -81,40 +353,203 @@ export class AgentDeckMCPServer {
       }
     });
 
-    // Get active deck with its services
-    this.server.registerTool("get_active_deck", {
-      title: "Get Active Deck",
-      description: "Get the currently active deck with all its services",
-      inputSchema: {}
+    this.server.registerTool("get_bound_deck", {
+      title: "Get Bound Deck",
+      description:
+        "Get the deck bound to this session via bind_workspace or AGENT_DECK_WORKSPACE (.agent-deck/deck.yaml)",
+      inputSchema: {},
     }, async () => {
       try {
-        const activeDeck = await this.callBackendAPI('/api/decks/active');
+        const deck = await this.callBackendAPI('/api/scope/deck');
         return {
-          content: [{ type: "text", text: JSON.stringify(activeDeck, null, 2) }]
+          content: [{ type: "text", text: JSON.stringify(deck, null, 2) }],
         };
       } catch (error) {
         return {
-          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }]
+          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
         };
       }
     });
 
-    // List services in the active deck
-    this.server.registerTool("list_active_deck_services", {
-      title: "List Active Deck Services",
-      description: "List all services in the currently active deck",
-      inputSchema: {}
+    // Deprecated alias
+    this.server.registerTool("get_active_deck", {
+      title: "Get Active Deck (deprecated)",
+      description: "Deprecated — use get_bound_deck. Returns the workspace-bound deck.",
+      inputSchema: {},
     }, async () => {
       try {
-        const activeDeck = await this.callBackendAPI('/api/decks/active');
-        const services = activeDeck?.services ?? [];
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        return {
+          content: [{ type: "text", text: JSON.stringify(deck, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
+        };
+      }
+    });
+
+    this.server.registerTool("list_bound_deck_services", {
+      title: "List Bound Deck Services",
+      description: "List MCP services on the workspace-bound deck",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        const services = deck?.services ?? [];
         return { content: [{ type: "text", text: JSON.stringify(services, null, 2) }] };
       } catch (error) {
         return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
       }
     });
 
-    // List tools for a specific service in the active deck
+    this.server.registerTool("list_active_deck_services", {
+      title: "List Active Deck Services (deprecated)",
+      description: "Deprecated — use list_bound_deck_services",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        const services = deck?.services ?? [];
+        return { content: [{ type: "text", text: JSON.stringify(services, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("list_bound_deck_credentials", {
+      title: "List Bound Deck Credentials",
+      description: "List API key metadata on the workspace-bound deck",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const credentials = await this.callBackendAPI('/api/credentials');
+        return { content: [{ type: "text", text: JSON.stringify(credentials, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("list_active_deck_credentials", {
+      title: "List Active Deck Credentials (deprecated)",
+      description: "Deprecated — use list_bound_deck_credentials",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const credentials = await this.callBackendAPI('/api/credentials');
+        return { content: [{ type: "text", text: JSON.stringify(credentials, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("list_playbooks", {
+      title: "List Playbooks",
+      description: "List playbook cards on the bound deck (id, title, triggers)",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const playbooks = await this.callBackendAPI('/api/playbooks/summaries');
+        return { content: [{ type: "text", text: JSON.stringify(playbooks, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("get_playbook", {
+      title: "Get Playbook",
+      description: "Get full markdown body, metadata, and dependencies for a playbook card by id",
+      inputSchema: { playbook_id: z.string() },
+    }, async ({ playbook_id }) => {
+      try {
+        const playbook = await this.callBackendAPI(`/api/playbooks/${encodeURIComponent(playbook_id)}`);
+        return { content: [{ type: "text", text: JSON.stringify(playbook, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("register_playbook", {
+      title: "Register Playbook",
+      description:
+        "Create a playbook card, auto-detect API key and MCP dependencies from the content, and add it to the bound deck by default",
+      inputSchema: {
+        title: z.string(),
+        body: z.string(),
+        triggers: z.array(z.string()).optional(),
+        playbook_id: z.string().optional(),
+        exec: z.string().optional(),
+        skill: z.string().optional(),
+        depends_on_credential_ids: z.array(z.string()).optional(),
+        depends_on_service_ids: z.array(z.string()).optional(),
+        add_to_bound_deck: z.boolean().optional(),
+        auto_detect_dependencies: z.boolean().optional(),
+      },
+    }, async (args) => {
+      try {
+        const playbook = await this.callBackendAPI("/api/playbooks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: args.title,
+            body: args.body,
+            triggers: args.triggers,
+            id: args.playbook_id,
+            exec: args.exec,
+            skill: args.skill,
+            dependsOnCredentialIds: args.depends_on_credential_ids,
+            dependsOnServiceIds: args.depends_on_service_ids,
+            addToBoundDeck: args.add_to_bound_deck,
+            autoDetectDependencies: args.auto_detect_dependencies,
+          }),
+        });
+        return { content: [{ type: "text", text: JSON.stringify(playbook, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    this.server.registerTool("update_playbook", {
+      title: "Update Playbook",
+      description:
+        "Update a playbook on the bound deck. Dependencies are re-detected from the updated content by default.",
+      inputSchema: {
+        playbook_id: z.string(),
+        title: z.string().optional(),
+        body: z.string().optional(),
+        triggers: z.array(z.string()).optional(),
+        exec: z.string().optional(),
+        skill: z.string().optional(),
+        depends_on_credential_ids: z.array(z.string()).optional(),
+        depends_on_service_ids: z.array(z.string()).optional(),
+        auto_detect_dependencies: z.boolean().optional(),
+      },
+    }, async ({ playbook_id, ...args }) => {
+      try {
+        const playbook = await this.callBackendAPI(
+          `/api/playbooks/${encodeURIComponent(playbook_id)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: args.title,
+              body: args.body,
+              triggers: args.triggers,
+              exec: args.exec,
+              skill: args.skill,
+              dependsOnCredentialIds: args.depends_on_credential_ids,
+              dependsOnServiceIds: args.depends_on_service_ids,
+              autoDetectDependencies: args.auto_detect_dependencies,
+            }),
+          },
+        );
+        return { content: [{ type: "text", text: JSON.stringify(playbook, null, 2) }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }] };
+      }
+    });
+
+    // Remove duplicate old tools block - list_service_tools follows
     this.server.registerTool("list_service_tools", {
       title: "List Service Tools",
       description: "List all available tools for a specific service in the active deck",
@@ -151,7 +586,7 @@ export class AgentDeckMCPServer {
 
         const res = await fetch(`${this.backendUrl}/api/services/${serviceId}/call`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          headers: { ...this.getAgentHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ toolName, arguments: normalizedArgs ?? {} })
         });
         if (!res.ok) {
@@ -168,15 +603,41 @@ export class AgentDeckMCPServer {
   }
 
   private setupResources() {
-    // Register resource for active deck services only
-    this.server.resource("active_deck_services", "agent-deck://active-deck/services", {
-      name: "Active Deck Services",
-      description: "List of services in the currently active deck",
+    this.server.resource("bound_deck_services", "agent-deck://bound-deck/services", {
+      name: "Bound Deck Services",
+      description: "MCP services on the workspace-bound deck",
       mimeType: "application/json"
     }, async () => {
       try {
-        const activeDeck = await this.callBackendAPI('/api/decks/active');
-        const services = activeDeck?.services ?? [];
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        const services = deck?.services ?? [];
+        
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/services",
+            mimeType: "application/json",
+            text: JSON.stringify(services, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/services",
+            mimeType: "application/json",
+            text: JSON.stringify({ error: `Failed to get bound deck services: ${error}` }, null, 2)
+          }]
+        };
+      }
+    });
+
+    this.server.resource("active_deck_services", "agent-deck://active-deck/services", {
+      name: "Active Deck Services (deprecated)",
+      description: "Deprecated — use agent-deck://bound-deck/services",
+      mimeType: "application/json"
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        const services = deck?.services ?? [];
         
         return {
           contents: [{
@@ -190,26 +651,103 @@ export class AgentDeckMCPServer {
           contents: [{
             uri: "agent-deck://active-deck/services",
             mimeType: "application/json",
-            text: JSON.stringify({ error: `Failed to get active deck services: ${error}` }, null, 2)
+            text: JSON.stringify({ error: `Failed to get bound deck services: ${error}` }, null, 2)
           }]
         };
       }
     });
 
-    // Register resource for active deck
-    this.server.resource("active_deck", "agent-deck://active-deck", {
-      name: "Active Deck",
-      description: "The currently active deck with all its services",
+    this.server.resource("bound_deck_credentials", "agent-deck://bound-deck/credentials", {
+      name: "Bound Deck Credentials",
+      description: "API key metadata on the workspace-bound deck",
       mimeType: "application/json"
     }, async () => {
       try {
-        const activeDeck = await this.callBackendAPI('/api/decks/active');
+        const credentials = await this.callBackendAPI('/api/credentials');
+
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/credentials",
+            mimeType: "application/json",
+            text: JSON.stringify(credentials, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/credentials",
+            mimeType: "application/json",
+            text: JSON.stringify({ error: `Failed to get bound deck credentials: ${error}` }, null, 2)
+          }]
+        };
+      }
+    });
+
+    this.server.resource("active_deck_credentials", "agent-deck://active-deck/credentials", {
+      name: "Active Deck Credentials (deprecated)",
+      description: "Deprecated — use agent-deck://bound-deck/credentials",
+      mimeType: "application/json"
+    }, async () => {
+      try {
+        const credentials = await this.callBackendAPI('/api/credentials');
+
+        return {
+          contents: [{
+            uri: "agent-deck://active-deck/credentials",
+            mimeType: "application/json",
+            text: JSON.stringify(credentials, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://active-deck/credentials",
+            mimeType: "application/json",
+            text: JSON.stringify({ error: `Failed to get bound deck credentials: ${error}` }, null, 2)
+          }]
+        };
+      }
+    });
+
+    this.server.resource("bound_deck", "agent-deck://bound-deck", {
+      name: "Bound Deck",
+      description: "Deck bound via .agent-deck/deck.yaml in the workspace",
+      mimeType: "application/json"
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck",
+            mimeType: "application/json",
+            text: JSON.stringify(deck, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck",
+            mimeType: "application/json",
+            text: JSON.stringify({ error: `Failed to get bound deck: ${error}` }, null, 2)
+          }]
+        };
+      }
+    });
+
+    this.server.resource("active_deck", "agent-deck://active-deck", {
+      name: "Active Deck (deprecated)",
+      description: "Deprecated — use agent-deck://bound-deck",
+      mimeType: "application/json"
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
         
         return {
           contents: [{
             uri: "agent-deck://active-deck",
             mimeType: "application/json",
-            text: JSON.stringify(activeDeck, null, 2)
+            text: JSON.stringify(deck, null, 2)
           }]
         };
       } catch (error) {
@@ -217,7 +755,7 @@ export class AgentDeckMCPServer {
           contents: [{
             uri: "agent-deck://active-deck",
             mimeType: "application/json",
-            text: JSON.stringify({ error: `Failed to get active deck: ${error}` }, null, 2)
+            text: JSON.stringify({ error: `Failed to get bound deck: ${error}` }, null, 2)
           }]
         };
       }
@@ -254,6 +792,8 @@ export class AgentDeckMCPServer {
   private setupRoutes() {
     // Handle MCP requests
     this.app.post('/mcp', async (req: Request, res: Response) => {
+      const sessionHeader = req.headers['mcp-session-id'];
+      this.activeSessionId = typeof sessionHeader === 'string' ? sessionHeader : 'default';
       await this.transport.handleRequest(req, res, req.body);
     });
 
@@ -299,14 +839,16 @@ export class AgentDeckMCPServer {
       this.app.listen(this.port, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
-        console.log(`   - get_decks: Get all available decks`);
-        console.log(`   - get_active_deck: Get the currently active deck with services`);
-        console.log(`   - list_active_deck_services: List services in the active deck`);
+        console.log(`   - bind_workspace: Bind session to repo via .agent-deck/deck.yaml`);
+        console.log(`   - get_repo_deck_status: Check repo deck manifest`);
+        console.log(`   - setup_repo_deck: Create .agent-deck/deck.yaml for a repo`);
+        console.log(`   - get_bound_deck: Get workspace-bound deck`);
         console.log(`   - list_service_tools: List tools for a specific service`);
         console.log(`   - call_service_tool: Call a tool on a service`);
         console.log(`📋 Available resources:`);
         console.log(`   - agent-deck://decks: List of all available decks`);
         console.log(`   - agent-deck://active-deck: The currently active deck`);
+        console.log(`   - agent-deck://active-deck/credentials: API keys on the active deck`);
         console.log(`   - agent-deck://active-deck/services: Services in the active deck`);
         console.log(`🌐 Server running on http://localhost:${this.port}`);
         console.log(`🔧 MCP endpoint: http://localhost:${this.port}/mcp`);

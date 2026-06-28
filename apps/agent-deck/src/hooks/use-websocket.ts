@@ -37,7 +37,7 @@ export function useWebSocket() {
               console.log('Received deck update:', message);
               // Invalidate deck queries to refresh the UI
               queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/decks/active'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
             } else if (message.type === 'service_update') {
               console.log('Received service update:', message);
               // Invalidate service queries to refresh the UI
