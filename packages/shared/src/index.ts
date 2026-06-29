@@ -21,6 +21,11 @@ export {
   type CollectionCardWarning,
   type CollectionWarningKind,
 } from './utils/collection-warnings';
+export {
+  normalizeLocalMcpManifestInput,
+  parseLocalMcpManifestJson,
+  stripJsonMarkdownFences,
+} from './utils/local-mcp-manifest';
 
 // Constants
 export {

@@ -9,7 +9,8 @@ import { Server, Bot, X, Plus, Terminal, AlertTriangle, CheckCircle } from "luci
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Service, parseLocalMcpManifestJson } from "@agent-deck/shared";
+import { Service } from "@agent-deck/shared";
+import { parseLocalMcpManifestJson } from "../../../../packages/shared/src/utils/local-mcp-manifest";
 import { MCP_CARD_COLOR, CARD_FACE_CLASS, cardAccentStyle } from "@/lib/card-colors";
 
 interface ServiceRegistrationModalProps {
