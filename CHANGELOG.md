@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.7 — 2026-06-29
+
+### Dashboard
+
+- **Fix:** Remote MCP registration headers JSON field was not editable (parse-on-keystroke); now accepts free typing with validation on register
+- Updated AgentDeckLogo3 header asset and regenerated `favicon.png` from the new logo
+
 ## 1.1.6 — 2026-06-28
 
 ### MCP & OAuth

@@ -63,9 +63,11 @@ export default function ServiceRegistrationModal({
     url: "http://localhost:8000/mcp",
     description: "",
     headers_enabled: false,
-    headers: {},
+    headers: {} as Record<string, string>,
     cardColor: MCP_CARD_COLOR,
   });
+  const [headersJson, setHeadersJson] = useState('{\n  \n}');
+  const [headersJsonError, setHeadersJsonError] = useState<string | null>(null);
 
   // Local MCP form data (for review stage)
   const [localFormData, setLocalFormData] = useState({
@@ -280,6 +282,19 @@ export default function ServiceRegistrationModal({
         });
         return;
       }
+
+      if (type === 'mcp' && activeTab === 'remote' && remoteFormData.headers_enabled) {
+        const parsedHeaders = parseHeadersJson();
+        if (parsedHeaders === null) {
+          return;
+        }
+        registerServiceMutation.mutate({
+          ...remoteFormData,
+          headers: parsedHeaders,
+        });
+        return;
+      }
+
       registerServiceMutation.mutate(currentFormData);
     }
   };
@@ -312,6 +327,8 @@ export default function ServiceRegistrationModal({
       headers: {},
       cardColor: MCP_CARD_COLOR,
     });
+    setHeadersJson('{\n  \n}');
+    setHeadersJsonError(null);
     setLocalFormData({
       name: "",
       type: 'local-mcp',
@@ -334,6 +351,41 @@ export default function ServiceRegistrationModal({
 
   const updateRemoteFormData = (field: string, value: any) => {
     setRemoteFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const setHeadersEnabled = (enabled: boolean) => {
+    updateRemoteFormData('headers_enabled', enabled);
+    if (enabled && headersJson.trim() === '{\n  \n}') {
+      setHeadersJson('{\n  "Authorization": "Bearer "\n}');
+    }
+    if (!enabled) {
+      setHeadersJsonError(null);
+    }
+  };
+
+  const parseHeadersJson = (): Record<string, string> | null => {
+    const trimmed = headersJson.trim();
+    if (!trimmed || trimmed === '{}') {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        setHeadersJsonError('Headers must be a JSON object (e.g. {"Authorization": "Bearer token"})');
+        return null;
+      }
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value !== 'string') {
+          setHeadersJsonError(`Header "${key}" must be a string value`);
+          return null;
+        }
+      }
+      setHeadersJsonError(null);
+      return parsed as Record<string, string>;
+    } catch {
+      setHeadersJsonError('Invalid JSON — fix syntax before registering');
+      return null;
+    }
   };
 
   const updateLocalFormData = (field: string, value: any) => {
@@ -821,7 +873,7 @@ export default function ServiceRegistrationModal({
                 type="checkbox"
                 id="headers_enabled"
                 checked={remoteFormData.headers_enabled}
-                onChange={(e) => updateRemoteFormData('headers_enabled', e.target.checked)}
+                onChange={(e) => setHeadersEnabled(e.target.checked)}
                 className="rounded border-white/20 bg-white/10"
               />
               <Label htmlFor="headers_enabled" className="text-sm font-semibold" style={{color: '#92E4DD'}}>
@@ -850,20 +902,28 @@ export default function ServiceRegistrationModal({
   "Authorization": "Bearer YOUR_TOKEN_HERE",
   "X-API-Key": "YOUR_API_KEY_HERE"
 }`}
-                    value={JSON.stringify(remoteFormData.headers, null, 2)}
+                    value={headersJson}
                     onChange={(e) => {
-                      try {
-                        const parsedHeaders = JSON.parse(e.target.value);
-                        updateRemoteFormData('headers', parsedHeaders);
-                      } catch (error) {
-                        // Keep the raw string if JSON is invalid
-                        console.warn('Invalid JSON in headers:', error);
+                      setHeadersJson(e.target.value);
+                      if (headersJsonError) {
+                        setHeadersJsonError(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (headersJson.trim()) {
+                        parseHeadersJson();
                       }
                     }}
                     rows={6}
                     className="bg-white/10 border-white/20 text-white placeholder-gray-400 resize-none font-mono text-xs"
                     data-testid="textarea-headers"
                   />
+                  {headersJsonError && (
+                    <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      {headersJsonError}
+                    </p>
+                  )}
                   <div className="text-xs text-gray-400 mt-1">
                     <p>Enter headers as JSON. Keys are header names, values are header values.</p>
                   </div>
