@@ -22,6 +22,23 @@ interface APIService {
   registeredAt: string;
   updatedAt: string;
   headers?: Record<string, any>;
+  localCommand?: string;
+  localArgs?: string[];
+  localEnv?: Record<string, string>;
+}
+
+function isGoogleDriveLocalMcp(service: APIService | null | undefined): boolean {
+  if (!service || service.type !== 'local-mcp') return false;
+  const haystack = [
+    service.localCommand,
+    ...(service.localArgs ?? []),
+    service.url,
+    service.name,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes('google-drive') || haystack.includes('google_drive');
 }
 
 interface ServiceDetailsModalProps {
@@ -823,11 +840,51 @@ export default function ServiceDetailsModal({
             )}
 
             {(service.type === 'mcp' || service.type === 'local-mcp') && (
+              <>
+            {service.type === 'local-mcp' && (
+              <div className="bg-cyan-500/15 border border-cyan-500/30 rounded-lg p-4 mb-4">
+                <h3 className="text-cyan-200 font-semibold mb-2">Local MCP — auth happens outside Agent Deck</h3>
+                <div className="text-cyan-100/90 text-sm space-y-2">
+                  {isGoogleDriveLocalMcp(apiService) ? (
+                    <>
+                      <p>
+                        This card runs <code className="text-xs">@piotr-agier/google-drive-mcp</code> on your machine.
+                        Agent Deck does <strong>not</strong> handle Google OAuth for it. If Google shows
+                        &quot;app not verified&quot;, that is <strong>your Google Cloud project</strong>, not Agent Deck.
+                      </p>
+                      <ol className="list-decimal list-inside space-y-1 ml-1">
+                        <li>Create a GCP OAuth client type <strong>Desktop app</strong> (not Web).</li>
+                        <li>Add yourself as a <strong>Test user</strong> on the consent screen.</li>
+                        <li>
+                          Run in terminal first:{' '}
+                          <code className="text-xs block mt-1 bg-black/30 p-2 rounded whitespace-pre-wrap">
+                            {`export GOOGLE_DRIVE_OAUTH_CREDENTIALS="/path/to/gcp-oauth.keys.json"\nexport GOOGLE_DRIVE_MCP_AUTH_PORT=3100\nnpx @piotr-agier/google-drive-mcp auth`}
+                          </code>
+                        </li>
+                        <li>
+                          Set <code className="text-xs">GOOGLE_DRIVE_MCP_TOKEN_PATH</code> in the card env to the
+                          same token file (<code className="text-xs">~/.config/google-drive-mcp/tokens.json</code>).
+                        </li>
+                      </ol>
+                      <p className="text-xs text-cyan-200/80">
+                        Full steps: <code className="text-xs">docs/GOOGLE_DRIVE_WORKAROUND.md</code> in the repo.
+                      </p>
+                    </>
+                  ) : (
+                    <p>
+                      Local servers manage their own credentials (API keys, OAuth, etc.) in the spawned process.
+                      Complete any login in the terminal or config for that package before expecting tools here.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
               <McpToolsPanel
                 serviceId={apiService.id}
                 tools={mcpTools}
                 isLoading={mcpToolsLoading}
               />
+              </>
             )}
 
             {/* A2A Agent Details - Playing Card Style */}
@@ -993,6 +1050,14 @@ export default function ServiceDetailsModal({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* OAuth not required — still show preset setup guide (e.g. Draw.io) */}
+            {service?.type === 'mcp' && oauthStatus.status === 'not_required' && apiService?.id && (
+              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4 mb-4">
+                <h3 className="text-blue-300 font-semibold mb-2">How to connect</h3>
+                <OAuthConnectPanel serviceId={apiService.id} />
               </div>
             )}
 

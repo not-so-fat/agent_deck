@@ -39,5 +39,31 @@ describe('oauth-provider-guides', () => {
     expect(inferOAuthProvider('https://calendarmcp.googleapis.com/mcp/v1')).toBe('google');
     expect(inferOAuthProvider('https://mcp.slack.com/mcp')).toBe('slack');
     expect(inferOAuthProvider('https://mcp.figma.com/mcp')).toBe('figma');
+    expect(inferOAuthProvider('https://mcp.draw.io/mcp')).toBe('drawio');
+    expect(inferOAuthProvider('https://api.githubcopilot.com/mcp/')).toBe('github');
+  });
+
+  it('documents GitHub MCP BYO OAuth path', () => {
+    const github = getOAuthProviderGuide('github');
+    expect(github.title).toBe('GitHub MCP');
+    expect(github.summary).toMatch(/any GitHub account/i);
+    expect(github.prerequisites?.some((p) => /OAuth App/i.test(p))).toBe(true);
+    expect(github.prerequisites?.some((p) => /Copilot subscription/i.test(p))).toBe(false);
+    expect(github.createAppUrl).toContain('github.com');
+    expect(github.steps.some((s) => s.includes('Authorization callback URL'))).toBe(true);
+    expect(github.tokenAlternative).toMatch(/PAT|Bearer/i);
+  });
+
+  it('uses informational mode for draw.io', () => {
+    expect(resolveOAuthSetupMode('drawio', false)).toBe('informational');
+    const drawio = getOAuthProviderGuide('drawio');
+    expect(drawio.setupMode).toBe('informational');
+    expect(drawio.steps.length).toBeGreaterThan(0);
+  });
+
+  it('tailors Google Drive steps and points to workaround', () => {
+    const drive = getOAuthProviderGuide('google', { serviceName: 'Google Drive' });
+    expect(drive.steps.some((s) => /drivemcp\.googleapis\.com/i.test(s))).toBe(true);
+    expect(drive.easierAlternative).toMatch(/GOOGLE_DRIVE_WORKAROUND/i);
   });
 });

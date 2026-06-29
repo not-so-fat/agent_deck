@@ -103,7 +103,7 @@ What **varies by vendor** is whether Agent Deck can use **Dynamic Client Registr
 | Provider | Remote MCP | Agent Deck needs | User needs (today) |
 |----------|------------|------------------|---------------------|
 | **GitHub** | Yes | OAuth app in GitHub settings; redirect URI registered | Create app or use PAT |
-| **Google** (Gmail, Calendar, Drive) | Yes | Google Cloud OAuth client; restricted scopes | Create OAuth client |
+| **Google** (Gmail, Calendar, Drive) | Yes (remote) / local stdio | Google Cloud OAuth client; restricted scopes | Not seeded — **Drive:** [GOOGLE_DRIVE_WORKAROUND.md](./GOOGLE_DRIVE_WORKAROUND.md) |
 | **Figma** | Yes | OAuth app; often **vendor allowlist** | Create app; may still be blocked |
 
 **Vendor requirements:** User (or maintainer) registers OAuth app; redirect URI must match Agent Deck callback (localhost often OK for dev).

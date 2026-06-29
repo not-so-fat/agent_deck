@@ -11,6 +11,10 @@ import { DatabaseManager } from '../models/database';
 import { randomBytes } from 'crypto';
 import { generatePkcePair } from '../lib/pkce';
 import { getOAuthRedirectUri } from '../config/oauth-redirect';
+import {
+  oauthTokenRequestHeaders,
+  parseOAuthTokenResponse,
+} from '../lib/oauth-token-response';
 
 
 
@@ -22,14 +26,6 @@ interface OAuthMetadata {
   scopes_supported?: string[];
   authorizationUrl?: string;
   tokenUrl?: string;
-  scope?: string;
-}
-
-interface OAuthTokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-  token_type?: string;
   scope?: string;
 }
 
@@ -188,9 +184,7 @@ export class OAuthManager {
 
     const tokenResponse = await fetch(service.oauthTokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: oauthTokenRequestHeaders(),
       body: tokenBody,
     });
 
@@ -199,7 +193,7 @@ export class OAuthManager {
       throw new Error(`OAuth token exchange failed: ${tokenResponse.status} ${errorText}`);
     }
 
-    const tokenData = await tokenResponse.json() as OAuthTokenResponse;
+    const tokenData = await parseOAuthTokenResponse(tokenResponse);
     
     const token: OAuthToken = {
       accessToken: tokenData.access_token,
@@ -248,9 +242,7 @@ export class OAuthManager {
 
     const tokenResponse = await fetch(service.oauthTokenUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: oauthTokenRequestHeaders(),
       body: refreshBody,
     });
 
@@ -259,7 +251,7 @@ export class OAuthManager {
       throw new Error(`OAuth token refresh failed: ${tokenResponse.status} ${errorText}`);
     }
 
-    const tokenData = await tokenResponse.json() as OAuthTokenResponse;
+    const tokenData = await parseOAuthTokenResponse(tokenResponse);
     
     const token: OAuthToken = {
       accessToken: tokenData.access_token,

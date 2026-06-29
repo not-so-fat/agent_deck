@@ -36,8 +36,10 @@ npx @agent-deck/cli doctor
 npx @agent-deck/cli start --open
 ```
 
-Dashboard: `http://127.0.0.1:8000`  
-MCP: `http://127.0.0.1:3001/mcp`
+Dashboard: `http://127.0.0.1:11111`  
+MCP: `http://127.0.0.1:11112/mcp`
+
+Dev repo (`npm run dev:all`) uses `:8000` / `:3001` so both can run together — see [SETUP.md](./SETUP.md#ports).
 
 ## Publish to npm
 
@@ -83,7 +85,7 @@ npx @agent-deck/cli start
 ```
 
 ```bash
-claude mcp add --scope user --transport http agent-deck http://127.0.0.1:3001/mcp
+claude mcp add --scope user --transport http agent-deck http://127.0.0.1:11112/mcp
 ```
 
 ### MCP client setup
@@ -114,8 +116,8 @@ Optional env:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `AGENT_DECK_PORT` | `8000` | API + dashboard |
-| `AGENT_DECK_MCP_PORT` | `3001` | MCP HTTP endpoint |
+| `AGENT_DECK_PORT` | `11111` | API + dashboard (dev repo uses `8000`) |
+| `AGENT_DECK_MCP_PORT` | `11112` | MCP HTTP endpoint (dev repo uses `3001`) |
 | `AGENT_DECK_HOME` | `~/.agent-deck` | Database and credential metadata |
 
 ## Development vs published
@@ -123,4 +125,4 @@ Optional env:
 | Mode | Command | Dashboard |
 |------|---------|-----------|
 | **Dev** (hot reload) | `npm run dev:all` | `http://localhost:3000` (Vite proxy) |
-| **Published / release** | `npx @agent-deck/cli start` | `http://127.0.0.1:8000` (bundled static UI) |
+| **Published / release** | `npx @agent-deck/cli start` | `http://127.0.0.1:11111` (bundled static UI) |

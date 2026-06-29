@@ -49,12 +49,16 @@ describe('OAuthManager PKCE', () => {
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({
-        access_token: 'access-token',
-        refresh_token: 'refresh-token',
-        expires_in: 3600,
-        token_type: 'Bearer',
-      }),
+      headers: {
+        get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+      },
+      text: async () =>
+        JSON.stringify({
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+          expires_in: 3600,
+          token_type: 'Bearer',
+        }),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -75,6 +79,51 @@ describe('OAuthManager PKCE', () => {
     expect(body.get('code_verifier')).toBeTruthy();
     expect(body.get('grant_type')).toBe('authorization_code');
     expect(body.get('code')).toBe('auth-code');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Accept).toBe('application/json');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('exchanges GitHub form-urlencoded token responses', async () => {
+    await db.createService({
+      name: 'GitHub',
+      type: 'mcp',
+      url: 'https://api.githubcopilot.com/mcp/',
+      oauthClientId: 'github-client',
+      oauthClientSecret: 'github-secret',
+      oauthAuthorizationUrl: 'https://github.com/login/oauth/authorize',
+      oauthTokenUrl: 'https://github.com/login/oauth/access_token',
+      oauthRedirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
+      oauthScope: 'read write',
+    });
+
+    const services = await db.getAllServices();
+    const github = services.find((s) => s.name === 'GitHub')!;
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === 'content-type' ? 'application/x-www-form-urlencoded' : null,
+      },
+      text: async () => 'access_token=gho_test&scope=repo&token_type=bearer',
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { state } = await oauthManager.initiateOAuthFlow({
+      serviceId: github.id,
+      redirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
+    });
+
+    const token = await oauthManager.handleOAuthCallback({
+      serviceId: github.id,
+      code: 'auth-code',
+      state,
+    });
+
+    expect(token.accessToken).toBe('gho_test');
+    expect(await oauthManager.getValidAccessToken(github.id)).toBe('gho_test');
 
     vi.unstubAllGlobals();
   });

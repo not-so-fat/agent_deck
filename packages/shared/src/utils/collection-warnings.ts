@@ -56,9 +56,12 @@ export function getServiceWarnings(
   const warnings: CollectionCardWarning[] = [];
 
   if (service.health === 'unhealthy') {
+    const oauthOk = service.type === 'mcp' && mcpHasValidOAuthSession(service);
     warnings.push({
       kind: 'service_unhealthy',
-      message: 'Service reported unhealthy',
+      message: oauthOk
+        ? 'OAuth OK but MCP unreachable — for Slack, enable MCP under Agents & AI Apps in your app settings'
+        : 'Service reported unhealthy',
       severity: 'warning',
     });
   }

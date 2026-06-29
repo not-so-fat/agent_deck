@@ -11,6 +11,7 @@ import {
   type McpEndpoint,
   type SetupScope,
 } from './mcp-config';
+import { CLI_DEFAULT_MCP_PORT, parseCliMcpPort } from './defaults';
 
 export interface SetupOptions {
   client: McpClient;
@@ -41,7 +42,7 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
   let client: McpClient | null = null;
   let scope: SetupScope = 'global';
   let host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
-  let mcpPort = Number.parseInt(process.env.AGENT_DECK_MCP_PORT ?? '3001', 10);
+  let mcpPort = parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   let start = false;
 
   for (let i = 0; i < args.length; i += 1) {
@@ -124,7 +125,7 @@ Options:
   --client          MCP client to configure (required)
   --scope           global (default) or project — project only for cursor (.cursor/mcp.json)
   --host            MCP host (default 127.0.0.1 or AGENT_DECK_HOST)
-  --mcp-port        MCP port (default 3001 or AGENT_DECK_MCP_PORT)
+  --mcp-port        MCP port (default ${CLI_DEFAULT_MCP_PORT} or AGENT_DECK_MCP_PORT)
   --start           Start Agent Deck after writing config`);
 }
 
@@ -142,7 +143,7 @@ export async function runSetup(args: string[]): Promise<number> {
 
   const endpoint: McpEndpoint = {
     host: parsed.host ?? '127.0.0.1',
-    mcpPort: parsed.mcpPort ?? 3001,
+    mcpPort: parsed.mcpPort ?? CLI_DEFAULT_MCP_PORT,
   };
 
   if (parsed.client === 'claude') {

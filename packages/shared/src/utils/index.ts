@@ -6,3 +6,4 @@ export * from './playbook';
 export * from './playbook-dependencies';
 export * from './collection-warnings';
 export * from './oauth-session';
+export * from './local-mcp-manifest';

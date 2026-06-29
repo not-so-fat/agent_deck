@@ -1,0 +1,24 @@
+/**
+ * Default ports for `agent-deck start` / npx install.
+ *
+ * Dev repo (`npm run dev:all`) keeps 8000 / 3001 so both can run on one machine.
+ * Override with AGENT_DECK_PORT / AGENT_DECK_MCP_PORT.
+ */
+export const CLI_DEFAULT_BACKEND_PORT = 11111;
+export const CLI_DEFAULT_MCP_PORT = 11112;
+
+export function parseCliBackendPort(value: string | undefined): number {
+  if (!value) {
+    return CLI_DEFAULT_BACKEND_PORT;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : CLI_DEFAULT_BACKEND_PORT;
+}
+
+export function parseCliMcpPort(value: string | undefined): number {
+  if (!value) {
+    return CLI_DEFAULT_MCP_PORT;
+  }
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : CLI_DEFAULT_MCP_PORT;
+}

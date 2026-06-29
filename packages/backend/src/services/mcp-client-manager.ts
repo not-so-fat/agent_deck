@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { LocalMCPServerManager } from './local-mcp-server-manager';
+import { formatMcpConnectionError, extractMcpErrorMessage } from '../lib/mcp-connection-error';
 
 interface MCPTool {
   name: string;
@@ -88,6 +89,11 @@ export class MCPClientManager {
       await client.connect(streamableTransport);
       console.log(`✅ Connected to MCP service ${service.url} using StreamableHTTP transport`);
     } catch (streamableError) {
+      const streamableMessage = extractMcpErrorMessage(streamableError);
+      if (streamableMessage) {
+        throw new Error(streamableMessage);
+      }
+
       console.log(`⚠️ StreamableHTTP failed for ${service.url}, trying SSE transport:`, streamableError);
       
       try {
@@ -99,7 +105,7 @@ export class MCPClientManager {
         console.error(`❌ Both StreamableHTTP and SSE failed for ${service.url}`);
         console.error(`StreamableHTTP error:`, streamableError);
         console.error(`SSE error:`, sseError);
-        throw new Error(`Failed to connect to MCP service: ${sseError instanceof Error ? sseError.message : 'Unknown error'}`);
+        throw new Error(formatMcpConnectionError(streamableError, sseError));
       }
     }
 

@@ -52,6 +52,7 @@ export async function createServer() {
   const mcpClient = new MCPClientManager();
   const oauthManager = new OAuthManager(db);
   const serviceManager = new ServiceManager(db, mcpClient, oauthManager);
+  void serviceManager.backfillMissingIcons();
   const credentialManager = new CredentialManager(db, createSecretStore());
   const playbookManager = new PlaybookManager(db);
   const collectionWarningService = new CollectionWarningService();

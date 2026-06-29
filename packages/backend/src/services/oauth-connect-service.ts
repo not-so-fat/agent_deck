@@ -44,7 +44,13 @@ export async function getOAuthSetupInfo(
   const provider = discovery.oauth.provider
     ?? inferOAuthProvider(service.url, []);
   const setupMode = resolveOAuthSetupMode(provider, discovery.oauth.supportsDynamicRegistration);
-  const guide = { ...getOAuthProviderGuide(provider), setupMode };
+  const guide = {
+    ...getOAuthProviderGuide(provider, {
+      serviceName: service.name,
+      serviceUrl: service.url,
+    }),
+    setupMode,
+  };
 
   return { guide, discovery };
 }
@@ -70,7 +76,13 @@ export async function startOAuthConnect(
   const provider =
     mcpDiscovery.oauth.provider ?? inferOAuthProvider(service.url, []);
   const setupMode = resolveOAuthSetupMode(provider, mcpDiscovery.oauth.supportsDynamicRegistration);
-  const guide = { ...getOAuthProviderGuide(provider), setupMode };
+  const guide = {
+    ...getOAuthProviderGuide(provider, {
+      serviceName: service.name,
+      serviceUrl: service.url,
+    }),
+    setupMode,
+  };
 
   if (guide.setupMode === 'unavailable') {
     return {
@@ -125,7 +137,13 @@ export async function startOAuthConnect(
         success: false,
         needsCredentials: true,
         setupMode: 'manual',
-        guide: { ...getOAuthProviderGuide(provider), setupMode: 'manual' },
+        guide: {
+          ...getOAuthProviderGuide(provider, {
+            serviceName: service.name,
+            serviceUrl: service.url,
+          }),
+          setupMode: 'manual',
+        },
         error:
           guide.setupMode === 'manual'
             ? 'Add your OAuth Client ID and Client Secret below, then click Connect.'

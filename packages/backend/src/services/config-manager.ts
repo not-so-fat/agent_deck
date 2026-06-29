@@ -1,4 +1,9 @@
-import { MCPServersManifest, LocalMCPServerConfig, CreateServiceInput } from '@agent-deck/shared';
+import {
+  MCPServersManifest,
+  LocalMCPServerConfig,
+  CreateServiceInput,
+  parseLocalMcpManifestJson,
+} from '@agent-deck/shared';
 import { z } from 'zod';
 
 // Validation schemas
@@ -19,14 +24,13 @@ export class ConfigManager {
    */
   parseManifest(jsonContent: string): MCPServersManifest {
     try {
-      const parsed = JSON.parse(jsonContent);
-      const validated = MCPServersManifestSchema.parse(parsed);
-      return validated;
+      const normalized = parseLocalMcpManifestJson(jsonContent);
+      return MCPServersManifestSchema.parse(normalized);
     } catch (error) {
       if (error instanceof z.ZodError) {
         throw new Error(`Invalid manifest format: ${error.errors.map(e => e.message).join(', ')}`);
       }
-      throw new Error(`Failed to parse JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error instanceof Error ? error : new Error('Failed to parse local MCP manifest');
     }
   }
 
@@ -41,7 +45,7 @@ export class ConfigManager {
         name,
         type: 'local-mcp',
         url: `local://${name}`, // Use a local URL scheme for local servers
-        description: `Local MCP server: ${config.command} ${config.args.join(' ')}`,
+        description: `Local MCP server: ${config.command} ${(config.args ?? []).join(' ')}`,
         cardColor: '#92E4DD', // Cyan for local MCP servers
         localCommand: config.command,
         localArgs: config.args,

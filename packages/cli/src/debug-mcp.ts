@@ -3,14 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { isTcpPortOpen, listListeningPids, probeAgentDeck } from './ports';
-
-function parsePort(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
+import { parseCliBackendPort, parseCliMcpPort } from './defaults';
 
 async function fetchText(url: string, init?: RequestInit): Promise<{ ok: boolean; status: number; body: string }> {
   try {
@@ -81,8 +74,8 @@ function readClaudeMcpEntry(): string | null {
 
 export async function runDebugMcp(): Promise<number> {
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
-  const backendPort = parsePort(process.env.AGENT_DECK_PORT, 8000);
-  const mcpPort = parsePort(process.env.AGENT_DECK_MCP_PORT, 3001);
+  const backendPort = parseCliBackendPort(process.env.AGENT_DECK_PORT);
+  const mcpPort = parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   const mcpUrl = `http://${host}:${mcpPort}`;
 
   console.log('Agent Deck MCP debug');
@@ -151,12 +144,12 @@ export async function runDebugMcp(): Promise<number> {
     if (!claudeEntry.includes('"type":"http"') && !claudeEntry.includes('"type": "http"')) {
       console.log('WARN expected "type": "http" for Claude Code streamable HTTP');
     }
-    if (!claudeEntry.includes('127.0.0.1:3001') && !claudeEntry.includes('localhost:3001')) {
+    if (!claudeEntry.includes(`127.0.0.1:${mcpPort}`) && !claudeEntry.includes(`localhost:${mcpPort}`)) {
       console.log(`WARN URL may not match running MCP (:${mcpPort})`);
     }
   } else {
     console.log('Claude config: no agent-deck entry in ~/.claude.json');
-    console.log('  Fix: claude mcp add --scope user --transport http agent-deck http://127.0.0.1:3001/mcp');
+    console.log(`  Fix: claude mcp add --scope user --transport http agent-deck http://127.0.0.1:${mcpPort}/mcp`);
   }
 
   console.log('');

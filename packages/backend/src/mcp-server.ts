@@ -4,7 +4,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
   AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
-  AGENT_DECK_WORKSPACE_HEADER,
+  REPO_DECK_MANIFEST_PATH,
 } from '@agent-deck/shared';
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -16,8 +16,11 @@ import {
   loadRepoDeckManifest,
   repoDeckManifestFilePath,
 } from './scope/repo-deck';
-import { REPO_DECK_MANIFEST_PATH } from '@agent-deck/shared';
 import { getAgentDeckVersion } from './lib/version';
+import {
+  McpSessionBindingStore,
+  resolveDeckBindingSource,
+} from './mcp-session-binding';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -36,8 +39,8 @@ export class AgentDeckMCPServer {
   private sessions = new Map<string, McpSession>();
   /** Set only while registerTools/registerResources run for a new session server. */
   private mcpServerForRegistration: McpServer | undefined;
-  /** Workspace root per MCP session → resolves `.agent-deck/deck.yaml`. */
-  private workspaceBySession = new Map<string, string>();
+  /** Per-session workspace + optional deck override (see mcp-session-binding.ts). */
+  private sessionBinding: McpSessionBindingStore;
   private activeSessionId: string | undefined;
 
   private get server(): McpServer {
@@ -55,10 +58,10 @@ export class AgentDeckMCPServer {
     this.app.use(express.json());
     this.setupRoutes();
 
-    const envWorkspace = process.env.AGENT_DECK_WORKSPACE?.trim();
-    if (envWorkspace) {
-      this.workspaceBySession.set('default', envWorkspace);
-    }
+    this.sessionBinding = new McpSessionBindingStore({
+      workspace: process.env.AGENT_DECK_WORKSPACE,
+      deckId: process.env.AGENT_DECK_DECK_ID,
+    });
   }
 
   private createMcpServer(): McpServer {
@@ -77,16 +80,37 @@ export class AgentDeckMCPServer {
     return this.activeSessionId ?? 'default';
   }
 
-  private getBoundWorkspace(): string | undefined {
-    const sessionId = this.getSessionId();
-    return this.workspaceBySession.get(sessionId) ?? process.env.AGENT_DECK_WORKSPACE?.trim();
+  private getAgentHeaders(): Record<string, string> {
+    return this.sessionBinding.getAgentHeaders(this.getSessionId());
   }
 
-  private getAgentHeaders(): Record<string, string> {
-    const workspace = this.getBoundWorkspace();
+  private async fetchDeck(deckId: string): Promise<{ id: string; name: string }> {
+    const deck = await fetch(`${this.backendUrl}/api/decks/${deckId}`, {
+      headers: {
+        ...agentClientHeaders,
+        Accept: 'application/json',
+      },
+    });
+    const body = (await deck.json()) as {
+      success: boolean;
+      error?: string;
+      data?: { id: string; name: string };
+    };
+    if (!deck.ok || !body.success || !body.data?.id) {
+      throw new Error(body.error ?? `Deck not found: ${deckId}`);
+    }
+    return body.data;
+  }
+
+  private async buildBindingPayload(sessionId: string, manifestDeckId?: string) {
+    const snapshot = this.sessionBinding.getBinding(sessionId);
+    const deck = await this.callBackendAPI('/api/scope/deck');
     return {
-      ...agentClientHeaders,
-      ...(workspace ? { [AGENT_DECK_WORKSPACE_HEADER]: workspace } : {}),
+      workspaceRoot: snapshot.workspaceRoot,
+      deck_id: deck?.id as string,
+      deck_name: deck?.name as string,
+      deck_source: resolveDeckBindingSource(snapshot, manifestDeckId),
+      session_deck_override: this.sessionBinding.hasSessionDeckOverride(sessionId),
     };
   }
 
@@ -133,7 +157,7 @@ export class AgentDeckMCPServer {
   private async getBoundDeckId(): Promise<string> {
     const deck = await this.callBackendAPI('/api/scope/deck');
     if (!deck?.id) {
-      throw new Error('No bound deck — call bind_workspace or setup_repo_deck first');
+      throw new Error('No bound deck — call bind_workspace (optionally with deckId) or switch_bound_deck first');
     }
     return deck.id as string;
   }
@@ -150,12 +174,34 @@ export class AgentDeckMCPServer {
     this.server.registerTool("bind_workspace", {
       title: "Bind Workspace",
       description:
-        "Bind an MCP session to a repo workspace root. Reads .agent-deck/deck.yaml to resolve the deck for this project.",
-      inputSchema: { workspaceRoot: z.string() },
-    }, async ({ workspaceRoot }) => {
+        "Bind this MCP session to a workspace root. Pass deckId for a session-only deck override (same path, different concurrent agents). Without deckId, uses .agent-deck/deck.yaml when present.",
+      inputSchema: {
+        workspaceRoot: z.string(),
+        deckId: z.string().uuid().optional(),
+      },
+    }, async ({ workspaceRoot, deckId }) => {
       try {
         const sessionId = this.getSessionId();
-        this.workspaceBySession.set(sessionId, workspaceRoot);
+        this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
+
+        if (deckId) {
+          const deck = await this.fetchDeck(deckId);
+          this.sessionBinding.setDeckId(sessionId, deckId);
+          const payload = await this.buildBindingPayload(sessionId);
+          return {
+            content: [{
+              type: "text",
+              text: JSON.stringify({
+                ...payload,
+                deck_name: deck.name,
+                message:
+                  'Session bound with deck override. .agent-deck/deck.yaml is unchanged; other MCP sessions can use a different deck at the same path.',
+              }, null, 2),
+            }],
+          };
+        }
+
+        this.sessionBinding.clearDeckId(sessionId);
 
         const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
           method: 'POST',
@@ -172,30 +218,93 @@ export class AgentDeckMCPServer {
           };
         };
         if (!body.success || !body.data) {
-          throw new Error(body.error ?? 'Failed to resolve workspace deck');
+          throw new Error(
+            body.error ??
+              'Failed to resolve workspace deck. Pass deckId to bind without deck.yaml, or call setup_repo_deck.',
+          );
         }
 
         const { data } = body;
+        const payload = await this.buildBindingPayload(sessionId, data.manifest.deck_id);
 
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
-              workspaceRoot,
+              ...payload,
               manifestPath: data.manifestPath,
-              deck_id: data.manifest.deck_id,
-              deck_name: data.deck.name,
+              message: 'Session bound via .agent-deck/deck.yaml.',
             }, null, 2),
           }],
         };
       } catch (error) {
         const message = String(error);
-        const hint = message.includes('deck.yaml')
-          ? ' Call setup_repo_deck with workspaceRoot and deckId to create .agent-deck/deck.yaml, or get_repo_deck_status to diagnose.'
+        const hint = message.includes('deck.yaml') || message.includes('No .agent-deck')
+          ? ' Pass deckId on bind_workspace, call setup_repo_deck, or get_repo_deck_status to diagnose.'
           : '';
         return {
           content: [{ type: "text", text: JSON.stringify({ error: message + hint }, null, 2) }],
         };
+      }
+    });
+
+    this.server.registerTool("switch_bound_deck", {
+      title: "Switch Bound Deck",
+      description:
+        "Switch the deck for this MCP session only. Does not modify .agent-deck/deck.yaml. Use when multiple agent sessions share the same workspace path.",
+      inputSchema: { deckId: z.string().uuid() },
+    }, async ({ deckId }) => {
+      try {
+        const sessionId = this.getSessionId();
+        const deck = await this.fetchDeck(deckId);
+        this.sessionBinding.setDeckId(sessionId, deckId);
+        const payload = await this.buildBindingPayload(sessionId);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              ...payload,
+              deck_name: deck.name,
+              message: 'Session deck switched. Other sessions and deck.yaml are unchanged.',
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.server.registerTool("get_session_binding", {
+      title: "Get Session Binding",
+      description:
+        "Show workspace and effective deck for this MCP session, including whether the deck comes from a session override or repo deck.yaml.",
+      inputSchema: {},
+    }, async () => {
+      try {
+        const sessionId = this.getSessionId();
+        const snapshot = this.sessionBinding.getBinding(sessionId);
+        let manifestDeckId: string | undefined;
+        if (snapshot.workspaceRoot && !snapshot.deckSource) {
+          const manifest = await loadRepoDeckManifest(snapshot.workspaceRoot);
+          manifestDeckId = manifest?.deck_id;
+        }
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              workspaceRoot: snapshot.workspaceRoot,
+              session_deck_override: snapshot.deckId,
+              session_deck_source: snapshot.deckSource,
+              repo_manifest_deck_id: manifestDeckId,
+              effective_deck_id: deck?.id,
+              effective_deck_name: deck?.name,
+              effective_deck_source: resolveDeckBindingSource(snapshot, manifestDeckId),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return this.toolError(error);
       }
     });
 
@@ -274,7 +383,7 @@ export class AgentDeckMCPServer {
         const existing = await loadRepoDeckManifest(workspaceRoot);
 
         if (existing) {
-          this.workspaceBySession.set(sessionId, workspaceRoot);
+          this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
           const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
             method: 'POST',
             headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
@@ -337,7 +446,7 @@ export class AgentDeckMCPServer {
           await fs.writeFile(filePath, content, 'utf8');
         }
 
-        this.workspaceBySession.set(sessionId, workspaceRoot);
+        this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
 
         return {
           content: [{
@@ -383,7 +492,7 @@ export class AgentDeckMCPServer {
     this.server.registerTool("get_bound_deck", {
       title: "Get Bound Deck",
       description:
-        "Get the deck bound to this session via bind_workspace or AGENT_DECK_WORKSPACE (.agent-deck/deck.yaml)",
+        "Get the deck bound to this session (session deckId override, env, or .agent-deck/deck.yaml)",
       inputSchema: {},
     }, async () => {
       try {
@@ -1205,7 +1314,7 @@ export class AgentDeckMCPServer {
       const sessionId = transport.sessionId;
       if (sessionId) {
         this.sessions.delete(sessionId);
-        this.workspaceBySession.delete(sessionId);
+        this.sessionBinding.clearSession(sessionId);
       }
     };
 
@@ -1243,7 +1352,9 @@ export class AgentDeckMCPServer {
       this.app.listen(this.port, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
-        console.log(`   - bind_workspace: Bind session to repo via .agent-deck/deck.yaml`);
+        console.log(`   - bind_workspace: Bind session to workspace; optional deckId override`);
+        console.log(`   - switch_bound_deck: Switch deck for this session only`);
+        console.log(`   - get_session_binding: Show session workspace + effective deck`);
         console.log(`   - get_repo_deck_status: Check repo deck manifest`);
         console.log(`   - setup_repo_deck: Create .agent-deck/deck.yaml for a repo`);
         console.log(`   - get_bound_deck: Get workspace-bound deck`);

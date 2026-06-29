@@ -87,18 +87,33 @@ curl http://127.0.0.1:3001/backend-status
 
 ```bash
 npx @agent-deck/cli@latest setup --client cursor --start
-# Dashboard → http://127.0.0.1:8000  (not :3000)
+# Dashboard → http://127.0.0.1:11111  (not :3000; dev repo uses :8000 / :3000)
 ```
 
 See [PUBLISHING.md](./PUBLISHING.md) and [README](../README.md).
 
 ## Ports
 
+Two installs can run on the same machine without clashing:
+
+| Mode | Backend | MCP | Dashboard |
+|------|---------|-----|-----------|
+| **Dev repo** (`npm run dev:all`) | 8000 | 3001 | http://localhost:3000 |
+| **CLI / npx** (`agent-deck start`) | **11111** | **11112** | http://127.0.0.1:11111 |
+
+Override CLI ports: `AGENT_DECK_PORT`, `AGENT_DECK_MCP_PORT`.
+
+OAuth redirect URI follows the backend you use (e.g. dev → `http://127.0.0.1:8000/api/oauth/callback`, npx → `http://127.0.0.1:11111/api/oauth/callback`). Both share `~/.agent-deck` data.
+
+Legacy reference:
+
 | Port | Service |
 |------|---------|
 | 3000 | Vite frontend (**dev only**, `npm run dev:all`) |
-| 8000 | Backend API (+ bundled UI when installed via npm) |
-| 3001 | MCP server |
+| 8000 | Backend API (**dev repo**) |
+| 3001 | MCP server (**dev repo**) |
+| 11111 | Backend + bundled UI (**npx / CLI**) |
+| 11112 | MCP server (**npx / CLI**) |
 
 ```bash
 agent-deck status

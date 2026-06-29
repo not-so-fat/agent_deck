@@ -27,7 +27,7 @@
 
 | Term | Meaning |
 |------|---------|
-| **Bound deck** | Deck resolved for an **agent** via `bind_workspace` / `AGENT_DECK_WORKSPACE` + `.agent-deck/deck.yaml`, or `x-agent-deck-deck-id`. |
+| **Bound deck** | Deck for an **agent MCP session** via `bind_workspace` / `switch_bound_deck` (session `deckId` override), env `AGENT_DECK_DECK_ID`, repo `.agent-deck/deck.yaml`, or header `x-agent-deck-deck-id`. |
 | **Editing deck** | Deck selected in the **dashboard** for layout edits (`localStorage`: `agent-deck-editing-deck-id`). Does not affect agent scope. |
 | **My Collection** | Dashboard vault UI — all registered MCP services, API keys, and playbook cards (not a sidebar list). |
 | **Legacy active deck** | v1 `decks.is_active` + `POST /api/decks/:id/activate` + `GET /api/decks/active` still exist in the API/DB for backward compatibility; **MVP agent scoping and dashboard do not use them**. |
@@ -95,9 +95,12 @@ name: Hiring stack   # optional, for humans reading the repo
 
 **Agent binding** (no global active deck):
 
-1. MCP `bind_workspace({ workspaceRoot })` or env `AGENT_DECK_WORKSPACE=/path/to/repo`
-2. Backend reads `.agent-deck/deck.yaml` → `deck_id`
-3. Agent APIs use header `x-agent-deck-workspace` (or `x-agent-deck-deck-id`)
+1. MCP `bind_workspace({ workspaceRoot, deckId? })` — optional **session-only** `deckId` when multiple agents share the same path
+2. MCP `switch_bound_deck({ deckId })` — change deck mid-session without editing yaml
+3. Or env `AGENT_DECK_WORKSPACE` + optional `AGENT_DECK_DECK_ID`
+4. Or repo `.agent-deck/deck.yaml` when no session override (backend reads via `x-agent-deck-workspace`)
+
+**Precedence:** session `deckId` / `x-agent-deck-deck-id` → repo manifest → error
 
 **Dashboard** does not activate decks for agents. It only **edits** whichever deck you select (UI state in `localStorage`). Copy the manifest snippet from the deck sidebar (copy icon) into repos that should use that deck.
 
@@ -105,15 +108,15 @@ Monorepo conventions: [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md).
 
 ### Behavior
 
-1. Agent calls `bind_workspace` with the repo root (or MCP env sets `AGENT_DECK_WORKSPACE`).
-2. If `.agent-deck/deck.yaml` exists → scope MCP services + credentials to `deck_id`.
+1. Agent calls `bind_workspace` with workspace root; pass `deckId` when concurrent sessions at the same path need different decks.
+2. If session has no `deckId` override and `.agent-deck/deck.yaml` exists → scope to manifest `deck_id`.
 3. No fallback to a global active deck or `decks.is_active`.
 
 ### Deliverables
 
 - [x] Schema for `.agent-deck/deck.yaml` (`deck_id`, optional `name`)
 - [x] Backend: resolve manifest, `GET /api/scope/deck`, `POST /api/scope/resolve`
-- [x] MCP: `bind_workspace`, `get_repo_deck_status`, `setup_repo_deck`, `get_bound_deck` (deprecated `get_active_deck` alias)
+- [x] MCP: `bind_workspace`, `switch_bound_deck`, `get_session_binding`, `get_repo_deck_status`, `setup_repo_deck`, `get_bound_deck` (deprecated `get_active_deck` alias)
 - [x] Dashboard: editing deck selector, copy manifest snippet
 - [x] Docs: monorepo convention — [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md)
 

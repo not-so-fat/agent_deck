@@ -6,6 +6,7 @@ import { clearRunState, writeRunState } from './runtime-state';
 import { runStop } from './stop';
 import { maybeAutoUpgradeOnStart, notifyIfUpdateAvailable } from './upgrade';
 import { getAgentDeckVersion } from './version';
+import { parseCliBackendPort, parseCliMcpPort } from './defaults';
 
 export interface StartOptions {
   backendPort?: number;
@@ -17,14 +18,6 @@ export interface StartOptions {
 
 const children: ChildProcess[] = [];
 let shuttingDown = false;
-
-function parsePort(value: string | undefined, fallback: number): number {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
 
 async function waitForHealth(url: string, attempts = 60): Promise<boolean> {
   for (let i = 0; i < attempts; i += 1) {
@@ -136,8 +129,8 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   await maybeAutoUpgradeOnStart();
   await notifyIfUpdateAvailable();
 
-  const backendPort = options.backendPort ?? parsePort(process.env.AGENT_DECK_PORT, 8000);
-  const mcpPort = options.mcpPort ?? parsePort(process.env.AGENT_DECK_MCP_PORT, 3001);
+  const backendPort = options.backendPort ?? parseCliBackendPort(process.env.AGENT_DECK_PORT);
+  const mcpPort = options.mcpPort ?? parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
   const backendUrl = `http://${host}:${backendPort}`;
   const uiDist = options.skipUi ? undefined : resolveUiDist();
@@ -287,8 +280,8 @@ export async function runDoctor(): Promise<number> {
   console.log(`Package version ${getAgentDeckVersion()}`);
 
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
-  const backendPort = parsePort(process.env.AGENT_DECK_PORT, 8000);
-  const mcpPort = parsePort(process.env.AGENT_DECK_MCP_PORT, 3001);
+  const backendPort = parseCliBackendPort(process.env.AGENT_DECK_PORT);
+  const mcpPort = parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   const probe = await probeAgentDeck(host, backendPort, mcpPort);
   if (probe.backendUp && probe.mcpUp) {
     console.log(`OK: Agent Deck reachable on :${backendPort} / :${mcpPort}`);

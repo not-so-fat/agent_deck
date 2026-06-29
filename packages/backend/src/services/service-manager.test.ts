@@ -98,8 +98,20 @@ describe('ServiceManager', () => {
 
     it('should get all services', async () => {
       const expectedServices = [
-        { id: '123e4567-e89b-12d3-a456-426614174001', name: 'Service 1', type: 'mcp', url: 'https://service1.com' },
-        { id: '123e4567-e89b-12d3-a456-426614174002', name: 'Service 2', type: 'a2a', url: 'https://service2.com' },
+        {
+          id: '123e4567-e89b-12d3-a456-426614174001',
+          name: 'Service 1',
+          type: 'mcp',
+          url: 'https://service1.com',
+          iconUrl: '/api/services/123e4567-e89b-12d3-a456-426614174001/icon',
+        },
+        {
+          id: '123e4567-e89b-12d3-a456-426614174002',
+          name: 'Service 2',
+          type: 'a2a',
+          url: 'https://service2.com',
+          iconUrl: '/api/services/123e4567-e89b-12d3-a456-426614174002/icon',
+        },
       ];
 
       mockDbManager.getAllServices.mockResolvedValue(expectedServices);
@@ -108,6 +120,29 @@ describe('ServiceManager', () => {
 
       expect(mockDbManager.getAllServices).toHaveBeenCalled();
       expect(result).toEqual(expectedServices);
+    });
+
+    it('backfills icons for remote services missing iconUrl', async () => {
+      const service = {
+        id: '123e4567-e89b-12d3-a456-426614174001',
+        name: 'Linear',
+        type: 'mcp',
+        url: 'https://mcp.linear.app/mcp',
+      };
+      const withIcon = {
+        ...service,
+        iconUrl: '/api/services/123e4567-e89b-12d3-a456-426614174001/icon',
+      };
+
+      mockDbManager.getAllServices.mockResolvedValue([service]);
+      const refreshSpy = vi
+        .spyOn(serviceManager, 'refreshServiceIcon')
+        .mockResolvedValue(withIcon);
+
+      const result = await serviceManager.getAllServices();
+
+      expect(refreshSpy).toHaveBeenCalledWith(service.id);
+      expect(result).toEqual([withIcon]);
     });
 
     it('should update a service', async () => {

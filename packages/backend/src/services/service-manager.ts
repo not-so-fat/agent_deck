@@ -153,7 +153,7 @@ export class ServiceManager {
       return null;
     }
 
-    if (service.type === 'local-mcp' || service.url.startsWith('local://')) {
+    if (!this.shouldResolveIcon(service)) {
       return service;
     }
 
@@ -167,12 +167,38 @@ export class ServiceManager {
     });
   }
 
+  private shouldResolveIcon(service: Service): boolean {
+    return service.type !== 'local-mcp' && !service.url.startsWith('local://');
+  }
+
+  async backfillMissingIcons(): Promise<void> {
+    const services = await this.db.getAllServices();
+    await Promise.all(
+      services
+        .filter((service) => !service.iconUrl && this.shouldResolveIcon(service))
+        .map((service) =>
+          this.refreshServiceIcon(service.id).catch((error) => {
+            console.warn(`Failed to resolve icon for service ${service.name}:`, error);
+          }),
+        ),
+    );
+  }
+
   async getService(id: string): Promise<Service | null> {
     return await this.db.getService(id);
   }
 
   async getAllServices(): Promise<Service[]> {
-    return await this.db.getAllServices();
+    const services = await this.db.getAllServices();
+    return Promise.all(
+      services.map(async (service) => {
+        if (!service.iconUrl && this.shouldResolveIcon(service)) {
+          const updated = await this.refreshServiceIcon(service.id);
+          return updated ?? service;
+        }
+        return service;
+      }),
+    );
   }
 
   async updateService(id: string, input: UpdateServiceInput): Promise<Service | null> {
@@ -242,7 +268,8 @@ export class ServiceManager {
     } catch (error) {
       console.error(`Failed to discover tools for service ${serviceId}:`, error);
       await this.db.updateServiceStatus(serviceId, false, 'unhealthy');
-      return { success: false, error: 'Failed to discover tools' };
+      const message = error instanceof Error ? error.message : 'Failed to discover tools';
+      return { success: false, error: message };
     }
   }
 

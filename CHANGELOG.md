@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.1.6 — 2026-06-28
+
+### MCP & OAuth
+
+- **Remove** seeded Gmail, Google Calendar, and Google Drive remote cards (BYO GCP too painful); [GOOGLE_DRIVE_WORKAROUND.md](docs/GOOGLE_DRIVE_WORKAROUND.md) documents local stdio path
+- **Fix:** GitHub OAuth token exchange (form-urlencoded response from GitHub)
+- **Fix:** Fail fast on actionable Streamable HTTP MCP errors instead of masking with SSE 401 fallback (Slack MCP enablement)
+- Session-scoped deck binding: `bind_workspace`, `switch_bound_deck`, `get_session_binding` + `x-agent-deck-deck-id` header
+- Richer OAuth provider setup guides in connect panel; GitHub guide clarifies Copilot subscription not required for general MCP
+- MCP card icon backfill on list/startup for seeded services
+- Local MCP import accepts unwrapped server maps, bare `{ command, args }`, and markdown-fenced JSON
+
+### Dashboard
+
+- AgentDeckLogo3 header logo and favicon
+- Local MCP setup hints on service details (Google Drive auth is out-of-band, not Agent Deck OAuth)
+
+### CLI
+
+- Published default ports **11111** (API/dashboard) and **11112** (MCP); dev repo stays 8000/3001
+- Shared `defaults.ts` for port resolution
+
+### Docs
+
+- MVP, SETUP, PUBLISHING, MCP integration strategy aligned with session bind and Google local path
+
 ## 1.1.5 — 2026-06-28
 
 ### OAuth & MCP

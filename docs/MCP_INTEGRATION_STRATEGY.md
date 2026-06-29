@@ -43,11 +43,11 @@ Agent Deck should remain an **MCP hub**: one agent-facing endpoint, deck-scoped 
 |------|-------------------|-------|
 | Linear | Auto (DCR/PKCE) | Works with current auto-setup flow |
 | Notion | Auto | Similar to Linear |
-| GitHub | BYO OAuth or host | Copilot MCP URL; often needs app or host token |
-| Gmail / Calendar / Drive | BYO OAuth app | Google Cloud console, restricted scopes |
+| GitHub | BYO OAuth or PAT | Hosted at api.githubcopilot.com; all GitHub users; Copilot only for specific tools |
+| Google (Gmail / Calendar / Drive) | Local stdio or BYO remote | Not seeded — remote MCP needs GCP + preview APIs; see GOOGLE_DRIVE_WORKAROUND.md |
 | Slack | BYO OAuth app | Slack requires a registered app for non-partner MCP clients; see below |
-| Figma | BYO OAuth app | Often blocked without vendor allowlist |
 | Draw.io | Variable | Remote MCP may have no OAuth; may need alternate auth |
+| Figma | BYO OAuth app | Not seeded — vendor allowlist blocks third-party OAuth today |
 | Docmost | BYO instance URL | Not seeded (self-hosted) |
 | Obsidian | Local stdio | Not seeded as remote preset |
 
@@ -73,9 +73,8 @@ Agent Deck should remain an **MCP hub**: one agent-facing endpoint, deck-scoped 
 | Linear | ✓ | ✓ | — | — | — |
 | Notion | ✓ | ✓ | — | — | — |
 | GitHub | ✓ | — | ✓ | ✓ | — |
-| Gmail | ✓ | — | ✓ | — | — |
-| Google Calendar | ✓ | — | ✓ | — | — |
-| Google Drive | ✓ | — | ✓ | — | — |
+| Google Drive (manual local) | — | — | — | — | ✓ |
+| Google remote MCP (manual) | ✓ | — | ✓ | — | — |
 | Slack | ✓ | — / managed | ✓ | — | — |
 | Figma | ✓ | — | ✓ (allowlist) | — | — |
 | Draw.io | ✓ | ? | ✓ | ✓ | — |

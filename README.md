@@ -1,4 +1,4 @@
-# <img src="./misc/AgentDeckLogo2.png" height="30px"> Agent Deck
+# <img src="./misc/AgentDeckLogo3.png" height="30px"> Agent Deck
 
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
@@ -32,8 +32,10 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 
 ### Dashboard
 
-**npm / `agent-deck start`:** `http://127.0.0.1:8000`  
-**dev (`npm run dev:all`):** `http://localhost:3000` (Vite — not used when installed from npm)
+**CLI / npx (`agent-deck start`):** `http://127.0.0.1:11111` · MCP `http://127.0.0.1:11112/mcp`  
+**dev (`npm run dev:all`):** `http://localhost:3000` · MCP `http://127.0.0.1:3001/mcp` (backend `:8000`)
+
+Both can run on one machine — see [SETUP.md](docs/SETUP.md#ports).
 
 <img src="./misc/UI.png" alt="Frontend" width="70%" />
 
@@ -45,13 +47,19 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 - **Collection warnings** — missing secrets, OAuth, or playbook dependencies
 - Copy `.agent-deck/deck.yaml` from the deck sidebar; agents **bind** via `bind_workspace`
 
-### MCP Server (`localhost:3001/mcp`)
+### MCP Server
+
+| Mode | URL |
+|------|-----|
+| **CLI / npx** | `http://127.0.0.1:11112/mcp` |
+| **Dev repo** | `http://127.0.0.1:3001/mcp` |
 
 Most setup and runtime work goes through the agent. **Dashboard-only (human-in-the-loop):** storing API key **secrets** and completing MCP **OAuth** in the browser.
 
 | Tool | Purpose |
 |------|---------|
-| `bind_workspace` / `setup_repo_deck` / `get_repo_deck_status` | Bind session to repo via `.agent-deck/deck.yaml` |
+| `bind_workspace` / `switch_bound_deck` / `get_session_binding` | Bind workspace; session deck override; inspect binding |
+| `setup_repo_deck` / `get_repo_deck_status` | Create or check `.agent-deck/deck.yaml` |
 | `get_decks` / `get_bound_deck` / `create_deck` | List, read, or create decks |
 | `list_bound_deck_services` / `list_bound_deck_credentials` | Cards on the bound deck |
 | `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
@@ -80,7 +88,7 @@ Or add manually to **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "agent-deck": { "url": "http://127.0.0.1:3001/mcp" }
+    "agent-deck": { "url": "http://127.0.0.1:11112/mcp" }
   }
 }
 ```
@@ -114,8 +122,8 @@ npx @agent-deck/cli@latest setup --client cursor --start
 
 ```bash
 npx @agent-deck/cli@latest start --open
-# Dashboard → http://127.0.0.1:8000  (not :3000)
-# MCP       → http://127.0.0.1:3001/mcp
+# Dashboard → http://127.0.0.1:11111  (CLI; dev repo uses :8000 / :3000)
+# MCP       → http://127.0.0.1:11112/mcp
 ```
 
 **Updates:** `agent-deck upgrade` checks npm and reinstalls globally. On `start`, a cached check notifies when a newer version exists. Set `AGENT_DECK_AUTO_UPGRADE=1` to upgrade automatically before starting.
@@ -143,7 +151,7 @@ Or after build: `npm run build:release && npx @agent-deck/cli start`
 
 ### Connect your agent
 
-1. **Set up decks** — dashboard at `http://127.0.0.1:8000` when running from npm (`agent-deck start`); `http://localhost:3000` in dev (`npm run dev:all`). Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
+1. **Set up decks** — dashboard at `http://127.0.0.1:11111` (CLI) or `http://localhost:3000` (dev). Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
 2. **Add MCP** — `agent-deck setup --client cursor` (or see [Connect MCP in Cursor](#connect-mcp-in-cursor))
 3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
 4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth

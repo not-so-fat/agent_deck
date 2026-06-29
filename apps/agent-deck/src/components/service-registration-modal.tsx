@@ -9,7 +9,7 @@ import { Server, Bot, X, Plus, Terminal, AlertTriangle, CheckCircle } from "luci
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Service } from "@agent-deck/shared";
+import { Service, parseLocalMcpManifestJson } from "@agent-deck/shared";
 import { MCP_CARD_COLOR, CARD_FACE_CLASS, cardAccentStyle } from "@/lib/card-colors";
 
 interface ServiceRegistrationModalProps {
@@ -93,13 +93,9 @@ export default function ServiceRegistrationModal({
   const parseLocalMCPConfig = () => {
     try {
       setParsedConfigError(null);
-      const config = JSON.parse(localMCPJson);
+      const manifest = parseLocalMcpManifestJson(localMCPJson);
       
-      if (!config.mcpServers || typeof config.mcpServers !== 'object') {
-        throw new Error('Invalid configuration: missing or invalid mcpServers object');
-      }
-      
-      const serverEntries = Object.entries(config.mcpServers);
+      const serverEntries = Object.entries(manifest.mcpServers);
       if (serverEntries.length === 0) {
         throw new Error('No MCP servers found in configuration');
       }
@@ -110,11 +106,7 @@ export default function ServiceRegistrationModal({
       
       const [name, serverConfig] = serverEntries[0];
       
-      if (!serverConfig || typeof serverConfig !== 'object') {
-        throw new Error('Invalid server configuration');
-      }
-      
-      const { command, args, env, description } = serverConfig as any;
+      const { command, args, env, description } = serverConfig;
       
       if (!command || typeof command !== 'string') {
         throw new Error('Missing or invalid command');
