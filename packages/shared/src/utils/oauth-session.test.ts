@@ -27,4 +27,11 @@ describe('oauth-session', () => {
     expect(isOAuthSessionValid({})).toBe(false);
     expect(isOAuthAccessTokenExpired({})).toBe(true);
   });
+
+  it('accepts oauthHasToken without exposing the access token', () => {
+    const session = { oauthHasToken: true };
+
+    expect(isOAuthSessionValid(session)).toBe(true);
+    expect(isOAuthAccessTokenExpired(session)).toBe(false);
+  });
 });

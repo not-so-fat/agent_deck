@@ -240,7 +240,7 @@ export default function ServiceDetailsModal({
       apiService.type === 'local-mcp' ||
       oauthStatus.status === 'authenticated' ||
       oauthStatus.status === 'not_required';
-    if (!canLoadTools || mcpToolsLoading) {
+    if (!canLoadTools || mcpToolsLoading || mcpToolsError) {
       return;
     }
 
@@ -254,7 +254,6 @@ export default function ServiceDetailsModal({
           setCurrentService(payload.data);
         }
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
       } catch {
         // Health is best-effort after tool discovery.
       }
@@ -265,7 +264,7 @@ export default function ServiceDetailsModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, apiService?.id, apiService?.type, mcpToolsLoading, mcpToolsError, mcpToolsData, oauthStatus.status, queryClient]);
+  }, [isOpen, apiService?.id, apiService?.type, mcpToolsLoading, mcpToolsError, oauthStatus.status, queryClient]);
 
   useEffect(() => {
     if (!isOpen || !apiService?.id || apiService.type !== 'a2a') {
@@ -283,7 +282,6 @@ export default function ServiceDetailsModal({
           setCurrentService(payload.data);
         }
         queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
       } catch {
         // Best-effort health probe.
       }

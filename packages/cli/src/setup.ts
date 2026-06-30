@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 
+import { installAgentHarness } from './agent-harness';
 import {
   buildAgentDeckEntry,
   buildMcpUrl,
@@ -123,10 +124,28 @@ export function printSetupUsage(): void {
 
 Options:
   --client          MCP client to configure (required)
-  --scope           global (default) or project — project only for cursor (.cursor/mcp.json)
+  --scope           global (default) or project — project only for cursor/claude
   --host            MCP host (default 127.0.0.1 or AGENT_DECK_HOST)
   --mcp-port        MCP port (default ${CLI_DEFAULT_MCP_PORT} or AGENT_DECK_MCP_PORT)
-  --start           Start Agent Deck after writing config`);
+  --start           Start Agent Deck after writing config
+
+Setup installs MCP config and agent harness rules (Cursor .cursor/rules or Claude CLAUDE.md).`);
+}
+
+function finishSetup(
+  client: McpClient,
+  scope: SetupScope,
+  endpoint: McpEndpoint,
+  shouldStart: boolean,
+): number {
+  const harness = installAgentHarness(client, scope);
+  console.log(harness.message);
+  if (!harness.installed && client === 'claude-desktop') {
+    console.log('  See docs/AGENT_HARNESS.md if you also use Claude Code or Cursor.');
+  }
+
+  printNextSteps(endpoint, shouldStart, client);
+  return shouldStart ? 2 : 0;
 }
 
 export async function runSetup(args: string[]): Promise<number> {
@@ -145,19 +164,19 @@ export async function runSetup(args: string[]): Promise<number> {
     host: parsed.host ?? '127.0.0.1',
     mcpPort: parsed.mcpPort ?? CLI_DEFAULT_MCP_PORT,
   };
+  const scope = parsed.scope ?? 'global';
 
   if (parsed.client === 'claude') {
     const added = await tryClaudeCliAdd(endpoint);
     if (added.ok) {
       console.log('Configured Claude Code via `claude mcp add` → ~/.claude.json');
-      printNextSteps(endpoint, parsed.start === true);
       console.log('Verify: claude mcp list');
-      return parsed.start ? 2 : 0;
+      return finishSetup(parsed.client, scope, endpoint, parsed.start === true);
     }
     console.warn(`Claude CLI failed (${added.error ?? 'unknown error'}) — writing ~/.claude.json instead`);
   }
 
-  const configPath = resolveConfigPath(parsed.client, parsed.scope ?? 'global');
+  const configPath = resolveConfigPath(parsed.client, scope);
   const entry = buildAgentDeckEntry(parsed.client, endpoint);
   const merged = mergeMcpServerConfig(readJsonFile(configPath), entry);
   writeJsonFile(configPath, merged);
@@ -168,11 +187,10 @@ export async function runSetup(args: string[]): Promise<number> {
     console.log('Start Agent Deck before opening Claude Desktop.');
   }
 
-  printNextSteps(endpoint, parsed.start === true);
-  return parsed.start ? 2 : 0;
+  return finishSetup(parsed.client, scope, endpoint, parsed.start === true);
 }
 
-function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean): void {
+function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean, client: McpClient): void {
   console.log('');
   console.log('Next steps:');
   if (shouldStart) {
@@ -180,9 +198,11 @@ function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean): void {
   } else {
     console.log('  1. npx @agent-deck/cli@latest start  (or `agent-deck stop` first if ports are busy)');
   }
-  console.log(`  2. MCP endpoint → ${buildMcpUrl(endpoint)}  (Claude shows server name "agent-deck", not the URL)`);
-  console.log('  3. Restart Claude Code / Cursor if it was already open');
-  console.log('  4. Claude Code: run `claude mcp list` — should show agent-deck ✓ Connected when step 1 is running');
+  console.log(`  2. MCP endpoint → ${buildMcpUrl(endpoint)}`);
+  console.log('  3. Restart Claude Code / Cursor so MCP + harness rules load');
+  if (client === 'claude') {
+    console.log('  4. Claude Code: `claude mcp list` — agent-deck should show Connected when step 1 is running');
+  }
   console.log('');
   console.log('Optional: AGENT_DECK_AUTO_UPGRADE=1 agent-deck start  (check npm for updates on start)');
 }

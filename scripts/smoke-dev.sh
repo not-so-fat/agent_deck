@@ -8,8 +8,11 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/.temporal/logs"
 mkdir -p "$LOG_DIR"
 SMOKE_LOG="$LOG_DIR/smoke-dev.log"
+SMOKE_DB="$LOG_DIR/smoke-agent_deck.db"
 BACKEND_PORT="${SMOKE_BACKEND_PORT:-8010}"
 BACKEND_PID=""
+
+export AGENT_DECK_DB_PATH="$SMOKE_DB"
 
 cleanup() {
   if [[ -n "$BACKEND_PID" ]] && kill -0 "$BACKEND_PID" 2>/dev/null; then
@@ -20,6 +23,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[smoke-dev] Node $(node -v)"
+echo "[smoke-dev] Database: $SMOKE_DB"
 echo "[smoke-dev] Starting backend on port $BACKEND_PORT ..."
 (
   cd "$ROOT_DIR/packages/backend"

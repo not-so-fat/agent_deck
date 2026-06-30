@@ -79,7 +79,7 @@ export function getServiceWarnings(
     return warnings;
   }
 
-  const hasToken = Boolean(service.oauthAccessToken);
+  const hasToken = Boolean(service.oauthHasToken || service.oauthAccessToken);
 
   if (!hasToken) {
     warnings.push({

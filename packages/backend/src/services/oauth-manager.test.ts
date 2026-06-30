@@ -2,14 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DatabaseManager } from '../models/database';
 import { OAuthManager } from './oauth-manager';
+import { MemorySecretStore } from '../vault/secret-store';
+import { OAuthClientSecretVault } from '../vault/oauth-client-secret-vault';
+import { OAuthTokenVault } from '../vault/oauth-token-vault';
 
 describe('OAuthManager PKCE', () => {
   let db: DatabaseManager;
   let oauthManager: OAuthManager;
+  let clientSecrets: OAuthClientSecretVault;
+  let tokens: OAuthTokenVault;
 
   beforeEach(async () => {
     db = new DatabaseManager(':memory:');
-    oauthManager = new OAuthManager(db);
+    const secretStore = new MemorySecretStore();
+    clientSecrets = new OAuthClientSecretVault(secretStore, db);
+    tokens = new OAuthTokenVault(secretStore, db);
+    oauthManager = new OAuthManager(db, clientSecrets, tokens);
 
     await db.createService({
       name: 'Linear',
@@ -91,7 +99,6 @@ describe('OAuthManager PKCE', () => {
       type: 'mcp',
       url: 'https://api.githubcopilot.com/mcp/',
       oauthClientId: 'github-client',
-      oauthClientSecret: 'github-secret',
       oauthAuthorizationUrl: 'https://github.com/login/oauth/authorize',
       oauthTokenUrl: 'https://github.com/login/oauth/access_token',
       oauthRedirectUri: 'http://127.0.0.1:8000/api/oauth/callback',
@@ -100,6 +107,7 @@ describe('OAuthManager PKCE', () => {
 
     const services = await db.getAllServices();
     const github = services.find((s) => s.name === 'GitHub')!;
+    await clientSecrets.set(github.id, 'github-secret');
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -132,7 +140,7 @@ describe('OAuthManager PKCE', () => {
     const services = await db.getAllServices();
     const serviceId = services[0]!.id;
 
-    await db.updateOAuthTokens(serviceId, 'long-lived-token', undefined, undefined);
+    await tokens.set(serviceId, 'long-lived-token');
 
     expect(await oauthManager.isTokenExpired(serviceId)).toBe(false);
     expect(await oauthManager.getValidAccessToken(serviceId)).toBe('long-lived-token');

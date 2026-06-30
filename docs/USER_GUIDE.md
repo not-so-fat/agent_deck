@@ -303,6 +303,10 @@ See [OAUTH_AND_HOSTING.md](OAUTH_AND_HOSTING.md) for redirect URI rules (local v
 
 ## Next Steps
 
+### **Agent harness (installed by setup)**
+
+`agent-deck setup` writes global agent rules automatically — see [Agent harness](AGENT_HARNESS.md). No separate copy-paste step unless you skipped setup or use Claude Desktop only.
+
 ### **Advanced Usage**
 1. **Service Templates**: Create reusable service configurations
 2. **Automated Workflows**: Set up automated service management

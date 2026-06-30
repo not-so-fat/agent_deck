@@ -8,6 +8,7 @@ import { BookOpen, Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PLAYBOOK_CARD_COLOR } from "@/lib/card-colors";
 import CardWarningBadge from "@/components/card-warning-badge";
+import { inDeckCollectionClass, InDeckCornerBadge } from "@/lib/in-deck-card-style";
 
 interface PlaybookCardComponentProps {
   playbook: Playbook;
@@ -102,7 +103,7 @@ function PlaybookCardComponent({
         transform transition-all duration-300 shadow-lg hover:shadow-2xl
         bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900
         relative overflow-hidden
-        ${isInActiveDeck ? "opacity-60" : ""}
+        ${inDeckCollectionClass(isInActiveDeck)}
         ${isInCollection ? "hover:scale-110 hover:rotate-0" : "hover:scale-105"}
       `}
         style={{
@@ -111,6 +112,7 @@ function PlaybookCardComponent({
         }}
       >
         <CardWarningBadge warnings={warnings} />
+        {isInActiveDeck && <InDeckCornerBadge />}
 
         <div className="absolute top-1 left-1 text-xs font-bold">
           <div className="leading-none" style={{ color: cardColor }}>PB</div>

@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.0 — 2026-06-29
+
+### Security & OAuth
+
+- OAuth **client secrets** and **access/refresh tokens** stored in macOS Keychain (dev file fallback) — SQLite holds metadata only (`oauth_has_token`, expiry)
+- Legacy plaintext tokens migrate automatically on first connect or MCP call; duplicate `Authorization` in `services.headers` stripped
+- OAuth reconnect UX: prefill saved Client ID, hide secret field when stored, collapsed Slack first-time steps
+
+### Dashboard
+
+- Deck fan: bounded 10-card viewport, edge-hover scroll, position-based tilt, scroll chevrons, hover lift
+- In-deck collection badge styling; deck playbook count fix; reduced service warning spam
+- OAuth connect panel improvements
+
+### CLI
+
+- **Agent harness** installer (`agent-deck setup` writes Cursor rules / CLAUDE.md guidance) — see [AGENT_HARNESS.md](docs/AGENT_HARNESS.md)
+- Dev vs production data: `npm run dev:all` uses `~/.agent-deck/dev/`; `agent-deck start` uses `~/.agent-deck/`
+
+### Docs
+
+- [SETUP.md](docs/SETUP.md) — secrets & OAuth storage, performance notes
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — secret storage section
+
 ## 1.1.7 — 2026-06-29
 
 ### Dashboard

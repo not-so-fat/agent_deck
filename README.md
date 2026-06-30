@@ -11,6 +11,22 @@
 
 [Quick Start](#quick-start) · [Docs](#documentation)
 
+## Quick Start
+
+Try Agent Deck in one command (MCP config + agent harness + optional start):
+
+```bash
+npx @agent-deck/cli@latest setup --client cursor --start
+# or: --client claude
+# dashboard → http://127.0.0.1:11111 · MCP → http://127.0.0.1:11112/mcp
+```
+
+Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy `.agent-deck/deck.yaml` into a repo. Your agent calls `bind_workspace` to use that deck.
+
+**Dev repo:** `npm install && npm run dev:all` → dashboard `http://localhost:3000`, MCP `http://127.0.0.1:3001/mcp`. See [SETUP.md](docs/SETUP.md).
+
+**Requirements:** Node.js 20+ (24 typical). Full install options below in [Install & run](#install--run).
+
 
 ## Problem: Too Many MCPs on My Agent
 
@@ -94,31 +110,19 @@ Or add manually to **Settings → Tools & MCP** or `~/.cursor/mcp.json`:
 ```
 
 
-## Quick Start
+## Install & run
 
-### Prerequisites
-
-- **Node.js 24** (typical OS default) or **20+** — see [Setup](docs/SETUP.md#nodejs-version-policy)
-- npm
-
-```bash
-node -v    # v24.x expected on new machines
-npm install
-```
-
-Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
-
-### Install & run
-
-**One-shot setup (writes MCP config + optional start):**
+**One-shot setup** (same as [Quick Start](#quick-start) above):
 
 ```bash
 npx @agent-deck/cli@latest setup --client cursor --start
 # or: --client claude | claude-desktop
-# project-scoped Cursor: --scope project
+# project-scoped: --scope project
 ```
 
-**Or manually:**
+Setup installs **MCP config** and **agent harness** (global Cursor rule or Claude `CLAUDE.md` section) — see [Agent harness](docs/AGENT_HARNESS.md).
+
+**Or start without re-running setup:**
 
 ```bash
 npx @agent-deck/cli@latest start --open
@@ -149,12 +153,25 @@ This starts:
 
 Or after build: `npm run build:release && npx @agent-deck/cli start`
 
+### Prerequisites
+
+- **Node.js 24** (typical OS default) or **20+** — see [Setup](docs/SETUP.md#nodejs-version-policy)
+- npm
+
+```bash
+node -v    # v24.x expected on new machines
+```
+
+Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
+
 ### Connect your agent
 
 1. **Set up decks** — dashboard at `http://127.0.0.1:11111` (CLI) or `http://localhost:3000` (dev). Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
 2. **Add MCP** — `agent-deck setup --client cursor` (or see [Connect MCP in Cursor](#connect-mcp-in-cursor))
 3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
 4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth
+
+(Steps 1–2 run `setup`, which also installs the [agent harness](docs/AGENT_HARNESS.md) in your global Cursor rules or Claude `CLAUDE.md`.)
 
 
 ## Documentation
@@ -169,6 +186,7 @@ Or after build: `npm run build:release && npx @agent-deck/cli start`
 | [Architecture](docs/ARCHITECTURE.md) | Technical design |
 | [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools (Modules 1–3) |
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
+| [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** — capability rescue, playbook feedback, discoverability |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
 | [Integration](docs/INTEGRATION.md) | MCP client integration |
 | [MCP integration strategy](docs/MCP_INTEGRATION_STRATEGY.md) | OAuth tiers, provider reality, deferred work |

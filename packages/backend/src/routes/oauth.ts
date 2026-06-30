@@ -69,12 +69,16 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
   // OAuth setup guide + discovery for a service
   fastify.get<ServiceIdRequest>('/:serviceId/setup', async (request, reply) => {
     try {
-      const { guide, discovery } = await getOAuthSetupInfo(fastify.db, request.params.serviceId);
+      const { guide, discovery, savedOAuthClientId, hasStoredClientSecret, hasSavedCredentials } =
+        await getOAuthSetupInfo(fastify.db, request.params.serviceId, fastify.oauthClientSecretVault);
       const response: ApiResponse = {
         success: true,
         data: {
           guide,
           oauth: discovery.oauth,
+          savedOAuthClientId,
+          hasStoredClientSecret,
+          hasSavedCredentials,
         },
       };
       return reply.send(response);
@@ -93,6 +97,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
       const result = await startOAuthConnect(
         fastify.db,
         fastify.oauthManager,
+        fastify.oauthClientSecretVault,
         request.params.serviceId,
         request.body ?? {},
       );
@@ -134,6 +139,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
       const result = await startOAuthConnect(
         fastify.db,
         fastify.oauthManager,
+        fastify.oauthClientSecretVault,
         request.params.serviceId,
         request.body ?? {},
       );
@@ -323,7 +329,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
       }
 
       const isExpired = await fastify.oauthManager.isTokenExpired(request.params.serviceId);
-      const hasToken = !!service.oauthAccessToken;
+      const hasToken = await fastify.oauthManager.hasOAuthTokens(request.params.serviceId);
       const authenticated = hasToken && !isExpired;
       
       const response: ApiResponse = {
@@ -332,7 +338,7 @@ export async function registerOAuthRoutes(fastify: FastifyInstance) {
           hasToken,
           isExpired,
           authenticated,
-          hasRefreshToken: !!service.oauthRefreshToken,
+          hasRefreshToken: await fastify.oauthManager.hasRefreshToken(request.params.serviceId),
           expiresAt: service.oauthTokenExpiresAt,
         },
       };

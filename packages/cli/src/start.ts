@@ -169,6 +169,8 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   const backendChild = spawnNodeService('backend', backendEntry, {
     PORT: String(backendPort),
     HOST: host,
+    NODE_ENV: 'production',
+    AGENT_DECK_DEV: '0',
     ...(uiDist ? { AGENT_DECK_UI_DIST: uiDist } : {}),
   });
 
@@ -190,6 +192,8 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
     const mcpChild = spawnNodeService('mcp', mcpEntry, {
       AGENT_DECK_MCP_PORT: String(mcpPort),
       AGENT_DECK_BACKEND_URL: backendUrl,
+      NODE_ENV: 'production',
+      AGENT_DECK_DEV: '0',
     });
 
     await new Promise((resolve) => setTimeout(resolve, 400));

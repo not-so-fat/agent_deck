@@ -14,6 +14,7 @@ import {
 import { DatabaseManager } from '../models/database';
 import { MCPClientManager } from './mcp-client-manager';
 import { OAuthManager } from './oauth-manager';
+import { OAuthClientSecretVault } from '../vault/oauth-client-secret-vault';
 import { ConfigManager } from './config-manager';
 import {
   cacheIconForService,
@@ -38,7 +39,8 @@ export class ServiceManager {
   constructor(
     private db: DatabaseManager,
     private mcpClient: MCPClientManager,
-    private oauthManager: OAuthManager
+    private oauthManager: OAuthManager,
+    private clientSecrets: OAuthClientSecretVault,
   ) {
     this.configManager = new ConfigManager();
   }
@@ -66,9 +68,12 @@ export class ServiceManager {
       try {
         const oauthDiscovery = await this.oauthManager.discoverOAuth(service.url);
         if (oauthDiscovery.hasOAuth && oauthDiscovery.config) {
+          if (oauthDiscovery.config.clientSecret) {
+            await this.clientSecrets.set(service.id, oauthDiscovery.config.clientSecret);
+          }
           await this.db.updateService(service.id, {
             oauthClientId: oauthDiscovery.config.clientId,
-            oauthClientSecret: oauthDiscovery.config.clientSecret,
+            oauthClientSecret: '',
             oauthAuthorizationUrl: oauthDiscovery.config.authorizationUrl,
             oauthTokenUrl: oauthDiscovery.config.tokenUrl,
             oauthRedirectUri: oauthDiscovery.config.redirectUri,
@@ -111,6 +116,11 @@ export class ServiceManager {
           return;
         }
 
+        const health = result.health as ServiceStatusUpdate['health'];
+        if (service.health === health && service.isConnected === result.isConnected) {
+          return;
+        }
+
         onUpdate({
           serviceId: service.id,
           health: result.health as ServiceStatusUpdate['health'],
@@ -139,7 +149,11 @@ export class ServiceManager {
         service.oauthAuthorizationUrl ||
         service.oauthTokenUrl,
     );
-    const hasAuth = Boolean(service.oauthAccessToken || service.headers?.Authorization);
+    const hasAuth = Boolean(
+      service.oauthHasToken ||
+        service.oauthAccessToken ||
+        service.headers?.Authorization,
+    );
     if (hasOAuthConfig && !hasAuth) {
       return false;
     }

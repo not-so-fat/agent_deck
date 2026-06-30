@@ -70,7 +70,13 @@ describe.skipIf(!RUN_LIVE)('MCP preset OAuth auto-setup step 1 (live)', () => {
     const { MCPDiscoveryService } = await import('../services/mcp-discovery-service');
 
     const db = new DatabaseManager(':memory:');
-    const oauthManager = new OAuthManager(db);
+    const { MemorySecretStore } = await import('../vault/secret-store');
+    const { OAuthClientSecretVault } = await import('../vault/oauth-client-secret-vault');
+    const { OAuthTokenVault } = await import('../vault/oauth-token-vault');
+    const secretStore = new MemorySecretStore();
+    const clientSecrets = new OAuthClientSecretVault(secretStore, db);
+    const tokens = new OAuthTokenVault(secretStore, db);
+    const oauthManager = new OAuthManager(db, clientSecrets, tokens);
     const discoveryService = new MCPDiscoveryService();
 
     const service = await db.createService({
@@ -93,9 +99,12 @@ describe.skipIf(!RUN_LIVE)('MCP preset OAuth auto-setup step 1 (live)', () => {
     expect(registration.success).toBe(true);
     expect(registration.clientId).toBeTruthy();
 
+    if (registration.clientSecret) {
+      await clientSecrets.set(service.id, registration.clientSecret);
+    }
     await db.updateService(service.id, {
       oauthClientId: registration.clientId,
-      oauthClientSecret: registration.clientSecret,
+      oauthClientSecret: '',
       oauthAuthorizationUrl: mcpDiscovery.oauth.authorizationUrl,
       oauthTokenUrl: mcpDiscovery.oauth.tokenUrl,
       oauthRedirectUri: 'http://127.0.0.1:8000/api/oauth/callback',

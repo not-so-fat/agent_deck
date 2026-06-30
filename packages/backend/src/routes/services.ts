@@ -18,6 +18,9 @@ import {
   requireServiceOnBoundDeck,
 } from '../lib/bound-deck-scope';
 
+let lastBackgroundHealthProbeAt = 0;
+const BACKGROUND_HEALTH_PROBE_COOLDOWN_MS = 30_000;
+
 interface CreateServiceRequest {
   Body: CreateServiceInput;
 }
@@ -77,9 +80,13 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
       const services = await fastify.serviceManager.getAllServices();
 
       if (isDashboardClient(request)) {
-        void fastify.serviceManager.refreshUnknownServiceHealth((update) => {
-          fastify.broadcastServiceUpdate(update);
-        });
+        const now = Date.now();
+        if (now - lastBackgroundHealthProbeAt >= BACKGROUND_HEALTH_PROBE_COOLDOWN_MS) {
+          lastBackgroundHealthProbeAt = now;
+          void fastify.serviceManager.refreshUnknownServiceHealth((update) => {
+            fastify.broadcastServiceUpdate(update);
+          });
+        }
       }
 
       const response: ApiResponse<Service[]> = {

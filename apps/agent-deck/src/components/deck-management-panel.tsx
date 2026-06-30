@@ -125,7 +125,9 @@ export default function DeckManagementPanel({
   };
 
   const deckCardCount = (deck: Deck) =>
-    (deck.services?.length ?? 0) + (deck.credentials?.length ?? 0);
+    (deck.services?.length ?? 0) +
+    (deck.credentials?.length ?? 0) +
+    (deck.playbooks?.length ?? 0);
 
   if (isLoading) {
     return (

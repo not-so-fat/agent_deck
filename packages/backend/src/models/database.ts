@@ -71,6 +71,7 @@ export class DatabaseManager {
     this.addColumnIfMissing('services', 'oauth_access_token', 'TEXT');
     this.addColumnIfMissing('services', 'oauth_refresh_token', 'TEXT');
     this.addColumnIfMissing('services', 'oauth_token_expires_at', 'TEXT');
+    this.addColumnIfMissing('services', 'oauth_has_token', 'BOOLEAN NOT NULL DEFAULT 0');
     this.addColumnIfMissing('services', 'oauth_state', 'TEXT');
     this.addColumnIfMissing('services', 'local_command', 'TEXT');
     this.addColumnIfMissing('services', 'local_args', 'TEXT');
@@ -368,6 +369,7 @@ export class DatabaseManager {
       oauthAccessToken: row.oauth_access_token,
       oauthRefreshToken: row.oauth_refresh_token,
       oauthTokenExpiresAt: row.oauth_token_expires_at,
+      oauthHasToken: Boolean(row.oauth_has_token),
       oauthState: row.oauth_state,
       localCommand: row.local_command,
       localArgs: row.local_args ? JSON.parse(row.local_args) : null,
@@ -489,35 +491,45 @@ export class DatabaseManager {
     });
   }
 
-  async updateOAuthTokens(
-    id: string, 
-    accessToken: string, 
-    refreshToken?: string, 
-    expiresAt?: string
+  /** Clears legacy token columns; secrets live in OAuthTokenVault. */
+  async clearOAuthTokensFromDb(
+    id: string,
+    options: { expiresAt?: string | null; hasToken?: boolean } = {},
   ): Promise<void> {
-    // Create headers with Authorization Bearer token
-    const headers = {
-      Authorization: `Bearer ${accessToken}`
+    const service = await this.getService(id);
+    let headers = service?.headers ? { ...service.headers } : null;
+    if (headers?.Authorization) {
+      delete headers.Authorization;
+      if (Object.keys(headers).length === 0) {
+        headers = null;
+      }
+    }
+
+    const fields = [
+      'oauth_access_token = NULL',
+      'oauth_refresh_token = NULL',
+      'headers = @headers',
+      'updated_at = @updated_at',
+    ];
+    const params: Record<string, unknown> = {
+      id,
+      headers: headers ? JSON.stringify(headers) : null,
+      updated_at: new Date().toISOString(),
     };
 
-    const stmt = this.db.prepare(`
-      UPDATE services SET
-        oauth_access_token = @oauth_access_token,
-        oauth_refresh_token = @oauth_refresh_token,
-        oauth_token_expires_at = @oauth_token_expires_at,
-        headers = @headers,
-        updated_at = @updated_at
-      WHERE id = @id
-    `);
+    if (options.expiresAt !== undefined) {
+      fields.push('oauth_token_expires_at = @oauth_token_expires_at');
+      params.oauth_token_expires_at = options.expiresAt;
+    }
+    if (options.hasToken !== undefined) {
+      fields.push('oauth_has_token = @oauth_has_token');
+      params.oauth_has_token = options.hasToken ? 1 : 0;
+    }
 
-    stmt.run({
-      id,
-      oauth_access_token: accessToken,
-      oauth_refresh_token: refreshToken,
-      oauth_token_expires_at: expiresAt,
-      headers: JSON.stringify(headers),
-      updated_at: new Date().toISOString(),
-    });
+    const stmt = this.db.prepare(`
+      UPDATE services SET ${fields.join(', ')} WHERE id = @id
+    `);
+    stmt.run(params);
   }
 
   // Deck operations

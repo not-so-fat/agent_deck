@@ -158,9 +158,10 @@ CREATE TABLE services (
     oauth_token_url TEXT,
     oauth_redirect_uri TEXT,
     oauth_scope TEXT,
-    oauth_access_token TEXT,
-    oauth_refresh_token TEXT,
+    oauth_access_token TEXT,      -- legacy; migrated to Keychain, then cleared
+    oauth_refresh_token TEXT,     -- legacy; migrated to Keychain, then cleared
     oauth_token_expires_at TEXT,
+    oauth_has_token BOOLEAN NOT NULL DEFAULT 0,
     oauth_state TEXT,
     
     -- Local MCP server fields
@@ -577,7 +578,31 @@ server.tool(
 - `GET /api/oauth/:serviceId/callback` - OAuth callback
 - `GET /api/oauth/callback` - Generic OAuth callback (extracts service ID from state)
 - `POST /api/oauth/:serviceId/auto-setup` - Auto-register OAuth application and start flow
-- `GET /api/oauth/:serviceId/status` - Check OAuth token status
+- `GET /api/oauth/:serviceId/status` - Check OAuth token status (`hasToken`, `isExpired`, `oauthHasToken` on service rows — not raw tokens)
+
+### Secret storage
+
+All high-value secrets leave SQLite and live in the platform **secret store** (`packages/backend/src/vault/`).
+
+| Class | Vault | Keychain / file account | SQLite retains |
+|-------|--------|-------------------------|----------------|
+| API keys | `CredentialManager` | `cred_{id}` | metadata yaml + row |
+| OAuth client secret | `OAuthClientSecretVault` | `oauth-client-secret:{serviceId}` | Client ID, endpoints, scope |
+| OAuth access + refresh | `OAuthTokenVault` | `oauth-tokens:{serviceId}` | `oauth_token_expires_at`, `oauth_has_token` |
+
+**Flow:** `OAuthManager` writes tokens via `OAuthTokenVault.set()` after code exchange or refresh. `MCPClientManager` calls `OAuthManager.getValidAccessToken()` when opening a connection (refresh if expired). The UI and collection warnings use `oauthHasToken` + expiry — tokens are never returned in `GET /api/services`.
+
+**Migration:** on first `OAuthTokenVault.get()` or `OAuthClientSecretVault.get()`, legacy plaintext in `services.oauth_*` columns is copied to Keychain, columns cleared, and any duplicate `Authorization` entry removed from `services.headers`.
+
+**Performance (practical):**
+
+- macOS Keychain `get`/`set` is usually **&lt; 5 ms** per call — orders of magnitude smaller than MCP HTTP/SSE round-trips.
+- Access tokens are read **once per MCP client connection** (in-memory client cache per `serviceId`); not on every tool call within an open session.
+- Refresh (Keychain read + provider HTTP + Keychain write) runs only when `oauth_token_expires_at` is in the past (5‑minute buffer).
+- One-time migration cost on upgrade: one Keychain write per service that still had legacy DB tokens.
+- Linux / CI tests use `MemorySecretStore` or the dev secrets file — no Keychain latency there.
+
+**Threat model:** protects against casual DB copy (backup, sync folder, forensics on `agent_deck.db`). Does not replace full-disk encryption or protection from malware running as the user (same as any local agent).
 
 #### Local MCP Servers
 - `POST /api/local-mcp/import` - Import local servers from JSON configuration

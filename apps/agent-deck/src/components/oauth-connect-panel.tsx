@@ -50,6 +50,7 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
   const [clientSecret, setClientSecret] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
+  const [showSecretField, setShowSecretField] = useState(false);
 
   const { data: setupData, isLoading } = useQuery({
     queryKey: ['/api/oauth', serviceId, 'setup'],
@@ -59,13 +60,32 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
       if (!response.ok || !json.success) {
         throw new Error(json.error || 'Failed to load OAuth setup');
       }
-      return json.data as { guide: OAuthGuide };
+      return json.data as {
+        guide: OAuthGuide;
+        savedOAuthClientId?: string;
+        hasStoredClientSecret?: boolean;
+        hasSavedCredentials?: boolean;
+      };
     },
     enabled: Boolean(serviceId),
   });
 
   const guide = setupData?.guide;
+  const hasSavedCredentials = Boolean(setupData?.hasSavedCredentials);
 
+  const buildConnectPayload = () => {
+    if (!showManualForm || guide?.setupMode !== 'manual') {
+      return undefined;
+    }
+    const payload: { clientId?: string; clientSecret?: string } = {};
+    if (clientId.trim()) {
+      payload.clientId = clientId.trim();
+    }
+    if (clientSecret.trim()) {
+      payload.clientSecret = clientSecret.trim();
+    }
+    return payload;
+  };
   const copyToClipboard = async (label: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -85,7 +105,14 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
     } else {
       setShowManualForm(false);
     }
-  }, [guide?.setupMode]);
+    setShowSecretField(!hasSavedCredentials);
+  }, [guide?.setupMode, hasSavedCredentials]);
+
+  useEffect(() => {
+    if (setupData?.savedOAuthClientId && !clientId) {
+      setClientId(setupData.savedOAuthClientId);
+    }
+  }, [setupData?.savedOAuthClientId, clientId]);
 
   const runConnect = async (credentials?: { clientId?: string; clientSecret?: string }) => {
     setConnecting(true);
@@ -172,7 +199,17 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
         )}
       </div>
 
-      {guide.prerequisites && guide.prerequisites.length > 0 && (
+      {hasSavedCredentials && guide.setupMode === 'manual' && (
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-xs text-green-100">
+          <p className="font-medium text-green-200">OAuth credentials saved</p>
+          <p className="mt-1 text-green-100/90">
+            Client ID is prefilled and your secret is remembered. Click Reconnect — no need to paste
+            the secret again unless Slack rejects the flow.
+          </p>
+        </div>
+      )}
+
+      {guide.prerequisites && guide.prerequisites.length > 0 && !hasSavedCredentials && (
         <div>
           <p className="text-xs font-medium text-orange-200 mb-1">Before you start</p>
           <ul className="list-disc list-inside space-y-1 text-xs text-orange-100/90">
@@ -223,10 +260,23 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
 
       {guide.steps.length > 0 && (
         <div>
-          {guide.setupMode === 'informational' ? (
-            <p className="text-xs font-medium text-orange-200 mb-1">What to do</p>
-          ) : null}
-          <GuideSteps items={guide.steps} />
+          {hasSavedCredentials && guide.setupMode === 'manual' ? (
+            <details className="rounded-lg border border-orange-500/20 bg-orange-500/5 p-3">
+              <summary className="cursor-pointer text-xs font-medium text-orange-200">
+                First-time Slack app setup
+              </summary>
+              <div className="mt-2">
+                <GuideSteps items={guide.steps} />
+              </div>
+            </details>
+          ) : (
+            <>
+              {guide.setupMode === 'informational' ? (
+                <p className="text-xs font-medium text-orange-200 mb-1">What to do</p>
+              ) : null}
+              <GuideSteps items={guide.steps} />
+            </>
+          )}
         </div>
       )}
 
@@ -251,19 +301,42 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
               className="bg-black/20 border-orange-500/30"
             />
           </div>
-          <div className="space-y-1">
-            <Label htmlFor={`oauth-client-secret-${serviceId}`} className="text-orange-200">
-              Client Secret
-            </Label>
-            <Input
-              id={`oauth-client-secret-${serviceId}`}
-              type="password"
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              placeholder="OAuth Client Secret"
-              className="bg-black/20 border-orange-500/30"
-            />
-          </div>
+          {showSecretField ? (
+            <div className="space-y-1">
+              <Label htmlFor={`oauth-client-secret-${serviceId}`} className="text-orange-200">
+                Client Secret
+              </Label>
+              <Input
+                id={`oauth-client-secret-${serviceId}`}
+                type="password"
+                value={clientSecret}
+                onChange={(e) => setClientSecret(e.target.value)}
+                placeholder="OAuth Client Secret"
+                className="bg-black/20 border-orange-500/30"
+              />
+            </div>
+          ) : (
+            <p className="text-xs text-orange-200/80">
+              Client secret is saved locally for this service.
+            </p>
+          )}
+          {hasSavedCredentials && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-orange-500/30 text-orange-200"
+              onClick={() => setShowSecretField((open) => !open)}
+            >
+              {showSecretField ? 'Hide client secret field' : 'Update client secret'}
+            </Button>
+          )}
+          {setupData?.hasStoredClientSecret && showSecretField && (
+            <p className="text-xs text-orange-200/80">
+              Leave blank to keep the saved secret. Enter a new value only if Slack rejected the
+              last connect attempt.
+            </p>
+          )}
         </div>
       )}
 
@@ -279,20 +352,22 @@ export function OAuthConnectPanel({ serviceId, onConnected }: OAuthConnectPanelP
           <Button
             size="sm"
             className="bg-orange-600 hover:bg-orange-700"
-            disabled={connecting || (showManualForm && guide.setupMode === 'manual' && !clientId.trim())}
-            onClick={() =>
-              runConnect(
-                showManualForm && guide.setupMode === 'manual'
-                  ? { clientId: clientId.trim(), clientSecret: clientSecret.trim() }
-                  : undefined,
-              )
+            disabled={
+              connecting ||
+              (showManualForm &&
+                guide.setupMode === 'manual' &&
+                !hasSavedCredentials &&
+                (!clientId.trim() || !clientSecret.trim()))
             }
+            onClick={() => runConnect(buildConnectPayload())}
           >
             {connecting
               ? 'Connecting…'
-              : guide.setupMode === 'dynamic' || guide.setupMode === 'managed'
-                ? 'Connect'
-                : 'Connect with credentials'}
+              : hasSavedCredentials && guide.setupMode === 'manual'
+                ? 'Reconnect'
+                : guide.setupMode === 'dynamic' || guide.setupMode === 'managed'
+                  ? 'Connect'
+                  : 'Connect with credentials'}
           </Button>
           {guide.docsUrl && (
             <Button

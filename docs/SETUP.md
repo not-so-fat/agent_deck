@@ -103,7 +103,25 @@ Two installs can run on the same machine without clashing:
 
 Override CLI ports: `AGENT_DECK_PORT`, `AGENT_DECK_MCP_PORT`.
 
-OAuth redirect URI follows the backend you use (e.g. dev → `http://127.0.0.1:8000/api/oauth/callback`, npx → `http://127.0.0.1:11111/api/oauth/callback`). Both share `~/.agent-deck` data.
+OAuth redirect URI follows the backend you use (e.g. dev → `http://127.0.0.1:8000/api/oauth/callback`, npx → `http://127.0.0.1:11111/api/oauth/callback`).
+
+**Data directories:** production `agent-deck start` uses `~/.agent-deck/`. Monorepo dev (`npm run dev:all`) uses `~/.agent-deck/dev/` so decks and OAuth credentials do not mix with production.
+
+### Secrets & OAuth storage
+
+Sensitive values use the same **OS secret store** as API keys (macOS Keychain; dev fallback file under `~/.agent-deck/`). **SQLite holds metadata only** — not plaintext secrets.
+
+| What | Keychain account | SQLite (metadata) |
+|------|------------------|-------------------|
+| API key value | `cred_*` (per credential) | label, scheme, `env_name`, tags |
+| OAuth **client secret** | `oauth-client-secret:{serviceId}` | Client ID, auth/token URLs, scope |
+| OAuth **access + refresh tokens** | `oauth-tokens:{serviceId}` (JSON bundle) | `oauth_token_expires_at`, `oauth_has_token` |
+
+**Migration:** older installs that stored client secrets or tokens in SQLite migrate automatically on first read (connect, MCP call, or token refresh). Legacy `Authorization` headers duplicated in `services.headers` are stripped after migration.
+
+**API responses:** the dashboard sees `oauthHasToken` (boolean), not the bearer string. Collection warnings and OAuth status use that flag plus expiry.
+
+**Performance:** Keychain reads are typically **sub‑millisecond to a few ms** on macOS — negligible next to MCP network calls (tens–hundreds of ms). Tokens are resolved when opening an MCP connection (cached for that session); refresh hits Keychain only when a token expires. You should not notice this in normal use. See [ARCHITECTURE.md — Secret storage](./ARCHITECTURE.md#secret-storage) for implementation detail.
 
 Legacy reference:
 
@@ -130,7 +148,9 @@ agent-deck start --force
 | `PORT` | Backend port (default `8000`) |
 | `HOST` | Bind address |
 | `NODE_ENV` | `development` / `production` |
-| `AGENT_DECK_DB_PATH` | SQLite path override |
+| `AGENT_DECK_DEV` | `1` → data under `~/.agent-deck/dev` (monorepo `npm run dev:all` sets this). `0` → production home even if `NODE_ENV=development`. |
+| `AGENT_DECK_HOME` | Data root override (DB, credentials yaml, secrets dir) |
+| `AGENT_DECK_DB_PATH` | SQLite file override (smoke tests use `.temporal/logs/smoke-agent_deck.db`) |
 
 ### OAuth redirect (see [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md))
 

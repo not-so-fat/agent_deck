@@ -174,8 +174,8 @@ export default function Home() {
     setCredentialDetailsOpen(true);
   };
 
-  const handleCardHover = (serviceId: string | null) => {
-    setHoveredCardId(serviceId);
+  const handleCardHover = (cardId: string | null) => {
+    setHoveredCardId(cardId);
   };
 
   const hasFatalError = servicesError || decksError;
@@ -316,12 +316,12 @@ export default function Home() {
       )}
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-screen">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-screen min-w-0">
           
           {/* Left Sidebar - 25% width */}
-          <div className="xl:col-span-1 space-y-6">
+          <div className="xl:col-span-1 space-y-6 min-w-0">
             {/* My Decks */}
-            <div className="panel-surface p-4 h-80">
+            <div className="panel-surface p-4 h-80 overflow-hidden min-w-0">
               <DeckManagementPanel
                 decks={decksArray}
                 editingDeckId={editingDeckId}
@@ -375,9 +375,9 @@ export default function Home() {
           </div>
           
           {/* Main Content - 75% width */}
-          <div className="xl:col-span-3 space-y-6">
+          <div className="xl:col-span-3 space-y-6 min-w-0">
             {/* Deck editor */}
-            <div className="panel-surface p-4 h-80">
+            <div className="panel-surface p-4 h-80 overflow-hidden min-w-0">
               {editingDeck ? (
                 <div className="h-full">
                   <DeckBuilder
@@ -466,9 +466,9 @@ export default function Home() {
                   </div>
                   
                   {/* Type Filter */}
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-20 h-8 bg-white/10 border-white/20 text-white text-sm" data-testid="select-type">
-                      <Filter className="w-3 h-3 mr-1" />
+                  <Select value={typeFilter || "all"} onValueChange={(v) => setTypeFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger className="w-[7.5rem] h-8 bg-white/10 border-white/20 text-white text-xs shrink-0" data-testid="select-type">
+                      <Filter className="w-3 h-3 mr-1 shrink-0" />
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -587,7 +587,7 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,80px)] gap-0 relative isolate" style={{ isolation: 'isolate' }}>
+                <div className="grid grid-cols-[repeat(auto-fill,80px)] gap-0 relative isolate" style={{ isolation: "isolate" }}>
                   {filteredPlaybooks.map((playbook, index) => (
                     <div
                       key={playbook.id}
@@ -615,7 +615,10 @@ export default function Home() {
                       key={credential.id}
                       className="relative group"
                       style={{
-                        zIndex: hoveredCardId === credential.id ? 999999 : collectionCount - filteredPlaybooks.length - index,
+                        zIndex:
+                          hoveredCardId === credential.id
+                            ? 999999
+                            : collectionCount - filteredPlaybooks.length - index,
                       }}
                     >
                       <CredentialCardComponent
@@ -633,18 +636,24 @@ export default function Home() {
                     </div>
                   ))}
                   {filteredServices.map((service, index) => (
-                    <div 
-                      key={service.id} 
-                      className="relative group" 
-                      style={{ 
-                        zIndex: hoveredCardId === service.id ? 999999 : collectionCount - filteredPlaybooks.length - filteredCredentials.length - index 
+                    <div
+                      key={service.id}
+                      className="relative group"
+                      style={{
+                        zIndex:
+                          hoveredCardId === service.id
+                            ? 999999
+                            : collectionCount -
+                              filteredPlaybooks.length -
+                              filteredCredentials.length -
+                              index,
                       }}
                     >
                       <CardComponent
                         service={service}
                         onDragStart={handleDragStart}
                         onDragEnd={handleDragEnd}
-                        isInActiveDeck={editingDeck?.services?.some(s => s.id === service.id) || false}
+                        isInActiveDeck={editingDeck?.services?.some((s) => s.id === service.id) || false}
                         onCardClick={handleCardClick}
                         isInCollection={true}
                         onMouseEnter={() => handleCardHover(service.id)}

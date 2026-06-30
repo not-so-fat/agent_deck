@@ -8,6 +8,8 @@ import {
   isOAuthAccessTokenExpired,
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
+import { OAuthClientSecretVault } from '../vault/oauth-client-secret-vault';
+import { OAuthTokenVault } from '../vault/oauth-token-vault';
 import { randomBytes } from 'crypto';
 import { generatePkcePair } from '../lib/pkce';
 import { getOAuthRedirectUri } from '../config/oauth-redirect';
@@ -41,7 +43,11 @@ export class OAuthManager {
     return this.oauthStates.get(state)?.serviceId;
   }
 
-  constructor(private db: DatabaseManager) {}
+  constructor(
+    private db: DatabaseManager,
+    private clientSecrets: OAuthClientSecretVault,
+    private tokens: OAuthTokenVault,
+  ) {}
 
   async discoverOAuth(serviceUrl: string): Promise<OAuthDiscoveryResult> {
     try {
@@ -178,8 +184,9 @@ export class OAuthManager {
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     });
-    if (service.oauthClientSecret) {
-      tokenBody.set('client_secret', service.oauthClientSecret);
+    const clientSecret = await this.clientSecrets.get(input.serviceId, service.oauthClientSecret);
+    if (clientSecret) {
+      tokenBody.set('client_secret', clientSecret);
     }
 
     const tokenResponse = await fetch(service.oauthTokenUrl, {
@@ -205,12 +212,12 @@ export class OAuthManager {
       scope: tokenData.scope,
     };
 
-    // Store tokens in database
-    await this.db.updateOAuthTokens(
+    // Store tokens in Keychain; expiry + has-token flag in SQLite
+    await this.tokens.set(
       serviceId,
       token.accessToken,
       token.refreshToken,
-      token.expiresAt
+      token.expiresAt,
     );
 
     // Clear state - we'll need to implement this properly
@@ -236,8 +243,9 @@ export class OAuthManager {
       client_id: service.oauthClientId || '',
       refresh_token: input.refreshToken,
     });
-    if (service.oauthClientSecret) {
-      refreshBody.set('client_secret', service.oauthClientSecret);
+    const clientSecret = await this.clientSecrets.get(input.serviceId, service.oauthClientSecret);
+    if (clientSecret) {
+      refreshBody.set('client_secret', clientSecret);
     }
 
     const tokenResponse = await fetch(service.oauthTokenUrl, {
@@ -263,12 +271,12 @@ export class OAuthManager {
       scope: tokenData.scope,
     };
 
-    // Store new tokens in database
-    await this.db.updateOAuthTokens(
+    // Store new tokens in Keychain
+    await this.tokens.set(
       input.serviceId,
       token.accessToken,
       token.refreshToken,
-      token.expiresAt
+      token.expiresAt,
     );
 
     return token;
@@ -279,23 +287,40 @@ export class OAuthManager {
     if (!service) {
       return true;
     }
+    const hasToken = await this.tokens.has(
+      serviceId,
+      service.oauthAccessToken,
+      service.oauthRefreshToken,
+    );
+    if (!hasToken) {
+      return true;
+    }
     return isOAuthAccessTokenExpired(service);
   }
 
   async getValidAccessToken(serviceId: string): Promise<string | null> {
     const service = await this.db.getService(serviceId);
-    if (!service || !service.oauthAccessToken) {
+    if (!service) {
+      return null;
+    }
+
+    const bundle = await this.tokens.get(
+      serviceId,
+      service.oauthAccessToken,
+      service.oauthRefreshToken,
+    );
+    if (!bundle?.accessToken) {
       return null;
     }
 
     // Check if token is expired (missing expiry means still valid)
     if (isOAuthAccessTokenExpired(service)) {
       // Try to refresh the token
-      if (service.oauthRefreshToken) {
+      if (bundle.refreshToken) {
         try {
           const newToken = await this.refreshOAuthToken({
             serviceId,
-            refreshToken: service.oauthRefreshToken,
+            refreshToken: bundle.refreshToken,
           });
           return newToken.accessToken;
         } catch (error) {
@@ -307,7 +332,28 @@ export class OAuthManager {
       }
     }
 
-    return service.oauthAccessToken;
+    return bundle.accessToken;
+  }
+
+  async hasOAuthTokens(serviceId: string): Promise<boolean> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      return false;
+    }
+    return this.tokens.has(serviceId, service.oauthAccessToken, service.oauthRefreshToken);
+  }
+
+  async hasRefreshToken(serviceId: string): Promise<boolean> {
+    const service = await this.db.getService(serviceId);
+    if (!service) {
+      return false;
+    }
+    const bundle = await this.tokens.get(
+      serviceId,
+      service.oauthAccessToken,
+      service.oauthRefreshToken,
+    );
+    return Boolean(bundle?.refreshToken);
   }
 
   async autoRegisterOAuthApp(serviceUrl: string, config: OAuthConfig): Promise<{

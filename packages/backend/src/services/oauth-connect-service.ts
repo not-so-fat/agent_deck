@@ -9,11 +9,36 @@ import {
   type OAuthProviderGuide,
 } from '../data/oauth-provider-guides';
 import { getSharedOAuthCredentials } from '../config/shared-oauth-apps';
+import { OAuthClientSecretVault } from '../vault/oauth-client-secret-vault';
 
 export type OAuthConnectInput = {
   clientId?: string;
   clientSecret?: string;
 };
+
+export type StoredOAuthCredentials = {
+  oauthClientId?: string | null;
+  oauthClientSecret?: string | null;
+};
+
+export function resolveOAuthClientCredentials(
+  input: OAuthConnectInput,
+  stored: StoredOAuthCredentials,
+): { clientId?: string; clientSecret?: string; missingRequiredSecret: boolean } {
+  const clientId = input.clientId?.trim() || stored.oauthClientId?.trim() || undefined;
+  const clientSecret =
+    input.clientSecret?.trim() || stored.oauthClientSecret?.trim() || undefined;
+
+  return {
+    clientId,
+    clientSecret,
+    missingRequiredSecret: Boolean(clientId && !clientSecret),
+  };
+}
+
+export function hasSavedOAuthCredentials(stored: StoredOAuthCredentials): boolean {
+  return Boolean(stored.oauthClientId?.trim() && stored.oauthClientSecret?.trim());
+}
 
 export type OAuthConnectResult =
   | {
@@ -33,7 +58,14 @@ export type OAuthConnectResult =
 export async function getOAuthSetupInfo(
   db: DatabaseManager,
   serviceId: string,
-): Promise<{ guide: OAuthProviderGuide; discovery: Awaited<ReturnType<MCPDiscoveryService['discoverService']>> }> {
+  clientSecrets: OAuthClientSecretVault,
+): Promise<{
+  guide: OAuthProviderGuide;
+  discovery: Awaited<ReturnType<MCPDiscoveryService['discoverService']>>;
+  savedOAuthClientId?: string;
+  hasStoredClientSecret: boolean;
+  hasSavedCredentials: boolean;
+}> {
   const service = await db.getService(serviceId);
   if (!service) {
     throw new Error('Service not found');
@@ -52,12 +84,23 @@ export async function getOAuthSetupInfo(
     setupMode,
   };
 
-  return { guide, discovery };
+  const storedSecret = await clientSecrets.get(serviceId, service.oauthClientSecret);
+  const hasStoredClientSecret = Boolean(storedSecret);
+  const hasSavedCredentials = Boolean(service.oauthClientId?.trim() && storedSecret);
+
+  return {
+    guide,
+    discovery,
+    savedOAuthClientId: service.oauthClientId ?? undefined,
+    hasStoredClientSecret,
+    hasSavedCredentials,
+  };
 }
 
 export async function startOAuthConnect(
   db: DatabaseManager,
   oauthManager: OAuthManager,
+  clientSecrets: OAuthClientSecretVault,
   serviceId: string,
   input: OAuthConnectInput = {},
 ): Promise<OAuthConnectResult> {
@@ -118,14 +161,16 @@ export async function startOAuthConnect(
     };
   }
 
-  const manualClientId = input.clientId?.trim() || service.oauthClientId?.trim();
-  const manualClientSecret = input.clientSecret?.trim() || service.oauthClientSecret?.trim();
+  const storedSecret = await clientSecrets.get(serviceId, service.oauthClientSecret);
+  const resolved = resolveOAuthClientCredentials(input, {
+    oauthClientId: service.oauthClientId,
+    oauthClientSecret: storedSecret,
+  });
+  let clientId = resolved.clientId;
+  let clientSecret = resolved.clientSecret;
+  let mode: 'dynamic' | 'manual' | 'managed' = clientId ? 'manual' : 'dynamic';
 
-  let clientId = manualClientId;
-  let clientSecret = manualClientSecret;
-  let mode: 'dynamic' | 'manual' | 'managed' = manualClientId ? 'manual' : 'dynamic';
-
-  const shared = !manualClientId ? getSharedOAuthCredentials(provider) : null;
+  const shared = !input.clientId?.trim() ? getSharedOAuthCredentials(provider) : null;
   if (shared) {
     clientId = shared.clientId;
     clientSecret = shared.clientSecret;
@@ -153,11 +198,24 @@ export async function startOAuthConnect(
     clientId = registration.clientId;
     clientSecret = registration.clientSecret;
     mode = 'dynamic';
+  } else if (guide.setupMode === 'manual' && resolved.missingRequiredSecret) {
+    return {
+      success: false,
+      needsCredentials: true,
+      setupMode: 'manual',
+      guide: { ...guide, setupMode: 'manual' },
+      error:
+        'Client secret is missing. Paste it below, or leave the field blank if one is already saved for this service.',
+    };
+  }
+
+  if (clientSecret) {
+    await clientSecrets.set(serviceId, clientSecret);
   }
 
   await db.updateService(serviceId, {
     oauthClientId: clientId,
-    oauthClientSecret: clientSecret,
+    oauthClientSecret: '',
     oauthAuthorizationUrl: oauthConfig.authorizationUrl,
     oauthTokenUrl: oauthConfig.tokenUrl,
     oauthRedirectUri: redirectUri,

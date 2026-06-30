@@ -22,8 +22,18 @@ export class MCPClientManager {
   private clients = new Map<string, Client>();
   private localServerManager: LocalMCPServerManager;
 
-  constructor() {
+  constructor(
+    private resolveAccessToken?: (serviceId: string) => Promise<string | null>,
+  ) {
     this.localServerManager = new LocalMCPServerManager();
+  }
+
+  invalidateClient(serviceId: string): void {
+    const client = this.clients.get(serviceId);
+    if (client) {
+      void client.close().catch(() => undefined);
+      this.clients.delete(serviceId);
+    }
   }
 
   private async getClient(service: Service): Promise<Client> {
@@ -60,16 +70,20 @@ export class MCPClientManager {
     };
     
     // Add OAuth token if available
-    if (service.oauthAccessToken) {
-      headers['Authorization'] = `Bearer ${service.oauthAccessToken}`;
+    const accessToken = this.resolveAccessToken
+      ? await this.resolveAccessToken(service.id)
+      : service.oauthAccessToken;
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
     }
     
-    // Add custom headers from service configuration
+    // Add custom headers from service configuration (skip legacy duplicated Bearer)
     if (service.headers) {
       try {
         const customHeaders = typeof service.headers === 'string' 
           ? JSON.parse(service.headers) 
-          : service.headers;
+          : { ...service.headers };
+        delete customHeaders.Authorization;
         Object.assign(headers, customHeaders);
         console.log(`🔧 Using custom headers for service ${service.id}:`, customHeaders);
       } catch (error) {

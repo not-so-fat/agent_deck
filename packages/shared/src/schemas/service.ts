@@ -27,6 +27,7 @@ export const ServiceSchema = z.object({
   oauthAccessToken: z.string().optional(),
   oauthRefreshToken: z.string().optional(),
   oauthTokenExpiresAt: z.string().datetime().optional(),
+  oauthHasToken: z.boolean().optional(),
   oauthState: z.string().optional(),
   
   // Local MCP server fields

@@ -40,9 +40,7 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
             } else if (message.type === 'service_update') {
               console.log('Received service update:', message);
-              // Invalidate service queries to refresh the UI
               queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
             } else if (message.type === 'connection_status') {
               setConnectionStatus(message.status === 'connected' ? 'connected' : 'disconnected');
             }

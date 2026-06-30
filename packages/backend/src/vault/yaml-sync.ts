@@ -1,10 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
-import os from 'os';
 import { Credential } from '@agent-deck/shared';
+import { resolveAgentDeckHome } from '../lib/paths';
 
 export function getAgentDeckHome(): string {
-  return process.env.AGENT_DECK_HOME ?? path.join(os.homedir(), '.agent-deck');
+  return resolveAgentDeckHome();
 }
 
 export function getCredentialsDir(): string {

@@ -22,6 +22,8 @@ export interface Service {
   oauthAccessToken?: string;
   oauthRefreshToken?: string;
   oauthTokenExpiresAt?: string;
+  /** True when access token is stored in Keychain (not returned to clients). */
+  oauthHasToken?: boolean;
   oauthState?: string;
   
   // Local MCP server fields

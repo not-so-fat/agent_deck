@@ -126,5 +126,5 @@ This is **OAuth client identity**, not “building a Slack product.” You are r
 
 1. Tag each preset with `connectionTier` in seed data and surface it in the service details UI.
 2. Split OAuth flows: `auto-setup` vs `manual-credentials` vs `vault-token`.
-3. Encrypt OAuth columns at rest (or OS keychain-backed secret store).
+3. ~~Encrypt OAuth columns at rest (or OS keychain-backed secret store).~~ **Shipped:** client secrets + access/refresh tokens in Keychain (`OAuthClientSecretVault`, `OAuthTokenVault`); see [SETUP.md — Secrets & OAuth storage](./SETUP.md#secrets--oauth-storage).
 4. Add RFC 8707 `resource` when discovery provides resource metadata.

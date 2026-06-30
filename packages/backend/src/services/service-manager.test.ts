@@ -48,7 +48,17 @@ describe('ServiceManager', () => {
     vi.mocked(MCPClientManager).mockImplementation(() => mockMCPClientManager);
     vi.mocked(OAuthManager).mockImplementation(() => mockOAuthManager);
 
-    serviceManager = new ServiceManager(mockDbManager, mockMCPClientManager, mockOAuthManager);
+    serviceManager = new ServiceManager(
+      mockDbManager,
+      mockMCPClientManager,
+      mockOAuthManager,
+      {
+        set: vi.fn(),
+        get: vi.fn(),
+        has: vi.fn(),
+        delete: vi.fn(),
+      } as unknown as import('../vault/oauth-client-secret-vault').OAuthClientSecretVault,
+    );
   });
 
   describe('Service CRUD Operations', () => {
