@@ -130,7 +130,9 @@ temp/
 # Editor directories and files
 .vscode/
 .idea/
-.cursor/
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 .temporal/
 packages/backend/static-ui/
 *.swp

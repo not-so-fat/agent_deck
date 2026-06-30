@@ -1,0 +1,44 @@
+---
+description: Sync planning docs (PRD, spec, ERD, ADR) with code when behavior diverges from what is written
+alwaysApply: true
+---
+
+# Planning docs ↔ implementation sync
+
+Keep **written intent** aligned with **shipped behavior**. Doc filenames vary by project (`PRD.md`, `MVP.md`, `SPEC.md`, `docs/requirements/`); treat them by **role**, not filename.
+
+## Doc roles (update the one that owns the change)
+
+| Role | Typical names | Owns |
+|------|---------------|------|
+| **Product / scope** | PRD, MVP, product spec | User outcomes, modules, success criteria, out-of-scope |
+| **Technical design** | tech spec, architecture doc | Components, APIs, data flow |
+| **Data model** | ERD, schema doc, `migrations/` notes | Tables, entities, relationships |
+| **Decisions** | ADR, RFC, `docs/decisions/` | Why we chose X; superseded options |
+| **Entry point** | README, SETUP, plugin README | Quick start, tool/API names users see first |
+
+## When to update (same PR / change set)
+
+- Behavior, API, UI flow, or schema **differs** from what the doc says
+- A module or milestone is **finished**, deferred, or renamed
+- Terminology in code/UI **no longer matches** the doc (fix the doc to as-built terms)
+
+## What to do
+
+1. **Edit the owning doc** — do not leave stale requirements after shipping a divergent implementation.
+2. **Record intentional gaps** — short *As-built*, *Implementation notes*, or a new **ADR** (what changed, why, legacy compat).
+3. **Honest status** — checklists / success criteria reflect shipped vs deferred vs manual-only.
+4. **Cross-link** — new focused docs (e.g. monorepo guide) linked from the parent PRD/spec and README if user-facing.
+5. **Entry point pass** — if users hit README or SETUP first, update names and flows there when they change.
+
+## Example
+
+```
+❌ Shipped bind_workspace scoping; PRD still says "activate one global deck"
+✅ PRD: bound deck vs editing deck; legacy activate API noted as compat-only
+```
+
+## Do not
+
+- Treat planning docs as write-once unless explicitly marked historical
+- Invent a second source of truth — code + one owning doc per concern

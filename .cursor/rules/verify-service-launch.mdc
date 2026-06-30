@@ -1,0 +1,18 @@
+---
+description: Verify services start before claiming backend/frontend work is done
+alwaysApply: true
+---
+
+# Verify service launch before done
+
+After changes that touch backend, frontend, MCP, CLI, or dev scripts:
+
+1. **Start the affected service** (do not only run unit tests or `tsc`).
+2. **Confirm it stays up** — no crash on boot, no repeated error spam in logs.
+3. **Hit a real endpoint** before telling the user it works:
+   - Backend: `curl http://127.0.0.1:8000/health` and at least one changed route (e.g. `/api/credentials`).
+   - Full stack: `bash scripts/smoke-dev.sh` from repo root.
+4. **Save output** to `.temporal/logs/` when debugging launch issues.
+5. **Node 24** is the default target; **Node 20+** supported. See `docs/SETUP.md`. Rebuild `better-sqlite3` if you switch Node major.
+
+Do not mark implementation complete until launch smoke passes or you report the exact failure and blocker.

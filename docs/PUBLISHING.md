@@ -1,5 +1,7 @@
 # Publishing Agent Deck
 
+> **Cursor:** release steps are also in `.cursor/rules/npm-release-workflow.mdc` (loaded when editing `CHANGELOG.md`, `package.json`, or `PUBLISHING.md`).
+
 ## Packages
 
 | npm package | Purpose |
