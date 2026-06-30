@@ -28,6 +28,41 @@ npm run build:release
 
 Update `CHANGELOG.md`, then commit.
 
+## Git tags & GitHub releases
+
+Tag every npm release so `git checkout v1.2.1` matches what shipped.
+
+| Tag format | Example |
+|------------|---------|
+| Annotated git tag | `v1.2.1` (matches root `package.json` / npm) |
+| Points at | The `Ship X.Y.Z: …` commit on `main` |
+
+### After publish
+
+```bash
+# Tag current HEAD (reads version from package.json) and push
+npm run release:tag:push
+
+# Optional: GitHub Release with CHANGELOG section for this version
+node scripts/release-tag.mjs --push --github-release
+```
+
+### One-time backfill (older releases)
+
+```bash
+npm run release:tag:backfill
+```
+
+Scans `git log` for `Ship 1.2.1:` / `… at 1.1.5` subjects and tags those commits. Skips tags that already exist.
+
+### Manual
+
+```bash
+git tag -a v1.2.1 -m "Agent Deck 1.2.1"
+git push origin v1.2.1
+gh release create v1.2.1 --title "1.2.1" --notes-file .temporal/logs/release-notes-1.2.1.md
+```
+
 ## Dry run (local)
 
 ```bash
@@ -47,6 +82,13 @@ Tests must pass first (`npm test`). Publish is blocked if any workspace test fai
 
 ```bash
 npm run publish:packages
+npm run release:tag:push
+```
+
+Optional GitHub Release notes from `CHANGELOG.md`:
+
+```bash
+node scripts/release-tag.mjs --push --github-release
 ```
 
 This runs the full test suite, `build:release`, then publishes shared → backend → cli.

@@ -208,7 +208,7 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
 
   return (
     <div
-      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden"
+      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-hidden"
       data-testid="deck-fan"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -250,22 +250,27 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
       )}
 
       <div
-        ref={scrollRef}
-        className="max-h-full max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-full w-full min-w-0 items-center justify-center"
         style={{
-          width: visibleFanWidth,
-          maxWidth: "100%",
           paddingTop: FAN_VERTICAL_PAD_PX,
           paddingBottom: FAN_VERTICAL_PAD_PX,
         }}
       >
         <div
-          className="flex items-center justify-start isolate group/fan"
+          ref={scrollRef}
+          className="h-full max-w-full overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{
-            paddingLeft: FAN_HORIZONTAL_PAD_PX,
-            paddingRight: FAN_HORIZONTAL_PAD_PX,
+            width: visibleFanWidth,
+            maxWidth: "100%",
           }}
         >
+          <div
+            className="flex h-full items-center justify-start isolate group/fan"
+            style={{
+              paddingLeft: FAN_HORIZONTAL_PAD_PX,
+              paddingRight: FAN_HORIZONTAL_PAD_PX,
+            }}
+          >
           {Children.map(children, (child, index) => (
             <div
               key={child && typeof child === "object" && "key" in child ? child.key : index}
@@ -280,6 +285,7 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
               {child}
             </div>
           ))}
+          </div>
         </div>
       </div>
     </div>
