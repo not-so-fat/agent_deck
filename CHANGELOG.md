@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.1 — 2026-06-30
+
+### Dashboard
+
+- Deck fan: extra vertical/side padding and softer edge gradients so tilted/hovered edge cards never clip
+- MCP and deck cards share a resilient icon component (favicon fallback → agent silhouette when missing)
+
+### Backend
+
+- Service icons: re-resolve favicon when `iconUrl` exists but the cached file is missing; `/api/services/:id/icon` now retries before 404
+
 ## 1.2.0 — 2026-06-29
 
 ### Security & OAuth

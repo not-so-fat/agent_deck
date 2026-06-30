@@ -19,6 +19,15 @@ export function getServiceIconPath(serviceId: string): string {
   return path.join(getServiceIconsDir(), `${serviceId}.ico`);
 }
 
+export async function serviceIconFileExists(serviceId: string): Promise<boolean> {
+  try {
+    await fs.access(getServiceIconPath(serviceId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function serviceIconApiPath(serviceId: string): string {
   return `/api/services/${serviceId}/icon`;
 }

@@ -20,6 +20,7 @@ import {
   cacheIconForService,
   getServiceIconPath,
   serviceIconApiPath,
+  serviceIconFileExists,
 } from './icon-resolver';
 
 interface A2AManifest {
@@ -187,14 +188,26 @@ export class ServiceManager {
 
   async backfillMissingIcons(): Promise<void> {
     const services = await this.db.getAllServices();
+    const needsRefresh: Service[] = [];
+    for (const service of services) {
+      if (!this.shouldResolveIcon(service)) {
+        continue;
+      }
+      if (!service.iconUrl) {
+        needsRefresh.push(service);
+        continue;
+      }
+      if (!(await serviceIconFileExists(service.id))) {
+        needsRefresh.push(service);
+      }
+    }
+
     await Promise.all(
-      services
-        .filter((service) => !service.iconUrl && this.shouldResolveIcon(service))
-        .map((service) =>
-          this.refreshServiceIcon(service.id).catch((error) => {
-            console.warn(`Failed to resolve icon for service ${service.name}:`, error);
-          }),
-        ),
+      needsRefresh.map((service) =>
+        this.refreshServiceIcon(service.id).catch((error) => {
+          console.warn(`Failed to resolve icon for service ${service.name}:`, error);
+        }),
+      ),
     );
   }
 
@@ -206,7 +219,13 @@ export class ServiceManager {
     const services = await this.db.getAllServices();
     return Promise.all(
       services.map(async (service) => {
-        if (!service.iconUrl && this.shouldResolveIcon(service)) {
+        if (!this.shouldResolveIcon(service)) {
+          return service;
+        }
+
+        const missingIconUrl = !service.iconUrl;
+        const missingCacheFile = service.iconUrl && !(await serviceIconFileExists(service.id));
+        if (missingIconUrl || missingCacheFile) {
           const updated = await this.refreshServiceIcon(service.id);
           return updated ?? service;
         }

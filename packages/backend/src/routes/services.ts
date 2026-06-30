@@ -107,16 +107,35 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
 
   // Cached service icon (must be registered before /:id)
   fastify.get<ServiceIdRequest>('/:id/icon', async (request, reply) => {
-    try {
-      const iconPath = getServiceIconPath(request.params.id);
-      const buffer = await fs.readFile(iconPath);
-      return reply.type(mimeFromIconBuffer(buffer)).send(buffer);
-    } catch {
-      return reply.status(404).send({
-        success: false,
-        error: 'Icon not found',
-      });
+    const serviceId = request.params.id;
+    const iconPath = getServiceIconPath(serviceId);
+
+    const sendIcon = async (): Promise<boolean> => {
+      try {
+        const buffer = await fs.readFile(iconPath);
+        await reply.type(mimeFromIconBuffer(buffer)).send(buffer);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    if (await sendIcon()) {
+      return;
     }
+
+    const service = await fastify.db.getService(serviceId);
+    if (service && service.type !== 'local-mcp' && !service.url.startsWith('local://')) {
+      await fastify.serviceManager.refreshServiceIcon(serviceId);
+      if (await sendIcon()) {
+        return;
+      }
+    }
+
+    return reply.status(404).send({
+      success: false,
+      error: 'Icon not found',
+    });
   });
 
   // Refresh favicon for a service

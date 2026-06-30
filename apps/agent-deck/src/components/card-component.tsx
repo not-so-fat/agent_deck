@@ -6,10 +6,9 @@ import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Trash2 } from "lucide-react";
-import agentIconUrl from "@/assets/icons/Agent2.svg";
-import { getServiceIconSrc } from "@/lib/service-icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import CardWarningBadge from "@/components/card-warning-badge";
+import ServiceCardIcon from "@/components/service-card-icon";
 import { inDeckCollectionClass, InDeckCornerBadge } from "@/lib/in-deck-card-style";
 
 interface CardComponentProps {
@@ -24,34 +23,6 @@ interface CardComponentProps {
   activeDeck?: Deck;
   warnings?: CollectionCardWarning[];
 }
-
-const getServiceIcon = (service: Service) => {
-  const color = getServiceCardColor(service);
-  const iconSrc = getServiceIconSrc(service);
-
-  if (iconSrc) {
-    return (
-      <img
-        src={iconSrc}
-        alt=""
-        className="w-7 h-7 object-contain rounded-sm"
-        draggable={false}
-      />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        width: 28,
-        height: 28,
-        backgroundColor: color,
-        WebkitMask: `url(${agentIconUrl}) no-repeat center / contain`,
-        mask: `url(${agentIconUrl}) no-repeat center / contain`,
-      }}
-    />
-  );
-};
 
 function CardComponent({
   service,
@@ -182,7 +153,7 @@ function CardComponent({
 
         <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
           <div className="mb-2" style={{ color: cardColor }}>
-            {getServiceIcon(service)}
+            <ServiceCardIcon service={service} />
           </div>
 
           <h3

@@ -1,8 +1,7 @@
 import { Deck, Service, Credential, Playbook } from "@agent-deck/shared";
 import { getServiceCardColor, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR } from "@/lib/card-colors";
 import { BookOpen, Plus } from "lucide-react";
-import agentIconUrl from "@/assets/icons/Agent2.svg";
-import { getServiceIconSrc } from "@/lib/service-icon";
+import ServiceCardIcon from "@/components/service-card-icon";
 import CardWarningBadge from "@/components/card-warning-badge";
 import CredentialCardIcon from "@/components/credential-card-icon";
 import DeckFan from "@/components/deck-fan";
@@ -49,34 +48,6 @@ export default function DeckBuilder({
     e.preventDefault();
   };
 
-  const getServiceIcon = (service: Service) => {
-    const color = getServiceCardColor(service);
-    const iconSrc = getServiceIconSrc(service);
-
-    if (iconSrc) {
-      return (
-        <img
-          src={iconSrc}
-          alt=""
-          className="w-7 h-7 object-contain rounded-sm"
-          draggable={false}
-        />
-      );
-    }
-
-    return (
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          backgroundColor: color,
-          WebkitMask: `url(${agentIconUrl}) no-repeat center / contain`,
-          mask: `url(${agentIconUrl}) no-repeat center / contain`,
-        }}
-      />
-    );
-  };
-
   const deckCards = services.length + credentials.length + playbooks.length;
 
   return (
@@ -91,7 +62,7 @@ export default function DeckBuilder({
       </div>
 
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed p-4 min-w-0"
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-x-hidden rounded-xl border-2 border-dashed px-4 py-5 min-w-0"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         style={{
@@ -101,7 +72,7 @@ export default function DeckBuilder({
         }}
         data-testid="deck-drop-zone"
       >
-        <div className="relative h-full w-full min-w-0 overflow-hidden">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-x-hidden min-w-0">
           {deckCards === 0 ? (
             <div className="text-center">
               <div className="w-32 h-48 border-2 border-dashed border-gray-500 rounded-lg flex items-center justify-center opacity-50 hover:opacity-75 transition-all mb-4">
@@ -113,7 +84,7 @@ export default function DeckBuilder({
               {credentials.map((credential, index) => (
                   <div
                     key={credential.id}
-                    className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transform transition-all duration-500 shadow-lg hover:shadow-2xl hover:scale-110 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer hover:rotate-0"
+                    className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transition-shadow duration-500 shadow-lg hover:shadow-2xl bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer"
                     style={{
                       borderColor: API_KEY_CARD_COLOR,
                       boxShadow: `0 0 20px ${API_KEY_CARD_COLOR}20`,
@@ -153,7 +124,7 @@ export default function DeckBuilder({
               {playbooks.map((playbook, index) => (
                     <div
                       key={playbook.id}
-                      className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transform transition-all duration-500 shadow-lg hover:shadow-2xl hover:scale-110 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer hover:rotate-0"
+                      className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transition-shadow duration-500 shadow-lg hover:shadow-2xl bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer"
                       style={{
                         borderColor: PLAYBOOK_CARD_COLOR,
                         boxShadow: `0 0 20px ${PLAYBOOK_CARD_COLOR}20`,
@@ -193,12 +164,10 @@ export default function DeckBuilder({
                       </div>
                     </div>
               ))}
-              {services.map((service, index) => {
-                const IconComponent = getServiceIcon(service);
-                return (
+              {services.map((service) => (
                     <div
                       key={service.id}
-                      className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transform transition-all duration-500 shadow-lg hover:shadow-2xl hover:scale-110 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer hover:rotate-0"
+                      className="w-32 h-48 aspect-[2/3] rounded-lg border-2 p-3 transition-shadow duration-500 shadow-lg hover:shadow-2xl bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden cursor-pointer"
                       style={{
                         borderColor: getServiceCardColor(service),
                         boxShadow: `0 0 20px ${getServiceCardColor(service)}20`,
@@ -225,7 +194,7 @@ export default function DeckBuilder({
                       </div>
                       <div className="absolute inset-x-2 top-6 bottom-8 flex flex-col items-center justify-center text-center">
                         <div className="mb-2" style={{ color: getServiceCardColor(service) }}>
-                          {IconComponent}
+                          <ServiceCardIcon service={service} />
                         </div>
                         <h3
                           className="font-bold text-xs mb-1 line-clamp-2"
@@ -248,8 +217,7 @@ export default function DeckBuilder({
                         </div>
                       </div>
                     </div>
-                );
-              })}
+              ))}
             </DeckFan>
           )}
         </div>

@@ -13,10 +13,14 @@ export const CARD_WIDTH = 128;
 export const CARD_OVERLAP = 48;
 /** How many cards fit in the visible deck window at once. */
 export const VISIBLE_CARD_SLOTS = 10;
+/** Room for tilt + hover scale without clipping card corners. */
+export const FAN_VERTICAL_PAD_PX = 28;
+export const FAN_HORIZONTAL_PAD_PX = 12;
 const EDGE_ZONE_PX = 64;
 const SCROLL_SPEED_MIN = 4;
 const SCROLL_SPEED_MAX = 14;
 const MAX_TILT_DEG = 12;
+const HOVER_SCALE = 1.08;
 
 interface DeckFanProps {
   cardCount: number;
@@ -95,7 +99,9 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
         activeHover === index
           ? 0
           : tiltFromViewportPosition(cardCenterX, scrollRect.left, scrollRect.width);
-      cardEl.style.transform = `rotate(${tilt}deg)`;
+      const scale = activeHover === index ? HOVER_SCALE : 1;
+      cardEl.style.transform = `rotate(${tilt}deg) scale(${scale})`;
+      cardEl.style.transformOrigin = "center center";
       cardEl.style.zIndex = String(deckFanCardZIndex(index, cardCount, activeHover));
     });
   }, [cardCount]);
@@ -202,7 +208,7 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
 
   return (
     <div
-      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-hidden"
+      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden"
       data-testid="deck-fan"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -233,11 +239,11 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
       {needsEdgeScroll && (
         <>
           <div
-            className="pointer-events-none absolute inset-y-4 left-0 z-20 w-16 bg-gradient-to-r from-gray-950/90 to-transparent"
+            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-24 bg-gradient-to-r from-gray-950/95 via-gray-950/50 to-transparent"
             aria-hidden
           />
           <div
-            className="pointer-events-none absolute inset-y-4 right-0 z-20 w-16 bg-gradient-to-l from-gray-950/90 to-transparent"
+            className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24 bg-gradient-to-l from-gray-950/95 via-gray-950/50 to-transparent"
             aria-hidden
           />
         </>
@@ -245,17 +251,28 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
 
       <div
         ref={scrollRef}
-        className="h-full max-h-full overflow-x-auto overflow-y-hidden py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ width: visibleFanWidth, maxWidth: "100%" }}
+        className="max-h-full max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          width: visibleFanWidth,
+          maxWidth: "100%",
+          paddingTop: FAN_VERTICAL_PAD_PX,
+          paddingBottom: FAN_VERTICAL_PAD_PX,
+        }}
       >
-        <div className="flex items-center justify-start isolate group/fan">
+        <div
+          className="flex items-center justify-start isolate group/fan"
+          style={{
+            paddingLeft: FAN_HORIZONTAL_PAD_PX,
+            paddingRight: FAN_HORIZONTAL_PAD_PX,
+          }}
+        >
           {Children.map(children, (child, index) => (
             <div
               key={child && typeof child === "object" && "key" in child ? child.key : index}
               ref={(el) => {
                 cardRefs.current[index] = el;
               }}
-              className="relative transition-all duration-500"
+              className="relative transition-[transform,box-shadow] duration-500 will-change-transform"
               style={deckFanCardStyle(index)}
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
