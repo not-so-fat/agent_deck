@@ -1,871 +1,113 @@
-# Agent Deck - Development Guide
+# Agent Deck — Development Guide
 
-## Overview
+**Doc role:** Contributor workflow  
+**Install & env:** [SETUP.md](./SETUP.md) · **Product scope:** [MVP.md](./MVP.md) · **Design:** [ARCHITECTURE.md](./ARCHITECTURE.md)
 
-This guide provides comprehensive information for developers contributing to Agent Deck, including development workflow, code organization, testing strategies, and best practices.
+---
 
-## Development Environment Setup
+## Quick start
 
-### **Prerequisites**
-- **Node.js 24** (default) or **20+** — [SETUP.md](./SETUP.md#nodejs-version-policy)
-- **npm**, **Git**
-- **VS Code** (recommended)
-
-### **Initial Setup**
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone https://github.com/not-so-fat/agent_deck.git
 cd agent_deck
-
-# Install dependencies
 npm install
-
-# Build all packages
 npm run build
-
-# Start development environment
 npm run dev:all
 ```
 
-### **IDE Configuration**
-Recommended VS Code extensions:
-- **TypeScript and JavaScript Language Features**
-- **ESLint**
-- **Prettier**
-- **Tailwind CSS IntelliSense**
-- **Auto Rename Tag**
-- **Bracket Pair Colorizer**
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:3000 |
+| API | http://localhost:8000 |
+| MCP | http://127.0.0.1:3001/mcp |
 
-## Project Structure
+Data dir: `AGENT_DECK_DEV=1` → `~/.agent-deck/dev/` (see [SETUP.md](./SETUP.md)).
 
-### **Monorepo Architecture**
-```
-agent_deck/
-├── packages/
-│   ├── shared/                 # Shared types, schemas, utilities
-│   └── backend/                # Fastify API server + MCP server
-├── apps/
-│   └── agent-deck/             # React frontend
-├── scripts/
-│   └── dev-all.sh              # Development launcher
-├── docs/                       # Documentation
-├── logs/                       # Application logs
-└── misc/                       # Assets and misc files
-```
+---
 
-### **Package Responsibilities**
+## Daily workflow
 
-#### **Shared Package** (`packages/shared/`)
-- **Types**: TypeScript interfaces for all data models
-- **Schemas**: Zod validation schemas
-- **Utilities**: Common utility functions
-- **Database**: Shared database utilities
-
-#### **Backend Package** (`packages/backend/`)
-- **API Server**: Fastify REST API
-- **MCP Server**: MCP protocol server
-- **Database**: SQLite database management
-- **Services**: Business logic layer
-- **Routes**: API route handlers
-
-#### **Frontend Package** (`apps/agent-deck/`)
-- **Components**: React components
-- **Pages**: Application pages
-- **Hooks**: Custom React hooks
-- **Services**: API integration
-- **Utils**: Frontend utilities
-
-## Development Workflow
-
-### **Daily Development**
 ```bash
-# Start development environment
-npm run dev:all
-
-# In separate terminals for individual services:
-npm run backend:dev    # Backend API
-npm run frontend:dev   # Frontend
-npm run mcp           # MCP server
+npm run dev:all          # all services (scripts/dev-all.sh)
+npm run backend:dev      # API only
+npm run frontend:dev     # Vite only
+npm run mcp              # MCP only
+npm test                 # all packages (rebuilds native modules)
+npm run smoke:dev        # backend health + key routes
+npm run build:release    # pre-publish build
 ```
 
-### **Making Changes**
-1. **Create Feature Branch**: `git checkout -b feature/your-feature`
-2. **Make Changes**: Edit files in appropriate packages
-3. **Test Changes**: Run tests and verify functionality
-4. **Commit Changes**: Use conventional commit messages
-5. **Push Changes**: `git push origin feature/your-feature`
-6. **Create Pull Request**: Submit for review
+**Branch flow:** feature branch → change → `npm test` → PR.
 
-### **Code Organization**
+**Monorepo layout:** [ARCHITECTURE.md](./ARCHITECTURE.md#components). Turbo orchestrates `packages/shared`, `packages/backend`, `packages/cli`, `apps/agent-deck`.
 
-#### **Backend Code Structure**
-```
-packages/backend/src/
-├── server/              # Fastify server setup
-├── routes/              # API route handlers
-│   ├── local-mcp.ts     # Local MCP server routes
-│   └── ...              # Other route files
-├── services/            # Business logic
-│   ├── local-mcp-server-manager.ts  # Local MCP server management
-│   ├── config-manager.ts            # Configuration parsing and validation
-│   └── ...              # Other service files
-├── models/              # Database models
-├── utils/               # Utilities
-├── types/               # TypeScript types
-├── mcp-server.ts        # MCP server implementation
-├── mcp-index.ts         # MCP server entry point
-└── test-local-mcp.ts    # Local MCP server test script
-```
+---
 
-#### **Frontend Code Structure**
-```
-apps/agent-deck/src/
-├── components/          # React components
-│   ├── ui/             # Shadcn/ui components
-│   └── ...             # Custom components
-├── pages/              # Application pages
-├── hooks/              # Custom React hooks
-├── services/           # API services
-├── lib/                # Utilities and configuration
-├── types/              # Frontend types
-└── index.css           # Global styles
-```
+## Testing
 
-### **Conventional Commits**
-Use conventional commit messages:
 ```bash
-# Format: type(scope): description
-git commit -m "feat(backend): add OAuth token refresh"
-git commit -m "fix(frontend): resolve service card rendering issue"
-git commit -m "docs(readme): update installation instructions"
-git commit -m "test(shared): add validation schema tests"
+npm test                           # full suite
+npm run test --workspace packages/backend
+npm run smoke:dev                  # lightweight launch smoke
 ```
 
-## Testing Strategy
+- Framework: **Vitest**
+- Native module: `better-sqlite3` — if Node major changes, `npm install` / `scripts/rebuild-native.mjs`
+- After backend/MCP changes: run `npm run dev:all` or `smoke:dev` per [verify-service-launch](../.cursor/rules/verify-service-launch.mdc)
 
-### **Testing Framework**
-- **Vitest**: Fast unit testing framework
-- **Testing Library**: React component testing
-- **Coverage**: Built-in coverage reporting
+---
 
-### **Running Tests**
-```bash
-# Run all tests
-npm test
+## Where to change things
 
-# Run tests in specific package
-cd packages/backend && npm test
-cd apps/agent-deck && npm test
-cd packages/shared && npm test
+| Change | Start here |
+|--------|------------|
+| MCP tools / bind | `packages/backend/src/mcp-server.ts` |
+| REST routes | `packages/backend/src/routes/` |
+| Vault / credentials | `packages/backend/src/vault/` |
+| Shared types | `packages/shared/src/schemas/` |
+| Dashboard UI | `apps/agent-deck/src/` |
+| CLI / harness | `packages/cli/src/` |
+| Agent harness template | `packages/cli/src/agent-harness.ts` |
 
-# Run tests with coverage
-npm run test:coverage
+When behavior changes, update the **owning doc** ([MVP.md](./MVP.md) for product, [SETUP.md](./SETUP.md) for install) in the same PR.
 
-# Run tests in watch mode
-npm run test:watch
-```
+---
 
-**Current Test Status**: ✅ All tests passing
-- Backend: All tests passing (including local MCP server tests)
-- Frontend: All tests passing (WebSocket, Drag & Drop, Simple tests)
-- Shared: All tests passing
-- Local MCP Server: Comprehensive functionality tests passing
+## Agents & playbooks (contributors)
 
-### **Test Organization**
+When working in this repo with Agent Deck MCP:
 
-#### **Unit Tests**
-- **Location**: `__tests__/` directories or `.test.ts` files
-- **Coverage**: Individual functions and components
-- **Mocking**: Mock external dependencies
+1. `bind_workspace` with repo root (or use committed `.agent-deck/deck.yaml` when present)
+2. Procedure cards: `get_playbook` — **not** direct SQLite / `~/.agent-deck/*.db`
+3. Product truth: [MVP.md](./MVP.md); proposed features: `PRD_*.md`
 
-#### **Integration Tests**
-- **Location**: `__tests__/integration/` directories
-- **Coverage**: API endpoints and service interactions
-- **Database**: Use test database instances
+See [decisions/installation-no-bypass.md](./decisions/installation-no-bypass.md).
 
-#### **Component Tests**
-- **Location**: `__tests__/components/` directories
-- **Coverage**: React component behavior
-- **User Interactions**: Test user interactions and state changes
+---
 
-#### **Local MCP Server Tests**
-- **Location**: `src/test-local-mcp.ts` and integration tests
-- **Coverage**: Configuration parsing, process management, security validation
-- **Mocking**: Mock subprocess spawning for testing
+## Contributing
 
-### **Test Examples**
+- Conventional commits: `feat:`, `fix:`, `docs:`, `test:`
+- Keep diffs focused; match surrounding code style
+- Do not commit secrets, `.env`, or `~/.agent-deck/` data
+- Release process: [PUBLISHING.md](./PUBLISHING.md)
 
-#### **Backend API Test**
-```typescript
-// packages/backend/src/routes/__tests__/services.test.ts
-import { describe, it, expect } from 'vitest';
-import { createServiceHandler } from '../services';
-
-describe('Service API', () => {
-  it('should create a new service', async () => {
-    const mockRequest = {
-      body: {
-        name: 'Test Service',
-        type: 'mcp',
-        url: 'https://example.com/mcp'
-      }
-    };
-    
-    const result = await createServiceHandler(mockRequest, {} as any);
-    expect(result.success).toBe(true);
-    expect(result.data.name).toBe('Test Service');
-  });
-});
-```
-
-#### **Frontend Component Test**
-```typescript
-// apps/agent-deck/src/components/__tests__/ServiceCard.test.tsx
-import { render, screen } from '@testing-library/react';
-import { ServiceCard } from '../ServiceCard';
-
-describe('ServiceCard', () => {
-  it('should render service information', () => {
-    const service = {
-      id: '1',
-      name: 'Test Service',
-      type: 'mcp',
-      url: 'https://example.com/mcp',
-      health: 'healthy'
-    };
-    
-    render(<ServiceCard service={service} />);
-    expect(screen.getByText('Test Service')).toBeInTheDocument();
-  });
-});
-```
-
-#### **Local MCP Server Test**
-```typescript
-// packages/backend/src/test-local-mcp.ts
-import { LocalMCPServerManager } from './services/local-mcp-server-manager';
-import { ConfigManager } from './services/config-manager';
-
-describe('Local MCP Server', () => {
-  it('should parse and validate configuration', () => {
-    const configManager = new ConfigManager();
-    const sampleConfig = configManager.generateSampleManifest();
-    const services = configManager.manifestToServices(sampleConfig);
-    
-    expect(services.length).toBeGreaterThan(0);
-    expect(services[0].type).toBe('local-mcp');
-  });
-  
-  it('should validate command safety', () => {
-    const configManager = new ConfigManager();
-    expect(configManager.isCommandSafe('npx')).toBe(true);
-    expect(configManager.isCommandSafe('rm -rf /')).toBe(false);
-  });
-});
-```
-
-## Code Quality
-
-### **Linting and Formatting**
-```bash
-# Run linting
-npm run lint
-
-# Fix linting issues
-npm run lint:fix
-
-# Format code
-npm run format
-
-# Type checking
-npm run type-check
-```
-
-### **ESLint Configuration**
-- **TypeScript**: Strict TypeScript rules
-- **React**: React-specific rules
-- **Import/Export**: Import/export organization
-- **Prettier**: Code formatting integration
-
-### **Prettier Configuration**
-- **Semi**: Always use semicolons
-- **Single Quote**: Use single quotes
-- **Trailing Comma**: Use trailing commas
-- **Tab Width**: 2 spaces
-
-### **TypeScript Configuration**
-- **Strict Mode**: Enabled for all packages
-- **No Implicit Any**: Require explicit types
-- **Strict Null Checks**: Strict null checking
-- **No Unused Variables**: Error on unused variables
-
-## Database Development
-
-### **Database Schema**
-```sql
--- Services table
-CREATE TABLE services (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('mcp', 'a2a')),
-    url TEXT NOT NULL,
-    health TEXT NOT NULL DEFAULT 'unknown',
-    -- ... other fields
-);
-
--- Decks table
-CREATE TABLE decks (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    description TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT 0,
-    -- ... other fields
-);
-```
-
-### **Database Operations**
-```typescript
-// Example: Database operation
-export class ServiceManager {
-  async createService(data: CreateServiceInput): Promise<Service> {
-    const validatedData = CreateServiceSchema.parse(data);
-    
-    const service: Service = {
-      id: generateId(),
-      ...validatedData,
-      registeredAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    await this.db.insertService(service);
-    return service;
-  }
-}
-```
-
-### **Database Migrations**
-- **Schema Changes**: Update database schema
-- **Data Migration**: Migrate existing data
-- **Versioning**: Track schema versions
-- **Rollback**: Support for rollback operations
-
-## API Development
-
-### **API Design Principles**
-- **RESTful**: Follow REST conventions
-- **Consistent**: Use consistent response formats
-- **Validated**: Validate all inputs with Zod
-- **Documented**: Document all endpoints
-
-### **API Endpoints**
-
-#### **Services**
-- `GET /api/services` - List all services
-- `POST /api/services` - Create new service
-- `GET /api/services/:id` - Get service details
-- `PUT /api/services/:id` - Update service
-- `DELETE /api/services/:id` - Delete service
-- `GET /api/services/:id/tools` - Discover service tools
-- `POST /api/services/:id/call` - Call service tool
-- `GET /api/services/:id/health` - Check service health
-
-#### **Decks**
-- `GET /api/decks` - List all decks
-- `POST /api/decks` - Create new deck
-- `GET /api/decks/active` - Get active deck
-- `GET /api/decks/:id` - Get deck details
-- `PUT /api/decks/:id` - Update deck
-- `DELETE /api/decks/:id` - Delete deck
-- `POST /api/decks/:id/activate` - Set as active deck
-- `POST /api/decks/:id/services` - Add service to deck
-- `DELETE /api/decks/:id/services` - Remove service from deck
-- `PUT /api/decks/:id/services/reorder` - Reorder deck services
-
-#### **OAuth** ✅ **Fully Implemented**
-- `GET /api/oauth/:serviceId/discover` - Discover OAuth config
-- `GET /api/oauth/callback` - Generic OAuth callback (extracts service ID from state)
-- `POST /api/oauth/:serviceId/auto-setup` - Auto-register OAuth application and start flow
-- `GET /api/oauth/:serviceId/status` - Check OAuth token status
-
-#### **Local MCP Servers** ✅ **Fully Implemented**
-- `POST /api/local-mcp/import` - Import local servers from JSON configuration
-- `GET /api/local-mcp/sample-config` - Get sample configuration
-- `POST /api/local-mcp/:serviceId/start` - Start a local MCP server
-- `POST /api/local-mcp/:serviceId/stop` - Stop a local MCP server
-- `GET /api/local-mcp/:serviceId/status` - Get local server status
-- `GET /api/local-mcp/list` - List all local MCP servers
-
-#### **WebSocket**
-- `WS /api/ws/events` - Real-time updates
-
-### **API Response Format**
-```typescript
-interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-```
-
-### **Route Handler Pattern**
-```typescript
-// Example: API route handler
-export async function createServiceHandler(
-  request: FastifyRequest<{ Body: CreateServiceInput }>,
-  reply: FastifyReply
-): Promise<ApiResponse<Service>> {
-  try {
-    const service = await serviceManager.createService(request.body);
-    return {
-      success: true,
-      data: service,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.message,
-    };
-  }
-}
-```
-
-## Frontend Development
-
-### **Component Development**
-```typescript
-// Example: React component
-interface ServiceCardProps {
-  service: Service;
-  onEdit?: (service: Service) => void;
-  onDelete?: (serviceId: string) => void;
-}
-
-export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
-  return (
-    <div className="service-card">
-      <h3>{service.name}</h3>
-      <p>{service.description}</p>
-      <div className="actions">
-        {onEdit && <button onClick={() => onEdit(service)}>Edit</button>}
-        {onDelete && <button onClick={() => onDelete(service.id)}>Delete</button>}
-      </div>
-    </div>
-  );
-}
-```
-
-### **State Management**
-```typescript
-// Example: TanStack Query usage
-export function useServices() {
-  return useQuery({
-    queryKey: ['services'],
-    queryFn: () => apiRequest('GET', '/api/services').then(r => r.json()),
-    staleTime: 30000, // 30 seconds
-  });
-}
-```
-
-### **Custom Hooks**
-```typescript
-// Example: Custom hook
-export function useWebSocket(url: string) {
-  const [data, setData] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  
-  useEffect(() => {
-    const ws = new WebSocket(url);
-    
-    ws.onopen = () => setIsConnected(true);
-    ws.onmessage = (event) => setData(JSON.parse(event.data));
-    ws.onclose = () => setIsConnected(false);
-    
-    return () => ws.close();
-  }, [url]);
-  
-  return { data, isConnected };
-}
-```
-
-## Local MCP Server Development
-
-### **Local MCP Server Manager**
-```typescript
-// Example: Local MCP server manager usage
-const localManager = new LocalMCPServerManager();
-
-// Start a local server
-const service: Service = {
-  id: 'local-memory',
-  name: 'Memory Server',
-  type: 'local-mcp',
-  url: 'local://memory',
-  localCommand: 'npx',
-  localArgs: ['-y', '@modelcontextprotocol/server-memory'],
-  // ... other fields
-};
-
-const processRecord = await localManager.startLocalServer(service);
-
-// Call a tool on the local server
-const result = await localManager.callTool(service.id, 'get_memory', { key: 'test' });
-
-// Stop the server
-await localManager.stopLocalServer(service.id);
-```
-
-### **Configuration Management**
-```typescript
-// Example: Parse and validate configuration
-const configManager = new ConfigManager();
-
-const manifest = configManager.parseManifest(jsonContent);
-const services = configManager.manifestToServices(manifest);
-
-// Validate command safety
-const isSafe = configManager.isCommandSafe('npx');
-const sanitizedEnv = configManager.sanitizeEnvironment({ 'UNSAFE_VAR': 'value' });
-```
-
-### **API Route Implementation**
-```typescript
-// Example: Local MCP server route
-fastify.post('/api/local-mcp/import', async (request, reply) => {
-  const { config } = request.body;
-  const services = await serviceManager.importLocalServersFromConfig(config);
-  
-  return {
-    success: true,
-    data: { imported: services.length, services },
-  };
-});
-```
-
-## MCP Server Development
-
-### **MCP Tool Implementation**
-```typescript
-// Example: MCP tool
-server.tool(
-  "get_active_deck",
-  "Get the currently active deck with all its services",
-  {
-    input: z.object({}),
-  },
-  async () => {
-    try {
-      const activeDeck = await deckService.getActiveDeck();
-      return {
-        success: true,
-        data: activeDeck,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
-);
-```
-
-### **MCP Resource Implementation**
-```typescript
-// Example: MCP resource
-server.resource(
-  "agent-deck://services",
-  "List of all services",
-  async () => {
-    const services = await serviceManager.getAllServices();
-    return services.map(service => ({
-      uri: `agent-deck://services/${service.id}`,
-      name: service.name,
-      description: service.description,
-      mimeType: "application/json",
-    }));
-  }
-);
-```
-
-## Performance Optimization
-
-### **Backend Optimization**
-- **Database Queries**: Optimize with proper indexing
-- **Caching**: Implement caching for frequently accessed data
-- **Connection Pooling**: Use connection pooling for database
-- **Compression**: Enable response compression
-
-### **Frontend Optimization**
-- **Code Splitting**: Split code into smaller chunks
-- **Lazy Loading**: Lazy load components and routes
-- **Memoization**: Use React.memo and useMemo
-- **Bundle Analysis**: Analyze bundle size regularly
-
-### **Monitoring and Profiling**
-```bash
-# Bundle analysis
-npm run build:analyze
-
-# Performance profiling
-npm run profile
-
-# Memory usage monitoring
-npm run monitor
-```
-
-## Security Best Practices
-
-### **Input Validation**
-```typescript
-// Example: Input validation with Zod
-const CreateServiceSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  type: z.enum(['mcp', 'a2a', 'local-mcp']),
-  url: z.string().url('Valid URL is required'),
-  description: z.string().optional(),
-  localCommand: z.string().optional(),
-  localArgs: z.array(z.string()).optional(),
-  localWorkingDir: z.string().optional(),
-  localEnv: z.record(z.string()).optional(),
-});
-```
-
-### **Authentication and Authorization**
-- **OAuth**: Secure OAuth implementation
-- **Token Management**: Secure token storage and refresh
-- **Access Control**: Service-level access control
-- **Input Sanitization**: Sanitize all user inputs
-
-### **Error Handling**
-```typescript
-// Example: Secure error handling
-try {
-  const result = await someOperation();
-  return { success: true, data: result };
-} catch (error) {
-  // Don't expose sensitive information
-  console.error('Operation failed:', error);
-  return { 
-    success: false, 
-    error: 'Operation failed' 
-  };
-}
-```
-
-## Deployment
-
-### **Build Process**
-```bash
-# Build all packages
-npm run build
-
-# Build for production
-npm run build:prod
-
-# Build individual packages
-cd packages/backend && npm run build
-cd apps/agent-deck && npm run build
-```
-
-### **Environment Configuration**
-```bash
-# Development
-NODE_ENV=development
-PORT=8000
-MCP_PORT=3001
-
-# Production
-NODE_ENV=production
-PORT=8000
-MCP_PORT=3001
-DATABASE_URL=file:./agent_deck.db
-```
-
-### **Docker Deployment**
-```dockerfile
-# Example: Dockerfile
-FROM node:20-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-RUN npm run build
-EXPOSE 8000 3001
-CMD ["npm", "start"]
-```
+---
 
 ## Troubleshooting
 
-### **Common Issues**
+| Issue | Fix |
+|-------|-----|
+| `NODE_MODULE_VERSION` / sqlite | `npm rebuild better-sqlite3` or re-`npm install` |
+| Port in use (CLI) | `agent-deck stop` or change ports in [SETUP.md](./SETUP.md) |
+| Dev vs prod data mixed | Confirm `AGENT_DECK_DEV=1` for `dev:all` |
 
-#### **Native Module Error (better-sqlite3)**
-- **Symptom**: ERR_DLOPEN_FAILED / NODE_MODULE_VERSION mismatch
-- **Cause**: Node.js version mismatch - better-sqlite3 compiled against different Node version
-- **Fix**: Reinstall on your active Node version (24 recommended), then:
-  ```bash
-  # From repo root on your current Node (e.g. v24):
-  rm -rf node_modules packages/*/node_modules apps/*/node_modules && npm ci
-  ```
+More: [SETUP.md](./SETUP.md#troubleshooting).
 
-#### **Port Already in Use**
-- **Symptom**: EADDRINUSE error when starting services
-- **Cause**: Ports 3000 (frontend) or 3001 (MCP) occupied by previous run
-- **Fix**: Free the port and restart
-  ```bash
-  # macOS: Kill process on specific port
-  kill -9 $(lsof -t -iTCP:3000 -sTCP:LISTEN)  # Replace 3000 with 3001 as needed
-  
-  # Or start Vite with --strictPort to fail fast
-  npm run dev -- --port 3000 --strictPort
-  ```
+---
 
-#### **MCP Cannot Reach Backend (ECONNREFUSED)**
-- **Symptom**: ECONNREFUSED errors in MCP logs
-- **Cause**: Backend not running or wrong port configuration
-- **Fix**: Verify backend is running and ports match
-  ```bash
-  # Check backend health
-  curl http://127.0.0.1:8000/health
-  
-  # Check MCP backend status
-  curl http://127.0.0.1:3001/backend-status
-  
-  # Ensure backend is started before MCP
-  ```
+## Related
 
-#### **OAuth State Parameter Error**
-- **Symptom**: "Invalid OAuth state parameter" (400 Bad Request)
-- **Cause**: State parameter mismatch between OAuth provider and callback
-- **Fix**: Ensure OAuth flow uses consistent state management
-  - Check that redirect URIs match exactly
-  - Verify state parameter is properly generated and validated
-
-#### **Authentication Required Still Showing**
-- **Symptom**: UI shows "Authentication Required" after successful OAuth
-- **Cause**: Stale UI or status not yet `authenticated`
-- **Fix**: Service modal polls `GET /api/oauth/:id/status` — look for `authenticated: true`. Invalidate/refetch services; see [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md)
-
-### **Development Environment Issues**
-
-#### **Node.js Version Management**
-
-Policy: **24 default**, **20+ supported**. See [SETUP.md](./SETUP.md#nodejs-version-policy).
-
-```bash
-node -v
-npm rebuild better-sqlite3 -w @agent-deck/backend   # after switching Node major
-```
-
-#### **Package Installation Issues**
-```bash
-# Clean install
-rm -rf node_modules package-lock.json
-npm install
-
-# Rebuild native modules
-npm run build
-```
-
-#### **Database Issues**
-```bash
-# Reset database (development only)
-rm packages/backend/agent_deck.db
-npm run dev:all  # Will recreate database
-```
-
-### **Log Analysis**
-
-#### **Backend Logs**
-- **Location**: `logs/backend.log`
-- **Key Information**: API requests, database operations, service health checks
-- **Common Patterns**: Look for error patterns, slow queries, connection issues
-
-#### **Frontend Logs**
-- **Location**: Browser console
-- **Key Information**: React errors, API call failures, WebSocket connection issues
-- **Common Patterns**: Network errors, component rendering issues, state management problems
-
-#### **MCP Logs**
-- **Location**: `logs/mcp_*.log`
-- **Key Information**: MCP server startup, tool calls, service connections
-- **Common Patterns**: Connection failures, tool execution errors, service discovery issues
-
-### **Performance Issues**
-
-#### **Slow API Responses**
-- Check database query performance
-- Monitor service health check frequency
-- Review WebSocket connection handling
-
-#### **Frontend Performance**
-- Check for memory leaks in React components
-- Monitor WebSocket reconnection frequency
-- Review bundle size and loading times
-
-#### **MCP Server Performance**
-- Monitor tool call response times
-- Check service connection pooling
-- Review database query optimization
-
-## Contributing Guidelines
-
-### **Code Review Process**
-1. **Create Pull Request**: Submit PR with clear description
-2. **Code Review**: At least one approval required
-3. **Tests**: All tests must pass
-4. **Documentation**: Update documentation if needed
-5. **Merge**: Merge after approval
-
-### **Pull Request Template**
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-- [ ] Unit tests pass
-- [ ] Integration tests pass
-- [ ] Manual testing completed
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] No breaking changes
-```
-
-### **Issue Reporting**
-When reporting issues:
-1. **Clear Description**: Describe the problem clearly
-2. **Reproduction Steps**: Provide steps to reproduce
-3. **Expected vs Actual**: Describe expected vs actual behavior
-4. **Environment**: Include environment details
-5. **Logs**: Include relevant logs and error messages
-
-## Resources
-
-### **Documentation**
-- [Architecture Guide](ARCHITECTURE.md)
-- [Setup Guide](SETUP.md)
-- [User Guide](USER_GUIDE.md)
-- [Integration Guide](INTEGRATION.md)
-
-### **External Resources**
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [React Documentation](https://react.dev/)
-- [Fastify Documentation](https://www.fastify.io/docs/)
-- [MCP Documentation](https://modelcontextprotocol.io/)
-
-### **Development Tools**
-- [Vitest](https://vitest.dev/)
-- [Testing Library](https://testing-library.com/)
-- [ESLint](https://eslint.org/)
-- [Prettier](https://prettier.io/)
-
-This development guide provides comprehensive information for contributing to Agent Deck. Follow these guidelines to ensure code quality, maintainability, and consistency across the project.
+- [docs/README.md](./README.md) — documentation index
+- [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md)
+- [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md)

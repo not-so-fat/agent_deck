@@ -176,19 +176,22 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 
 ## Documentation
 
+**Index:** [docs/README.md](docs/README.md) — layout, naming, shipped vs stale docs.
+
 | Guide | Description |
 |-------|-------------|
-| [Setup](docs/SETUP.md) | **Node version, install, ports, env vars** |
+| [Setup](docs/SETUP.md) | **Install, ports, dashboard, env vars** |
 | [OAuth & hosting](docs/OAUTH_AND_HOSTING.md) | **Local vs hosted, HTTPS, Slack paths** |
 | [OAuth requirements](docs/OAUTH_REQUIREMENTS.md) | **Product OAuth needs, marketplace, Stytch feasibility** |
 | [Publishing](docs/PUBLISHING.md) | npm publish, versioning, Claude Code install |
-| [User Guide](docs/USER_GUIDE.md) | Decks, services, OAuth |
-| [Architecture](docs/ARCHITECTURE.md) | Technical design |
-| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools (Modules 1–3) |
+| [Architecture](docs/ARCHITECTURE.md) | Components, SQLite, secret storage |
+| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools |
+| [PRD: Export / import](docs/PRD_EXPORT_IMPORT.md) | Proposed — laptop migration bundles |
+| [PRD: Deck display](docs/PRD_DECK_DISPLAY.md) | Proposed — status line / bound deck visibility |
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
-| [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** — capability rescue, playbook feedback, discoverability |
+| [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** from `setup` |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
-| [Integration](docs/INTEGRATION.md) | MCP client integration |
+| [Development](docs/DEVELOPMENT.md) | Contributing, tests, workflow |
 | [MCP integration strategy](docs/MCP_INTEGRATION_STRATEGY.md) | OAuth tiers, provider reality, deferred work |
 | [Slack OAuth app (maintainers)](docs/SLACK_OAUTH_APP.md) | Shared Slack app for one-click Connect |
 | [Slack read-only workaround](docs/SLACK_READ_WORKAROUND.md) | Skip official MCP for DM/channel read |

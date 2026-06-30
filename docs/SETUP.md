@@ -187,6 +187,34 @@ agent-deck stop
 
 [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) — set `AGENT_DECK_PUBLIC_URL` on your hosted backend.
 
+## Dashboard
+
+Open the dashboard after [Quick start](#quick-start-npm--end-users) or `npm run dev:all`.
+
+| Area | What it does |
+|------|----------------|
+| **My Collection** | All MCP, API key, and playbook cards (vault) |
+| **Deck fan** | Cards on the **editing deck** — drag from collection to link/unlink |
+| **My Decks** | Select which deck to edit; copy `.agent-deck/deck.yaml` snippet (copy icon) |
+
+**Terminology ([MVP.md](./MVP.md)):**
+
+- **Editing deck** — dashboard UI only; does not change agent scope
+- **Bound deck** — what agents see via `bind_workspace` + repo manifest or session override
+- There is no “activate deck” for agents; ignore legacy API `POST /api/decks/:id/activate`
+
+**Common tasks:**
+
+1. **Register MCP** — remote URL, local stdio (tab in modal), or paste JSON config
+2. **Register API key** — secret stored in Keychain; metadata in collection
+3. **Register playbook** — markdown body; deps auto-detected on save
+4. **OAuth** — Connect on MCP card; redirect URI shown in UI ([OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md))
+5. **Repo bind** — paste `deck.yaml` snippet into `.agent-deck/deck.yaml`; agent calls `bind_workspace`
+
+Card colors are fixed by type (MCP, API key, playbook). Service health and OAuth status update live via WebSocket.
+
+---
+
 ## Development commands
 
 ```bash
@@ -199,7 +227,8 @@ npm run build
 
 | Guide | When to read |
 |-------|----------------|
+| [README.md](./README.md) | Doc index |
+| [MVP.md](./MVP.md) | Shipped product & agent MCP |
 | [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md) | Slack, HTTPS, local vs hosted |
-| [USER_GUIDE.md](./USER_GUIDE.md) | Using the dashboard |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Contributing |
 | [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) | Shared Slack app |

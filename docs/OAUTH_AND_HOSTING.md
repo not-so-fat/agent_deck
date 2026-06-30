@@ -112,4 +112,4 @@ AGENT_DECK_SLACK_CLIENT_SECRET=...
 | [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) | Register shared Slack app, distribution, HTTPS |
 | [SLACK_READ_WORKAROUND.md](./SLACK_READ_WORKAROUND.md) | DM/channel read without official MCP |
 | [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md) | Tiers, deferred work, matrix |
-| [USER_GUIDE.md](./USER_GUIDE.md) | Dashboard OAuth UX |
+| [SETUP.md](./SETUP.md) | Dashboard OAuth UX |

@@ -2,8 +2,9 @@
 
 **Status:** Modules 1–3 implemented (as-built)  
 **Doc role:** Product / scope spec (PRD equivalent for this repo)  
-**Last aligned:** 2026-06-27  
-**Vision / future reference:** [Agent Deck v2](file:///Users/not_so_fat/workspace/Obsidian/lexicon-personal/Ideas/personal/Agent%20Deck%20v2.md) (Obsidian) — full card model, API profiles, workflow tiers, modular roadmap Modules 4–5.
+**Last aligned:** 2026-06-30  
+**Vision / future reference:** [Agent Deck v2](file:///Users/not_so_fat/workspace/Obsidian/lexicon-personal/Ideas/personal/Agent%20Deck%20v2.md) (Obsidian) — full card model, API profiles, workflow tiers.  
+**Proposed (separate PRDs):** [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) · [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md)
 
 **Goal:** Ship **Modules 1–3** on top of v1 (MCP proxy + decks). Prove unconscious scoping, centralized API keys, and reusable playbooks.
 
@@ -402,7 +403,7 @@ agent-deck exec --deck <deck-id-from-yaml> --connections cred_ashby,cred_openai,
 3. Agent: `get_playbook(pb_hiring_inbox)` → follows steps → suggests `agent-deck exec …`.
 4. Agent refines playbook via `update_playbook` after a run (dependencies re-detected automatically).
 
-### Future (Module 4–5, vision doc only)
+### Future (vision doc only)
 
 - API profile `api_ashby` with endpoint catalog
 - Workflow card Tier 2 binding CLI permanently
@@ -445,10 +446,12 @@ agent-deck exec --deck <deck-id-from-yaml> --connections cred_ashby,cred_openai,
 
 ## Related docs
 
+- [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) — collection/deck migration (proposed)
+- [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md) — bound deck visibility in Cursor/Claude (proposed)
+- [README.md](./README.md) — documentation index and conventions
 - [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) — when to use playbooks vs Cursor skills
 - [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) — monorepo `deck.yaml` placement
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — v1 system (may predate bound-deck terminology)
-- [DEVELOPMENT.md](./DEVELOPMENT.md) — run locally
-- [MCP_APP.md](./MCP_APP.md) — in-chat UI
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — components, secrets, data model
+- [DEVELOPMENT.md](./DEVELOPMENT.md) — contribute, test
 - [examples/playbooks/](./examples/playbooks/) — sample playbook markdown
-- Vision: Agent Deck v2 (Obsidian) — API profiles, three scenarios, Modules 4–5
+- Vision: Agent Deck v2 (Obsidian) — API profiles, workflow tiers
