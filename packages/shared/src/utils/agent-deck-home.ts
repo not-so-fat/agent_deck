@@ -31,3 +31,18 @@ export function resolveAgentDeckHome(): string {
 export function resolveBindingsFilePath(): string {
   return path.join(resolveAgentDeckHome(), 'bindings.json');
 }
+
+/** Prod + dev sidecar paths (statusline / display must see binds from either workflow). */
+export function listBindingsFileCandidates(): string[] {
+  const base = path.join(os.homedir(), '.agent-deck');
+  const candidates = [
+    process.env.AGENT_DECK_HOME?.trim()
+      ? path.join(path.resolve(process.env.AGENT_DECK_HOME.trim()), 'bindings.json')
+      : undefined,
+    resolveBindingsFilePath(),
+    path.join(base, 'bindings.json'),
+    path.join(base, 'dev', 'bindings.json'),
+  ].filter((value): value is string => Boolean(value));
+
+  return [...new Set(candidates)];
+}

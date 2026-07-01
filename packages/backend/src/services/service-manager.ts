@@ -15,6 +15,7 @@ import { DatabaseManager } from '../models/database';
 import { MCPClientManager } from './mcp-client-manager';
 import { OAuthManager } from './oauth-manager';
 import { OAuthClientSecretVault } from '../vault/oauth-client-secret-vault';
+import { CredentialManager } from '../vault/credential-manager';
 import { ConfigManager } from './config-manager';
 import {
   cacheIconForService,
@@ -46,6 +47,7 @@ export class ServiceManager {
     private mcpClient: MCPClientManager,
     private oauthManager: OAuthManager,
     private clientSecrets: OAuthClientSecretVault,
+    private credentialManager?: CredentialManager,
   ) {
     this.configManager = new ConfigManager();
   }
@@ -274,6 +276,20 @@ export class ServiceManager {
     return await this.db.deleteService(id);
   }
 
+  private async prepareServiceForRemoteCall(service: Service): Promise<Service> {
+    const headers =
+      typeof service.headers === 'string'
+        ? (JSON.parse(service.headers) as Record<string, string>)
+        : { ...(service.headers ?? {}) };
+
+    if (service.credentialId && this.credentialManager) {
+      const credentialHeaders = await this.credentialManager.resolveHttpHeaders(service.credentialId);
+      Object.assign(headers, credentialHeaders);
+    }
+
+    return { ...service, headers };
+  }
+
   async discoverServiceTools(
     serviceId: string,
     options?: { forAgent?: boolean },
@@ -285,9 +301,10 @@ export class ServiceManager {
 
     try {
       let tools: ServiceTool[];
+      const prepared = await this.prepareServiceForRemoteCall(service);
 
       if (service.type === 'mcp' || service.type === 'local-mcp') {
-        tools = await this.mcpClient.discoverTools(service);
+        tools = await this.mcpClient.discoverTools(prepared);
       } else if (service.type === 'a2a') {
         tools = await this.discoverA2ATools(service);
       } else {
@@ -360,9 +377,11 @@ export class ServiceManager {
     }
 
     try {
+      const prepared = await this.prepareServiceForRemoteCall(service);
+
       if (service.type === 'mcp' || service.type === 'local-mcp') {
         const result = await this.mcpClient.callTool(
-          service,
+          prepared,
           validatedInput.toolName,
           validatedInput.arguments
         );

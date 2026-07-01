@@ -28,4 +28,7 @@ console.log(`[prepare-release] Copying UI to ${backendStatic} ...`);
 fs.rmSync(backendStatic, { recursive: true, force: true });
 fs.cpSync(frontendDist, backendStatic, { recursive: true });
 
+console.log('[prepare-release] Release integration smoke (fresh install user path) ...');
+execSync('bash scripts/release-smoke.sh', { cwd: root, stdio: 'inherit' });
+
 console.log('[prepare-release] Done. Publish order: @agent-deck/shared -> @agent-deck/backend -> @agent-deck/cli');

@@ -1,0 +1,50 @@
+---
+description: Agent Deck release integration smoke — user path invariants, release:smoke gate, setup/statusline artifacts
+globs: CHANGELOG.md,package.json,scripts/release-smoke.sh,scripts/prepare-release.mjs,packages/cli/src/setup.ts,packages/cli/src/statusline*.ts,docs/PUBLISHING.md,docs/examples/playbooks/npm-release-integration-smoke.md
+alwaysApply: false
+---
+
+# Release integration smoke (Agent Deck)
+
+**Pair with:** [npm-release-workflow.mdc](./npm-release-workflow.mdc) (version bump, tag, publish order).
+
+Generic pattern (any repo): Agent Deck playbook `pb_user_path_integration_smoke` — [user-path-integration-smoke.md](../../docs/examples/playbooks/user-path-integration-smoke.md).
+
+## When this applies
+
+Shipping **user-facing paths**: CLI `setup`, status line, MCP install, extension, or any CHANGELOG bullet users can try with one command.
+
+## Invariant chain (must all pass)
+
+```
+CHANGELOG (shipped) → dist/tarball contains code → setup wires it → artifact on disk → host output contract
+```
+
+## Before publish
+
+1. `npm run release:smoke` (runs inside `build:release`) — **do not publish if it fails**
+2. Move unfinished bullets to `### Pending publish` in CHANGELOG
+3. Extend `scripts/release-smoke.sh` when adding a new setup artifact or stdout contract
+
+## Agent Deck–specific checks
+
+| Surface | Artifact / contract |
+|---------|---------------------|
+| `setup --client claude` | `~/.agent-deck/bin/statusline.sh`, `~/.claude/settings.json` → `statusLine` |
+| `setup --client cursor` | same script, `~/.cursor/cli-config.json` → `statusLine` |
+| Status line stdout | Exactly **one** line, starts with `◆`, no `npm warn`, no ANSI |
+| Prod vs dev data | Merge prod + dev `bindings.json`; API unbound must not block sidecar |
+| Host matrix | Terminal status line ≠ Cursor IDE chat (extension is separate) |
+
+## Adding a new user path
+
+1. Add row to [npm-release-integration-smoke.md](../../docs/examples/playbooks/npm-release-integration-smoke.md) checklist
+2. Add assertion to `scripts/release-smoke.sh`
+3. Add vitest in `packages/cli/src/release-integration.test.ts` if testable without full stack
+4. Wire `setup` — never ship command-only without installer unless docs say manual steps only
+
+## Do not
+
+- Test only `npm run dev:all` or monorepo `packages/cli/dist` without `npm pack` file audit
+- Document manual `settings.json` edits as the primary path when `setup` should do it
+- Replace entire user config files — merge JSON keys only

@@ -24,7 +24,7 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 | SC-2 | `switch_bound_deck` updates status line without editing `deck.yaml` | Phase 5a |
 | SC-3 | Repo with only `deck.yaml` shows deck when Agent Deck is running | Phase 5a |
 | SC-4 | No secret values in sidecar, status line, or summary resource | Phase 5a |
-| SC-5 | `agent-deck setup --statusline` installs config idempotently | Phase 5b |
+| SC-5 | `agent-deck setup --statusline` installs config idempotently | Phase 5b — shipped |
 
 ---
 
@@ -139,7 +139,7 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 |--------|-------------|------------|
 | F3.1 | `agent-deck statusline` reads JSON stdin (Cursor `StatusLinePayload`) | Uses `cwd` field |
 | F3.2 | `agent-deck statusline --workspace <path>` for debug | No stdin required |
-| F3.3 | Output format: `◆ {name} · {mcp} MCP · {cred} keys · {pb} playbooks` | Max 120 chars; truncate name |
+| F3.3 | Output format: `◆ {name} · {mcp} MCP · {cred} keys · {pb} playbooks` (plain text stdout, no ANSI) | Max 120 chars; truncate name |
 | F3.4 | Respects `AGENT_DECK_PORT` / CLI defaults for API URL | Works in dev and prod |
 | F3.5 | Exit 0 always unless misconfiguration | Never blocks host |
 

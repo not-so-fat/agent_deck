@@ -20,9 +20,25 @@ Agent Deck exposes **tools** (MCP). Your agent’s **control plane** (`CLAUDE.md
 
 ```bash
 npx @agent-deck/cli setup --client cursor    # MCP + global harness
-npx @agent-deck/cli setup --client claude   # MCP + global harness
+npx @agent-deck/cli setup --client claude   # MCP + harness + status line (default)
+npx @agent-deck/cli setup --client claude --no-statusline   # skip prompt footer
 npx @agent-deck/cli setup --client cursor --scope project   # project MCP + project harness
 ```
+
+**Order of operations:** MCP must be connected before deck tools work (`claude mcp list` → agent-deck **Connected**). The harness tells the agent to call `bind_workspace` on first use. The **status line** shows the bound deck in the prompt footer after `bind_workspace` writes the bindings sidecar.
+
+**Manual status line (merge into existing settings — do not paste terminal output):**
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "/Users/you/.agent-deck/bin/statusline.sh",
+  "padding": 2,
+  "refreshInterval": 3
+}
+```
+
+Prefer `agent-deck setup --client claude` (writes the script + merges JSON). Do **not** put `npx ...` directly in `command` — npm color codes can corrupt `settings.json` if copied from terminal output.
 
 Re-running `setup` **updates** the harness in place (idempotent).
 
@@ -58,6 +74,7 @@ Add your own notes above/below the harness markers in `agent-deck.mdc`, or anywh
 
 Three behaviors in one rule block (templates stay generic — no project-specific examples):
 
+0. **Connect MCP first** — `agent-deck setup --client … --start`, restart host; verify `claude mcp list` (Claude) or MCP panel (Cursor). Call `bind_workspace` with the project root at the start of each workspace session.
 1. **Capability rescue** — use agent-deck before declining tool requests (`bind_workspace`, `list_bound_deck_services`, `call_service_tool`).
 2. **Playbooks as source of truth** — `list_playbooks` / `get_playbook` (match `triggers`); don’t mirror into `.cursor/skills/`.
 3. **Self-improvement loop** — applies when the user gives feedback on output you produced **after** `get_playbook` + following that playbook this session (identify from session trace, not title or artifact type). Default actions:

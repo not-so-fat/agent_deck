@@ -1,15 +1,15 @@
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {
   BindingsFileSchema,
   DeckDisplay,
   formatDisplayLine,
-  resolveBindingsFilePath,
+  listBindingsFileCandidates,
+  lookupWorkspaceBinding,
   resolveStatusLineWorkspace,
   StatusLinePayloadSchema,
 } from '@agent-deck/shared';
 import { parseCliBackendPort, CLI_DEFAULT_BACKEND_PORT } from './defaults';
+import { stripAnsi } from './strip-ansi';
 
 const DEFAULT_TIMEOUT_MS = 1500;
 
@@ -58,26 +58,14 @@ async function fetchDisplay(
 }
 
 function readSidecarLine(workspaceRoot: string): string | null {
-  const candidates = new Set<string>();
-
-  if (process.env.AGENT_DECK_HOME?.trim()) {
-    candidates.add(path.join(path.resolve(process.env.AGENT_DECK_HOME.trim()), 'bindings.json'));
-  }
-
-  candidates.add(resolveBindingsFilePath());
-
-  const home = path.join(os.homedir(), '.agent-deck');
-  candidates.add(path.join(home, 'bindings.json'));
-  candidates.add(path.join(home, 'dev', 'bindings.json'));
-
-  for (const filePath of candidates) {
+  for (const filePath of listBindingsFileCandidates()) {
     try {
       const raw = fs.readFileSync(filePath, 'utf8');
       const parsed = BindingsFileSchema.safeParse(JSON.parse(raw));
       if (!parsed.success) {
         continue;
       }
-      const entry = parsed.data[workspaceRoot];
+      const entry = lookupWorkspaceBinding(parsed.data, workspaceRoot);
       if (entry) {
         return formatDisplayLine(entry.deckName, entry.cardCounts);
       }
@@ -87,6 +75,10 @@ function readSidecarLine(workspaceRoot: string): string | null {
   }
 
   return null;
+}
+
+function shouldUseApiDisplay(display: DeckDisplay): boolean {
+  return Boolean(display.deckName && display.source !== 'unbound');
 }
 
 function resolveBackendPorts(): number[] {
@@ -135,18 +127,22 @@ export async function runStatusline(args: string[]): Promise<number> {
   for (const backendPort of backendPorts) {
     const backendUrl = `http://${host}:${backendPort}`;
     const display = await fetchDisplay(backendUrl, workspaceRoot, timeoutMs);
-    if (display?.displayLine) {
-      console.log(display.displayLine);
+    if (display && shouldUseApiDisplay(display)) {
+      printStatusLine(display.displayLine);
       return 0;
     }
   }
 
   const sidecarLine = readSidecarLine(workspaceRoot);
   if (sidecarLine) {
-    console.log(sidecarLine);
+    printStatusLine(sidecarLine);
     return 0;
   }
 
-  console.log(formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }, { offline: true }));
+  printStatusLine(formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }, { offline: true }));
   return 0;
+}
+
+function printStatusLine(line: string): void {
+  process.stdout.write(`${stripAnsi(line)}\n`);
 }

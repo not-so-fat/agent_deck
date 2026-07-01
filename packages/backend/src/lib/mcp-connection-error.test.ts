@@ -56,6 +56,14 @@ describe('shouldAttemptLegacySseFallback', () => {
 });
 
 describe('extractMcpErrorMessage', () => {
+  it('extracts plain JSON message bodies (e.g. Docmost 401)', () => {
+    const err = new Error(
+      'Error POSTing to endpoint (HTTP 401): {"message":"Unauthorized","statusCode":401}',
+    );
+    expect(extractMcpErrorMessage(err)).toBe('Unauthorized');
+    expect(shouldAttemptLegacySseFallback(err)).toBe(false);
+  });
+
   it('returns null for generic transport errors', () => {
     expect(extractMcpErrorMessage(new Error('SSE error: Non-200 status code (401)'))).toBeNull();
   });

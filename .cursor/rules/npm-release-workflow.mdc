@@ -6,17 +6,18 @@ alwaysApply: false
 
 # npm release workflow
 
-Canonical checklist: [docs/PUBLISHING.md](../../docs/PUBLISHING.md). Follow this when the user asks to **publish**, **bump version**, **ship a release**, or **tag GitHub**.
+Canonical checklist: [docs/PUBLISHING.md](../../docs/PUBLISHING.md). Integration smoke: [release-integration-smoke.mdc](./release-integration-smoke.mdc). Follow this when the user asks to **publish**, **bump version**, **ship a release**, or **tag GitHub**.
 
 ## Order (do not skip)
 
 1. `npm run version:sync -- X.Y.Z` — all workspaces + `server.json`
 2. Update `CHANGELOG.md` for `X.Y.Z`
 3. `npm install` && `npm run build:release`
-4. Commit on `main`: `Ship X.Y.Z: <short why>.`
-5. Push `main` (user publishes npm unless they ask you to run `npm run publish:packages`)
-6. **After npm publish:** `npm run release:tag:push`
-7. Optional GitHub Release: `node scripts/release-tag.mjs --push --github-release`
+4. **Integration smoke** — `npm run release:smoke` (also runs inside `build:release`; blocks publish on failure)
+5. Commit on `main`: `Ship X.Y.Z: <short why>.`
+6. Push `main` (user publishes npm unless they ask you to run `npm run publish:packages`)
+7. **After npm publish:** `npm run release:tag:push`
+8. Optional GitHub Release: `node scripts/release-tag.mjs --push --github-release`
 
 ## Git tags (required every npm release)
 
@@ -32,6 +33,7 @@ If the ship commit is already pushed and HEAD moved, tag explicitly: `node scrip
 
 - **Do not** publish to npm unless the user explicitly asks.
 - **Do** run version bump, changelog, commit, push, and `release:tag:push` when they say publish/ship/release.
+- **Do** ensure `npm run release:smoke` passes before publish (included in `build:release`).
 - **Do** mention `gh` is needed only for `--github-release`.
 - One-time historical tags: `npm run release:tag:backfill` (already done; do not re-run unless asked).
 
@@ -40,3 +42,4 @@ If the ship commit is already pushed and HEAD moved, tag explicitly: `node scrip
 - Tag without a matching `CHANGELOG.md` section
 - Use lightweight tags or non-`v` prefix
 - Bump version without syncing all packages
+- Publish if `release:smoke` fails — move unfinished bullets to **Pending publish** in CHANGELOG

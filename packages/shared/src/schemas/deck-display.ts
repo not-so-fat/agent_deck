@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import path from 'node:path';
 
 export const DeckDisplaySourceSchema = z.enum([
   'session_override',
@@ -41,6 +42,7 @@ export const StatusLinePayloadSchema = z.object({
   workspace: z
     .object({
       current_dir: z.string().optional(),
+      project_dir: z.string().optional(),
     })
     .optional(),
 });
@@ -99,7 +101,36 @@ export function formatDisplayLine(
   return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
 }
 
+export function normalizeWorkspaceRoot(workspaceRoot: string): string {
+  return path.resolve(workspaceRoot.trim());
+}
+
+/** Walk up from workspaceRoot to find the nearest bindings sidecar entry. */
+export function lookupWorkspaceBinding(
+  bindings: BindingsFile,
+  workspaceRoot: string,
+): BindingEntry | null {
+  let current = normalizeWorkspaceRoot(workspaceRoot);
+  while (true) {
+    const entry = bindings[current];
+    if (entry) {
+      return entry;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+  return null;
+}
+
 export function resolveStatusLineWorkspace(payload: StatusLinePayload, fallbackCwd?: string): string | undefined {
+  const projectDir = payload.workspace?.project_dir?.trim();
+  if (projectDir) {
+    return normalizeWorkspaceRoot(projectDir);
+  }
+
   const cwd = payload.cwd?.trim() || payload.workspace?.current_dir?.trim() || fallbackCwd?.trim();
-  return cwd || undefined;
+  return cwd ? normalizeWorkspaceRoot(cwd) : undefined;
 }

@@ -144,10 +144,15 @@ function parseMcpErrorMessage(err: unknown): string | null {
     try {
       const payload = JSON.parse(raw.slice(jsonStart)) as {
         error?: { message?: string };
+        message?: string;
       };
-      const message = payload.error?.message?.trim();
-      if (message) {
-        return message;
+      const rpcMessage = payload.error?.message?.trim();
+      if (rpcMessage) {
+        return rpcMessage;
+      }
+      const plainMessage = payload.message?.trim();
+      if (plainMessage) {
+        return plainMessage;
       }
     } catch {
       // fall through

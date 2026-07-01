@@ -226,7 +226,7 @@ describe('ServiceManager', () => {
       const result = await serviceManager.discoverServiceTools(serviceId);
 
       expect(mockDbManager.getService).toHaveBeenCalledWith(serviceId);
-      expect(mockMCPClientManager.discoverTools).toHaveBeenCalledWith(service);
+      expect(mockMCPClientManager.discoverTools).toHaveBeenCalledWith({ ...service, headers: {} });
       expect(result).toEqual(expectedTools);
     });
 
@@ -302,7 +302,7 @@ describe('ServiceManager', () => {
 
       expect(mockDbManager.getService).toHaveBeenCalledWith(serviceId);
       expect(mockMCPClientManager.callTool).toHaveBeenCalledWith(
-        service,
+        { ...service, headers: {} },
         callInput.toolName,
         callInput.arguments
       );
@@ -450,7 +450,7 @@ describe('ServiceManager', () => {
       const result = await serviceManager.checkServiceHealth(serviceId);
 
       expect(mockDbManager.getService).toHaveBeenCalledWith(serviceId);
-      expect(mockMCPClientManager.discoverTools).toHaveBeenCalledWith(service);
+      expect(mockMCPClientManager.discoverTools).toHaveBeenCalledWith({ ...service, headers: {} });
       expect(mockDbManager.updateServiceStatus).toHaveBeenCalledWith(serviceId, true, 'healthy');
       expect(result).toEqual(expectedHealth);
     });

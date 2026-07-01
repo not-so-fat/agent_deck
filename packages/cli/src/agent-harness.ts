@@ -12,7 +12,11 @@ export const CURSOR_RULE_FILENAME = 'agent-deck.mdc';
 export const HARNESS_RULE_DESCRIPTION =
   'Agent Deck MCP — check decks for tools; playbooks for recipes; self-improve playbooks from feedback';
 
-const GLOBAL_BODY = `Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck MCP: \`bind_workspace\`, \`list_bound_deck_services\`, \`call_service_tool\`. Don't hardcode deck IDs.
+const GLOBAL_BODY = `**Connect first:** Ensure Agent Deck MCP is connected before using deck tools (\`agent-deck setup --client cursor|claude --start\`, then restart the host). Claude Code: \`claude mcp list\` should show agent-deck as Connected when the backend is running.
+
+**Each workspace session:** Call \`bind_workspace\` with the project root on the first deck tool use. The host status line may show the bound deck — do not repeat the deck name every turn unless the user asks.
+
+Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck MCP: \`bind_workspace\`, \`list_bound_deck_services\`, \`call_service_tool\`. Don't hardcode deck IDs.
 
 Deck playbooks are task recipes — \`list_playbooks\` / \`get_playbook\` (match \`triggers\`). Don't mirror into \`.cursor/skills/\` — one source of truth on the deck.
 

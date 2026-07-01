@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import path from 'node:path';
 import {
   BindingsFileSchema,
   DISPLAY_LINE_MAX_LENGTH,
   DeckDisplaySchema,
   countDeckCards,
   formatDisplayLine,
+  lookupWorkspaceBinding,
   resolveStatusLineWorkspace,
 } from './deck-display';
 
@@ -48,17 +50,45 @@ describe('deck-display', () => {
   });
 
   describe('resolveStatusLineWorkspace', () => {
-    it('prefers cwd over workspace.current_dir', () => {
+    it('prefers workspace.project_dir over cwd', () => {
+      expect(
+        resolveStatusLineWorkspace({
+          cwd: '/repo/packages/app',
+          workspace: { project_dir: '/repo', current_dir: '/repo/packages/app' },
+        }),
+      ).toBe(path.resolve('/repo'));
+    });
+
+    it('prefers cwd over workspace.current_dir when project_dir absent', () => {
       expect(
         resolveStatusLineWorkspace({
           cwd: '/repo',
           workspace: { current_dir: '/other' },
         }),
-      ).toBe('/repo');
+      ).toBe(path.resolve('/repo'));
     });
 
     it('falls back to workspace.current_dir', () => {
-      expect(resolveStatusLineWorkspace({ workspace: { current_dir: '/repo' } })).toBe('/repo');
+      expect(resolveStatusLineWorkspace({ workspace: { current_dir: '/repo' } })).toBe(
+        path.resolve('/repo'),
+      );
+    });
+  });
+
+  describe('lookupWorkspaceBinding', () => {
+    it('walks up to parent workspace keys', () => {
+      const bindings = {
+        [path.resolve('/repo')]: {
+          deckId: '123e4567-e89b-12d3-a456-426614174000',
+          deckName: 'Dev',
+          source: 'session_override' as const,
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+        },
+      };
+      expect(lookupWorkspaceBinding(bindings, '/repo/packages/app')).toEqual(
+        bindings[path.resolve('/repo')],
+      );
     });
   });
 

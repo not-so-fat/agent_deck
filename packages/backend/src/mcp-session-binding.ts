@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
@@ -26,7 +27,7 @@ export class McpSessionBindingStore {
   }
 
   setWorkspace(sessionId: string, workspaceRoot: string): void {
-    this.workspaceBySession.set(sessionId, workspaceRoot);
+    this.workspaceBySession.set(sessionId, path.resolve(workspaceRoot.trim()));
   }
 
   setDeckId(sessionId: string, deckId: string): void {

@@ -25,7 +25,7 @@ npx @agent-deck/cli@latest setup --client cursor --start
 
 Install the [Agent Deck extension](packages/cursor-extension) from **Open VSX** (search “Agent Deck” in Cursor → Extensions) or sideload the VSIX from `npm run extension:package`. Requires Agent Deck running (`agent-deck start` or `dev:all`). See [Publishing — Distribution](docs/PUBLISHING.md#distribution-what-users-install).
 
-**Optional — terminal agents** (Claude Code / Cursor CLI prompt footer): `agent-deck setup --statusline` when shipped (Phase 5b).
+**Optional — terminal agents** (Claude Code / Cursor CLI prompt footer): installed automatically by `agent-deck setup --client claude|cursor` (use `--no-statusline` to skip).
 
 Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy `.agent-deck/deck.yaml` into a repo. Your agent calls `bind_workspace` to use that deck.
 

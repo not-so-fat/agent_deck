@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { sanitizeJsonText } from './strip-ansi';
+
 export type McpClient = 'cursor' | 'claude' | 'claude-desktop';
 export type SetupScope = 'global' | 'project';
 
@@ -64,7 +66,7 @@ export function readJsonFile(filePath: string): Record<string, unknown> {
     return {};
   }
 
-  const raw = fs.readFileSync(filePath, 'utf8').trim();
+  const raw = sanitizeJsonText(fs.readFileSync(filePath, 'utf8').trim());
   if (!raw) {
     return {};
   }

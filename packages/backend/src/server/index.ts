@@ -53,10 +53,16 @@ export async function createServer() {
   const oauthClientSecretVault = new OAuthClientSecretVault(secretStore, db);
   const oauthTokenVault = new OAuthTokenVault(secretStore, db);
   const oauthManager = new OAuthManager(db, oauthClientSecretVault, oauthTokenVault);
-  const mcpClient = new MCPClientManager((serviceId) => oauthManager.getValidAccessToken(serviceId));
-  const serviceManager = new ServiceManager(db, mcpClient, oauthManager, oauthClientSecretVault);
-  void serviceManager.backfillMissingIcons();
   const credentialManager = new CredentialManager(db, secretStore);
+  const mcpClient = new MCPClientManager((serviceId) => oauthManager.getValidAccessToken(serviceId));
+  const serviceManager = new ServiceManager(
+    db,
+    mcpClient,
+    oauthManager,
+    oauthClientSecretVault,
+    credentialManager,
+  );
+  void serviceManager.backfillMissingIcons();
   const playbookManager = new PlaybookManager(db);
   const collectionWarningService = new CollectionWarningService();
 

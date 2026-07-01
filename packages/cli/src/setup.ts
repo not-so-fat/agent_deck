@@ -12,6 +12,7 @@ import {
   type McpEndpoint,
   type SetupScope,
 } from './mcp-config';
+import { installStatusline, type StatuslineClient } from './statusline-setup';
 import { CLI_DEFAULT_MCP_PORT, parseCliMcpPort } from './defaults';
 
 export interface SetupOptions {
@@ -20,6 +21,7 @@ export interface SetupOptions {
   host?: string;
   mcpPort?: number;
   start?: boolean;
+  statusline: boolean;
 }
 
 function parseClient(value: string | undefined): McpClient | null {
@@ -45,6 +47,7 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
   let host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
   let mcpPort = parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   let start = false;
+  let statusline: boolean | undefined;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -63,6 +66,10 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
       mcpPort = Number.parseInt(args[++i] ?? '', 10);
     } else if (arg === '--start') {
       start = true;
+    } else if (arg === '--statusline') {
+      statusline = true;
+    } else if (arg === '--no-statusline') {
+      statusline = false;
     } else if (arg === '--help' || arg === '-h') {
       return { error: 'help' };
     } else {
@@ -82,7 +89,25 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
     return { error: '--mcp-port must be a number' };
   }
 
-  return { client, scope, host, mcpPort, start };
+  return {
+    client,
+    scope,
+    host,
+    mcpPort,
+    start,
+    statusline: resolveSetupStatusline(client, statusline),
+  };
+}
+
+/** Status line is on by default for Claude Code and Cursor CLI; optional for Claude Desktop. */
+export function resolveSetupStatusline(client: McpClient, explicit?: boolean): boolean {
+  if (explicit === false) {
+    return false;
+  }
+  if (explicit === true) {
+    return true;
+  }
+  return client === 'cursor' || client === 'claude';
 }
 
 async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<{ ok: boolean; error?: string }> {
@@ -120,7 +145,7 @@ async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<{ ok: boolean; er
 
 export function printSetupUsage(): void {
   console.log(`Usage:
-  agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--mcp-port PORT] [--start]
+  agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--mcp-port PORT] [--start] [--no-statusline]
 
 Options:
   --client          MCP client to configure (required)
@@ -128,8 +153,10 @@ Options:
   --host            MCP host (default 127.0.0.1 or AGENT_DECK_HOST)
   --mcp-port        MCP port (default ${CLI_DEFAULT_MCP_PORT} or AGENT_DECK_MCP_PORT)
   --start           Start Agent Deck after writing config
+  --no-statusline   Skip prompt status line (default: on for cursor and claude)
+  --statusline      Same as default for cursor/claude (kept for compatibility)
 
-Setup installs MCP config and agent harness rules (Cursor .cursor/rules or Claude CLAUDE.md).`);
+Setup installs MCP config, agent harness, and deck status line (Claude Code / Cursor CLI).`);
 }
 
 function finishSetup(
@@ -137,6 +164,7 @@ function finishSetup(
   scope: SetupScope,
   endpoint: McpEndpoint,
   shouldStart: boolean,
+  withStatusline: boolean,
 ): number {
   const harness = installAgentHarness(client, scope);
   console.log(harness.message);
@@ -144,7 +172,21 @@ function finishSetup(
     console.log('  See docs/AGENT_HARNESS.md if you also use Claude Code or Cursor.');
   }
 
-  printNextSteps(endpoint, shouldStart, client);
+  if (withStatusline) {
+    if (client === 'cursor' || client === 'claude') {
+      const statusline = installStatusline(client as StatuslineClient);
+      console.log(statusline.message);
+      if (client === 'claude') {
+        console.log('  Restart Claude Code after setup. If the status line stays blank, accept workspace trust for this project.');
+      } else {
+        console.log('  Restart Cursor CLI after setup.');
+      }
+    } else {
+      console.log('  --statusline applies to Cursor CLI and Claude Code only (not Claude Desktop).');
+    }
+  }
+
+  printNextSteps(endpoint, shouldStart, client, withStatusline);
   return shouldStart ? 2 : 0;
 }
 
@@ -171,7 +213,7 @@ export async function runSetup(args: string[]): Promise<number> {
     if (added.ok) {
       console.log('Configured Claude Code via `claude mcp add` → ~/.claude.json');
       console.log('Verify: claude mcp list');
-      return finishSetup(parsed.client, scope, endpoint, parsed.start === true);
+      return finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
     }
     console.warn(`Claude CLI failed (${added.error ?? 'unknown error'}) — writing ~/.claude.json instead`);
   }
@@ -187,10 +229,15 @@ export async function runSetup(args: string[]): Promise<number> {
     console.log('Start Agent Deck before opening Claude Desktop.');
   }
 
-  return finishSetup(parsed.client, scope, endpoint, parsed.start === true);
+  return finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
 }
 
-function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean, client: McpClient): void {
+function printNextSteps(
+  endpoint: McpEndpoint,
+  shouldStart: boolean,
+  client: McpClient,
+  withStatusline = false,
+): void {
   console.log('');
   console.log('Next steps:');
   if (shouldStart) {
@@ -202,6 +249,9 @@ function printNextSteps(endpoint: McpEndpoint, shouldStart: boolean, client: Mcp
   console.log('  3. Restart Claude Code / Cursor so MCP + harness rules load');
   if (client === 'claude') {
     console.log('  4. Claude Code: `claude mcp list` — agent-deck should show Connected when step 1 is running');
+  }
+  if (withStatusline && (client === 'cursor' || client === 'claude')) {
+    console.log('  5. Prompt footer should show "deck | N MCP | ..." after bind_workspace (debug: agent-deck statusline --workspace <path>)');
   }
   console.log('');
   console.log('Optional: AGENT_DECK_AUTO_UPGRADE=1 agent-deck start  (check npm for updates on start)');

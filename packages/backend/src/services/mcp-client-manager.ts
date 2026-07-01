@@ -40,6 +40,32 @@ export class MCPClientManager {
     }
   }
 
+  private async buildRequestHeaders(service: Service): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      Accept: 'application/json, text/event-stream',
+    };
+
+    if (service.headers) {
+      try {
+        const customHeaders = typeof service.headers === 'string'
+          ? JSON.parse(service.headers) as Record<string, string>
+          : { ...service.headers };
+        Object.assign(headers, customHeaders);
+      } catch (error) {
+        console.warn(`⚠️ Failed to parse custom headers for service ${service.id}:`, error);
+      }
+    }
+
+    const accessToken = this.resolveAccessToken
+      ? await this.resolveAccessToken(service.id)
+      : service.oauthAccessToken;
+    if (accessToken) {
+      headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    return headers;
+  }
+
   private async getClient(service: Service): Promise<Client> {
     const clientKey = service.id;
     
@@ -61,34 +87,7 @@ export class MCPClientManager {
     }
 
     const baseUrl = new URL(service.url);
-    
-    // Shared headers for all transports. Do not set Content-Type here — each transport
-    // sets it per request (a global Content-Type breaks Streamable HTTP GET probes).
-    const headers: Record<string, string> = {
-      Accept: 'application/json, text/event-stream',
-    };
-    
-    // Add OAuth token if available
-    const accessToken = this.resolveAccessToken
-      ? await this.resolveAccessToken(service.id)
-      : service.oauthAccessToken;
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    
-    // Add custom headers from service configuration (skip legacy duplicated Bearer)
-    if (service.headers) {
-      try {
-        const customHeaders = typeof service.headers === 'string' 
-          ? JSON.parse(service.headers) 
-          : { ...service.headers };
-        delete customHeaders.Authorization;
-        Object.assign(headers, customHeaders);
-        console.log(`🔧 Using custom headers for service ${service.id}:`, customHeaders);
-      } catch (error) {
-        console.warn(`⚠️ Failed to parse custom headers for service ${service.id}:`, error);
-      }
-    }
+    const headers = await this.buildRequestHeaders(service);
     
     const client = await this.connectRemoteClient(baseUrl, headers, service.url);
     this.clients.set(clientKey, client);
@@ -116,7 +115,11 @@ export class MCPClientManager {
     } catch (streamableError) {
       const streamableMessage = extractMcpErrorMessage(streamableError);
       if (streamableMessage) {
-        throw new Error(streamableMessage);
+        throw new Error(
+          streamableMessage.toLowerCase().includes('unauthorized')
+            ? `${streamableMessage} — link a credential on the service or add Authorization in service headers`
+            : streamableMessage,
+        );
       }
 
       if (!shouldAttemptLegacySseFallback(streamableError)) {

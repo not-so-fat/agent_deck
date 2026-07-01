@@ -14,6 +14,7 @@ import {
 } from '../services/icon-resolver';
 import { CredentialYamlSync } from './yaml-sync';
 import { SecretStore, VaultUnsupportedError } from './secret-store';
+import { buildCredentialAuthHeaders } from './credential-auth-headers';
 
 export class CredentialManager {
   constructor(
@@ -143,6 +144,21 @@ export class CredentialManager {
       ...credential,
       hasSecret: await this.secretStore.has(credential.keychainAccount),
     };
+  }
+
+  /** Resolve vault-stored credential to HTTP headers for MCP / API calls. */
+  async resolveHttpHeaders(credentialId: string): Promise<Record<string, string>> {
+    const credential = await this.db.getCredential(credentialId);
+    if (!credential) {
+      throw new Error(`Credential not found: ${credentialId}`);
+    }
+
+    const secret = await this.secretStore.get(credential.keychainAccount);
+    if (!secret) {
+      throw new Error(`Secret not found in vault for credential: ${credentialId}`);
+    }
+
+    return buildCredentialAuthHeaders(credential, secret);
   }
 
   async update(id: string, input: UpdateCredentialInput): Promise<Credential | null> {

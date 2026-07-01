@@ -69,9 +69,12 @@ gh release create v1.2.1 --title "1.2.1" --notes-file .temporal/logs/release-not
 
 ```bash
 npm run build:release
+npm run release:smoke   # also runs inside build:release — fresh HOME + npm pack + setup artifacts
 npx @agent-deck/cli doctor
 npx @agent-deck/cli start --open
 ```
+
+**Release integration smoke** (`scripts/release-smoke.sh`) simulates what a user gets from npm: pack CLI, `setup --client claude` in a clean `HOME`, assert `statusline.sh` + `settings.json` exist, stdout is one clean line. Playbook: [examples/playbooks/npm-release-integration-smoke.md](./examples/playbooks/npm-release-integration-smoke.md).
 
 Dashboard: `http://127.0.0.1:11111`  
 MCP: `http://127.0.0.1:11112/mcp`

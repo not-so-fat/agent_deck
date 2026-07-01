@@ -1,22 +1,42 @@
 # Changelog
 
+## 1.2.4 — 2026-07-01
+
+### Deck display & CLI
+
+- **`setup` installs deck status line by default** for Claude Code / Cursor CLI (`--no-statusline` to skip); writes `~/.agent-deck/bin/statusline.sh` and merges `statusLine` into client settings
+- **Status line:** prefer `workspace.project_dir`; walk up bindings sidecar; fall through when prod API is unbound but dev/prod sidecar has a bind; strip ANSI; `NO_COLOR` + stderr redirect in wrapper (no `npm warn` on stdout)
+- **Bindings sidecar:** backend merges prod + dev `bindings.json` for `GET /api/scope/display`
+- **`npm run release:smoke`** — fresh-`HOME` setup + artifact checks; runs in `build:release` before publish
+
+### Backend
+
+- **MCP auth:** resolve `service.credentialId` from vault into outbound requests; stop stripping manual `Authorization` when OAuth is absent; merge custom headers before OAuth overrides
+- **MCP errors:** clearer parsing for plain JSON auth failures (e.g. Docmost `401 Unauthorized`)
+
+### Harness & docs
+
+- Agent harness: connect MCP before `bind_workspace`
+- Release playbooks + `.cursor/rules/release-integration-smoke.mdc`; generic playbook `pb_user_path_integration_smoke`
+
 ## 1.2.3 — 2026-07-01
 
-### Deck display (Phase 5a)
+### Deck display (Phase 5a) — on npm
 
 - **Bindings sidecar** (`~/.agent-deck/bindings.json`) written on `bind_workspace` / `switch_bound_deck`
 - **`GET /api/scope/display`** — resolved bound deck + `displayLine` for status surfaces
-- **CLI** `agent-deck statusline` for Claude Code / Cursor CLI prompt footer
+- **CLI** `agent-deck statusline` command (installer wiring completed in 1.2.4)
 - **MCP** `get_session_binding.display_summary` and `agent-deck://bound-deck/summary` resource
 - **Cursor IDE extension** (`packages/cursor-extension`) — status bar indicator (Open VSX publish deferred; VSIX sideload for now)
 - Shared `deck-display` schemas; `resolveAgentDeckHome` in `@agent-deck/shared`
 
-### Backend fixes
+### Backend fixes — on npm
 
 - MCP client: stop setting global `Content-Type` on transport headers (fixes Streamable HTTP GET probes)
 - Smarter SSE fallback — skip when Streamable HTTP returns actionable 4xx/5xx; prefer Streamable error over misleading SSE “Invalid content type”
+- Streamable HTTP first, legacy SSE fallback only for ambiguous failures
 
-### Docs
+### Docs — on npm
 
 - [PUBLISHING.md](docs/PUBLISHING.md) — distribution model (CLI required, extension optional, Open VSX vs Cursor Plugin Marketplace)
 - [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md) — Phase 5a shipped; IDE extension noted

@@ -4,21 +4,30 @@ import {
   BindingEntry,
   BindingsFile,
   BindingsFileSchema,
+  listBindingsFileCandidates,
+  lookupWorkspaceBinding,
+  normalizeWorkspaceRoot,
   resolveBindingsFilePath,
 } from '@agent-deck/shared';
 
 async function readBindingsFile(): Promise<BindingsFile> {
-  const filePath = resolveBindingsFilePath();
-  try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    const parsed = BindingsFileSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : {};
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return {};
+  const merged: BindingsFile = {};
+
+  for (const filePath of listBindingsFileCandidates()) {
+    try {
+      const raw = await fs.readFile(filePath, 'utf8');
+      const parsed = BindingsFileSchema.safeParse(JSON.parse(raw));
+      if (parsed.success) {
+        Object.assign(merged, parsed.data);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
     }
-    throw error;
   }
+
+  return merged;
 }
 
 async function writeBindingsFile(bindings: BindingsFile): Promise<void> {
@@ -29,7 +38,7 @@ async function writeBindingsFile(bindings: BindingsFile): Promise<void> {
 
 export async function readBindingForWorkspace(workspaceRoot: string): Promise<BindingEntry | null> {
   const bindings = await readBindingsFile();
-  return bindings[workspaceRoot] ?? null;
+  return lookupWorkspaceBinding(bindings, workspaceRoot);
 }
 
 export async function upsertBindingForWorkspace(
@@ -37,6 +46,6 @@ export async function upsertBindingForWorkspace(
   entry: BindingEntry,
 ): Promise<void> {
   const bindings = await readBindingsFile();
-  bindings[workspaceRoot] = entry;
+  bindings[normalizeWorkspaceRoot(workspaceRoot)] = entry;
   await writeBindingsFile(bindings);
 }
