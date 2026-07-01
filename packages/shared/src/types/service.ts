@@ -89,10 +89,27 @@ export interface ServiceCallInput {
   arguments: Record<string, any>;
 }
 
+export type McpErrorCode =
+  | 'MCP_TRANSPORT_ERROR'
+  | 'MCP_AUTH_ERROR'
+  | 'MCP_TOOL_ERROR'
+  | 'MCP_CONNECTION_ERROR';
+
+export interface ServiceToolErrorDetails {
+  service_id: string;
+  service_name: string;
+  remote_url: string;
+  tool_name?: string;
+  cause: string;
+  phase: 'connect' | 'discoverTools' | 'callTool';
+}
+
 export interface ServiceCallResult {
   success: boolean;
   result?: any;
   error?: string;
+  error_code?: McpErrorCode;
+  details?: ServiceToolErrorDetails;
   serviceName?: string;
   toolName?: string;
 }

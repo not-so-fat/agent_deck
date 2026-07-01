@@ -22,6 +22,10 @@ import {
   serviceIconApiPath,
   serviceIconFileExists,
 } from './icon-resolver';
+import {
+  classifyMcpErrorCode,
+  resolveMcpErrorMessage,
+} from '../lib/mcp-connection-error';
 
 interface A2AManifest {
   endpoints?: Record<string, A2AEndpoint>;
@@ -380,9 +384,27 @@ export class ServiceManager {
       }
     } catch (error) {
       console.error(`Failed to call tool for service ${validatedInput.serviceId}:`, error);
+
+      if (service.type === 'mcp' || service.type === 'local-mcp') {
+        this.mcpClient.invalidateClient(validatedInput.serviceId);
+      }
+      await this.db.updateServiceStatus(validatedInput.serviceId, false, 'unhealthy');
+
+      const cause = resolveMcpErrorMessage(error);
       return {
         success: false,
         error: 'Failed to call tool',
+        error_code: classifyMcpErrorCode(cause),
+        details: {
+          service_id: service.id,
+          service_name: service.name,
+          remote_url: service.url,
+          tool_name: validatedInput.toolName,
+          cause,
+          phase: 'callTool',
+        },
+        serviceName: service.name,
+        toolName: validatedInput.toolName,
       };
     }
   }

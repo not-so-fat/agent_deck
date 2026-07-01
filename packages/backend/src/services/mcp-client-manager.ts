@@ -112,7 +112,11 @@ export class MCPClientManager {
       
       try {
         // Fallback to SSE transport (legacy approach)
-        const sseTransport = new SSEClientTransport(baseUrl);
+        const sseTransport = new SSEClientTransport(baseUrl, {
+          requestInit: {
+            headers,
+          },
+        });
         await client.connect(sseTransport);
         console.log(`✅ Connected to MCP service ${service.url} using SSE transport`);
       } catch (sseError) {

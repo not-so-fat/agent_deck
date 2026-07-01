@@ -336,6 +336,8 @@ export async function registerServiceRoutes(fastify: FastifyInstance) {
         success: result.success,
         data: result.result,
         error: result.error,
+        error_code: result.error_code,
+        details: result.details,
       };
       
       return reply.send(response);

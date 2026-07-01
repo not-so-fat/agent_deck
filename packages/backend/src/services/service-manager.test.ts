@@ -34,6 +34,7 @@ describe('ServiceManager', () => {
     mockMCPClientManager = {
       discoverTools: vi.fn(),
       callTool: vi.fn(),
+      invalidateClient: vi.fn(),
     };
 
     mockOAuthManager = {
@@ -381,6 +382,47 @@ describe('ServiceManager', () => {
       expect(result).toEqual({
         success: false,
         error: 'Unsupported service type: unsupported',
+      });
+    });
+
+    it('should propagate MCP tool errors with structured details', async () => {
+      const serviceId = '123e4567-e89b-12d3-a456-426614174000';
+      const service = {
+        id: serviceId,
+        name: 'Docmost',
+        type: 'mcp',
+        url: 'https://docmost.example.com/mcp',
+      };
+
+      const callInput: ServiceCallInput = {
+        serviceId,
+        toolName: 'get_page',
+        arguments: {},
+      };
+
+      mockDbManager.getService.mockResolvedValue(service);
+      mockMCPClientManager.callTool.mockRejectedValue(
+        new Error('Failed to connect to MCP service: SSE error: Invalid content type, expected "text/event-stream"'),
+      );
+
+      const result = await serviceManager.callServiceTool(callInput);
+
+      expect(mockMCPClientManager.invalidateClient).toHaveBeenCalledWith(serviceId);
+      expect(mockDbManager.updateServiceStatus).toHaveBeenCalledWith(serviceId, false, 'unhealthy');
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to call tool',
+        error_code: 'MCP_TRANSPORT_ERROR',
+        details: {
+          service_id: serviceId,
+          service_name: 'Docmost',
+          remote_url: 'https://docmost.example.com/mcp',
+          tool_name: 'get_page',
+          cause: 'Failed to connect to MCP service: SSE error: Invalid content type, expected "text/event-stream"',
+          phase: 'callTool',
+        },
+        serviceName: 'Docmost',
+        toolName: 'get_page',
       });
     });
   });

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.2 — 2026-07-01
+
+### Backend
+
+- `call_service_tool`: propagate MCP failures with `error_code` and `details.cause` instead of a flat `"Failed to call tool"`
+- On tool-call failure, invalidate cached MCP client and mark service `unhealthy` so stale `healthy` snapshots do not linger
+- MCP client: Streamable HTTP first with legacy SSE fallback; SSE fallback now forwards OAuth/custom headers
+
 ## 1.2.1 — 2026-06-30
 
 ### Dashboard

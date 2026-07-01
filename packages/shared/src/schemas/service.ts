@@ -70,10 +70,26 @@ export const UpdateServiceToolSettingsSchema = z.object({
   disabledTools: z.array(z.string()),
 });
 
+export const ServiceToolErrorDetailsSchema = z.object({
+  service_id: z.string(),
+  service_name: z.string(),
+  remote_url: z.string(),
+  tool_name: z.string().optional(),
+  cause: z.string(),
+  phase: z.enum(['connect', 'discoverTools', 'callTool']),
+});
+
 export const ServiceCallResultSchema = z.object({
   success: z.boolean(),
   result: z.any().optional(),
   error: z.string().optional(),
+  error_code: z.enum([
+    'MCP_TRANSPORT_ERROR',
+    'MCP_AUTH_ERROR',
+    'MCP_TOOL_ERROR',
+    'MCP_CONNECTION_ERROR',
+  ]).optional(),
+  details: ServiceToolErrorDetailsSchema.optional(),
   serviceName: z.string().optional(),
   toolName: z.string().optional(),
 });
