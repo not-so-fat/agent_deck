@@ -1,6 +1,6 @@
 {
   "name": "@agent-deck/cli",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Local MCP proxy with decks — one endpoint for Claude Code, Cursor, and other MCP clients",
   "license": "ISC",
   "bin": {
@@ -39,8 +39,8 @@
     "prepublishOnly": "node ../../scripts/pre-publish-check.mjs && npm run build"
   },
   "dependencies": {
-    "@agent-deck/backend": "^1.2.2",
-    "@agent-deck/shared": "^1.2.2"
+    "@agent-deck/backend": "^1.2.3",
+    "@agent-deck/shared": "^1.2.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

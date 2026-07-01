@@ -6,7 +6,7 @@ playbooks: pb_ai_codegen_prd, pb_product_principle
 
 **One-liner:** Cursor and Claude Code users always see which Agent Deck is bound to the current workspace — in the prompt status line — without opening the dashboard or parsing MCP JSON.
 
-**Status:** Proposed · **Codegen load path:** `docs/PRD_DECK_DISPLAY.md` · **Contracts:** `packages/shared/src/schemas/deck-display.ts` (Zod + exported JSON Schema)
+**Status:** Phase 5a shipped · **Codegen load path:** `docs/PRD_DECK_DISPLAY.md` · **Contracts:** `packages/shared/src/schemas/deck-display.ts` (Zod + exported JSON Schema)
 
 ---
 
@@ -297,7 +297,7 @@ Agent Deck ignores model, tokens, and other payload fields.
 
 | Item | Rationale |
 |------|-----------|
-| Cursor/Claude Chat panel badge (non-CLI) | No host API; defer until available |
+| Cursor/Claude Chat panel badge (non-CLI) | No host API; **IDE status bar extension** (`packages/cursor-extension`) instead |
 | Dynamic harness / per-bind rule rewrites | Breaks `setup` idempotency (F4.4) |
 | Global single-deck indicator across all repos | Conflicts with workspace bind model |
 | Dashboard live mirror of every Cursor window | US-6 optional P1 only |

@@ -13,19 +13,66 @@ export interface ServiceToolErrorDetails {
   phase: 'connect' | 'discoverTools' | 'callTool';
 }
 
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return String(err ?? '');
+}
+
+/** Whether legacy HTTP+SSE transport is worth trying after Streamable HTTP fails. */
+export function shouldAttemptLegacySseFallback(streamableError: unknown): boolean {
+  if (extractMcpErrorMessage(streamableError)) {
+    return false;
+  }
+
+  const msg = errorMessage(streamableError).toLowerCase();
+  if (!msg) {
+    return false;
+  }
+
+  if (
+    msg.includes('401')
+    || msg.includes('403')
+    || msg.includes('unauthorized')
+    || msg.includes('streamable http error')
+    || msg.includes('unexpected content type')
+    || msg.includes('error posting to endpoint (http 4')
+    || msg.includes('error posting to endpoint (http 5')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 /** Extract a user-facing message from MCP client connection failures. */
 export function formatMcpConnectionError(
   streamableError: unknown,
   sseError: unknown,
 ): string {
   for (const err of [streamableError, sseError]) {
+    if (!err) {
+      continue;
+    }
     const parsed = extractMcpErrorMessage(err);
     if (parsed) {
       return parsed;
     }
   }
 
-  const sseMsg = sseError instanceof Error ? sseError.message : String(sseError ?? '');
+  const streamableMsg = errorMessage(streamableError);
+  const sseMsg = errorMessage(sseError);
+
+  // Streamable-only servers often return JSON to SSE; don't let the SSE message hide the real fault.
+  if (streamableMsg && sseMsg.includes('Invalid content type')) {
+    return `Failed to connect to MCP service: ${streamableMsg}`;
+  }
+
+  if (streamableMsg) {
+    return `Failed to connect to MCP service: ${streamableMsg}`;
+  }
+
   if (sseMsg && !sseMsg.includes('Non-200 status code')) {
     return `Failed to connect to MCP service: ${sseMsg}`;
   }

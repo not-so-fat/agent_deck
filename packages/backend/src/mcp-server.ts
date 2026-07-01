@@ -5,6 +5,8 @@ import {
   AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
   REPO_DECK_MANIFEST_PATH,
+  countDeckCards,
+  formatDisplayLine,
 } from '@agent-deck/shared';
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
@@ -21,6 +23,7 @@ import {
   McpSessionBindingStore,
   resolveDeckBindingSource,
 } from './mcp-session-binding';
+import { upsertBindingForWorkspace } from './scope/bindings-sidecar';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -114,6 +117,26 @@ export class AgentDeckMCPServer {
     };
   }
 
+  private async writeBindingSidecar(sessionId: string, manifestDeckId?: string): Promise<void> {
+    const snapshot = this.sessionBinding.getBinding(sessionId);
+    if (!snapshot.workspaceRoot) {
+      return;
+    }
+
+    const deck = await this.callBackendAPI('/api/scope/deck');
+    if (!deck?.id || !deck?.name) {
+      return;
+    }
+
+    await upsertBindingForWorkspace(snapshot.workspaceRoot, {
+      deckId: deck.id as string,
+      deckName: deck.name as string,
+      source: resolveDeckBindingSource(snapshot, manifestDeckId),
+      updatedAt: new Date().toISOString(),
+      cardCounts: countDeckCards(deck),
+    });
+  }
+
   private async callBackendAPI(endpoint: string, init: RequestInit = {}): Promise<any> {
     try {
       const response = await fetch(`${this.backendUrl}${endpoint}`, {
@@ -170,8 +193,21 @@ export class AgentDeckMCPServer {
     return { content: [{ type: "text" as const, text: JSON.stringify({ error: String(error) }, null, 2) }] };
   }
 
+  /** Avoid TS2589 when registering many MCP tools (SDK overload recursion). */
+  private registerTool(
+    name: string,
+    config: { title: string; description: string; inputSchema: Record<string, z.ZodTypeAny> },
+    handler: (...args: any[]) => Promise<any>,
+  ): void {
+    (this.server as { registerTool: (...args: unknown[]) => unknown }).registerTool(
+      name,
+      config,
+      handler,
+    );
+  }
+
   private setupTools() {
-    this.server.registerTool("bind_workspace", {
+    this.registerTool("bind_workspace", {
       title: "Bind Workspace",
       description:
         "Bind this MCP session to a workspace root. Pass deckId for a session-only deck override (same path, different concurrent agents). Without deckId, uses .agent-deck/deck.yaml when present.",
@@ -188,6 +224,7 @@ export class AgentDeckMCPServer {
           const deck = await this.fetchDeck(deckId);
           this.sessionBinding.setDeckId(sessionId, deckId);
           const payload = await this.buildBindingPayload(sessionId);
+          await this.writeBindingSidecar(sessionId);
           return {
             content: [{
               type: "text",
@@ -226,6 +263,7 @@ export class AgentDeckMCPServer {
 
         const { data } = body;
         const payload = await this.buildBindingPayload(sessionId, data.manifest.deck_id);
+        await this.writeBindingSidecar(sessionId, data.manifest.deck_id);
 
         return {
           content: [{
@@ -248,7 +286,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("switch_bound_deck", {
+    this.registerTool("switch_bound_deck", {
       title: "Switch Bound Deck",
       description:
         "Switch the deck for this MCP session only. Does not modify .agent-deck/deck.yaml. Use when multiple agent sessions share the same workspace path.",
@@ -259,6 +297,7 @@ export class AgentDeckMCPServer {
         const deck = await this.fetchDeck(deckId);
         this.sessionBinding.setDeckId(sessionId, deckId);
         const payload = await this.buildBindingPayload(sessionId);
+        await this.writeBindingSidecar(sessionId);
         return {
           content: [{
             type: "text",
@@ -274,7 +313,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("get_session_binding", {
+    this.registerTool("get_session_binding", {
       title: "Get Session Binding",
       description:
         "Show workspace and effective deck for this MCP session, including whether the deck comes from a session override or repo deck.yaml.",
@@ -289,6 +328,8 @@ export class AgentDeckMCPServer {
           manifestDeckId = manifest?.deck_id;
         }
         const deck = await this.callBackendAPI('/api/scope/deck');
+        const cardCounts = deck ? countDeckCards(deck) : { mcp: 0, credentials: 0, playbooks: 0 };
+        const displaySummary = formatDisplayLine(deck?.name ?? null, cardCounts);
         return {
           content: [{
             type: "text",
@@ -300,6 +341,7 @@ export class AgentDeckMCPServer {
               effective_deck_id: deck?.id,
               effective_deck_name: deck?.name,
               effective_deck_source: resolveDeckBindingSource(snapshot, manifestDeckId),
+              display_summary: displaySummary,
             }, null, 2),
           }],
         };
@@ -308,7 +350,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("get_repo_deck_status", {
+    this.registerTool("get_repo_deck_status", {
       title: "Get Repo Deck Status",
       description:
         "Check whether .agent-deck/deck.yaml exists in a workspace and whether it links to a valid deck",
@@ -367,7 +409,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("setup_repo_deck", {
+    this.registerTool("setup_repo_deck", {
       title: "Setup Repo Deck",
       description:
         "Create or verify .agent-deck/deck.yaml in a repo. Links the workspace to an Agent Deck by deck_id. Optionally writes the file.",
@@ -472,7 +514,7 @@ export class AgentDeckMCPServer {
     });
 
     // Get all decks (metadata only; credentials stripped unless bound)
-    this.server.registerTool("get_decks", {
+    this.registerTool("get_decks", {
       title: "Get Decks",
       description: "Get all available decks from Agent Deck",
       inputSchema: {}
@@ -489,7 +531,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("get_bound_deck", {
+    this.registerTool("get_bound_deck", {
       title: "Get Bound Deck",
       description:
         "Get the deck bound to this session (session deckId override, env, or .agent-deck/deck.yaml)",
@@ -508,7 +550,7 @@ export class AgentDeckMCPServer {
     });
 
     // Deprecated alias
-    this.server.registerTool("get_active_deck", {
+    this.registerTool("get_active_deck", {
       title: "Get Active Deck (deprecated)",
       description: "Deprecated — use get_bound_deck. Returns the workspace-bound deck.",
       inputSchema: {},
@@ -525,7 +567,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_bound_deck_services", {
+    this.registerTool("list_bound_deck_services", {
       title: "List Bound Deck Services",
       description: "List MCP services on the workspace-bound deck",
       inputSchema: {},
@@ -539,7 +581,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_active_deck_services", {
+    this.registerTool("list_active_deck_services", {
       title: "List Active Deck Services (deprecated)",
       description: "Deprecated — use list_bound_deck_services",
       inputSchema: {},
@@ -553,7 +595,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_bound_deck_credentials", {
+    this.registerTool("list_bound_deck_credentials", {
       title: "List Bound Deck Credentials",
       description: "List API key metadata on the workspace-bound deck",
       inputSchema: {},
@@ -566,7 +608,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_active_deck_credentials", {
+    this.registerTool("list_active_deck_credentials", {
       title: "List Active Deck Credentials (deprecated)",
       description: "Deprecated — use list_bound_deck_credentials",
       inputSchema: {},
@@ -579,7 +621,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_playbooks", {
+    this.registerTool("list_playbooks", {
       title: "List Playbooks",
       description: "List playbook cards on the bound deck (id, title, triggers)",
       inputSchema: {},
@@ -592,7 +634,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("get_playbook", {
+    this.registerTool("get_playbook", {
       title: "Get Playbook",
       description: "Get full markdown body, metadata, and dependencies for a playbook card by id",
       inputSchema: { playbook_id: z.string() },
@@ -605,7 +647,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("register_playbook", {
+    this.registerTool("register_playbook", {
       title: "Register Playbook",
       description:
         "Create a playbook card, auto-detect API key and MCP dependencies from the content, and add it to the bound deck by default",
@@ -645,7 +687,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("update_playbook", {
+    this.registerTool("update_playbook", {
       title: "Update Playbook",
       description:
         "Update a playbook on the bound deck. Dependencies are re-detected from the updated content by default.",
@@ -685,7 +727,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_collection_services", {
+    this.registerTool("list_collection_services", {
       title: "List Collection Services",
       description: "List all registered MCP services in the collection (metadata only)",
       inputSchema: {},
@@ -698,7 +740,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("register_service", {
+    this.registerTool("register_service", {
       title: "Register Service",
       description:
         "Register an MCP service in the collection. Optionally add it to the bound deck. OAuth setup still requires the dashboard browser flow.",
@@ -741,7 +783,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("update_service", {
+    this.registerTool("update_service", {
       title: "Update Service",
       description: "Update MCP service metadata in the collection (not OAuth tokens — use dashboard for OAuth)",
       inputSchema: {
@@ -771,7 +813,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("delete_service", {
+    this.registerTool("delete_service", {
       title: "Delete Service",
       description: "Remove an MCP service from the collection entirely",
       inputSchema: { service_id: z.string() },
@@ -784,7 +826,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("add_service_to_bound_deck", {
+    this.registerTool("add_service_to_bound_deck", {
       title: "Add Service To Bound Deck",
       description: "Link an existing MCP service from the collection onto the bound deck",
       inputSchema: {
@@ -805,7 +847,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("remove_service_from_bound_deck", {
+    this.registerTool("remove_service_from_bound_deck", {
       title: "Remove Service From Bound Deck",
       description: "Unlink an MCP service from the bound deck (service stays in the collection)",
       inputSchema: { service_id: z.string() },
@@ -823,7 +865,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("update_service_tool_settings", {
+    this.registerTool("update_service_tool_settings", {
       title: "Update Service Tool Settings",
       description: "Enable or disable individual tools for an MCP service on the bound deck",
       inputSchema: {
@@ -843,7 +885,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_collection_credentials", {
+    this.registerTool("list_collection_credentials", {
       title: "List Collection Credentials",
       description:
         "List all API key metadata in the collection (no secret values). Use credential ids to link keys to the bound deck after the user stores the secret in the dashboard.",
@@ -857,7 +899,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("add_credential_to_bound_deck", {
+    this.registerTool("add_credential_to_bound_deck", {
       title: "Add Credential To Bound Deck",
       description:
         "Link an existing API key (by credential id) to the bound deck. The secret must already be stored via the dashboard or CLI.",
@@ -879,7 +921,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("remove_credential_from_bound_deck", {
+    this.registerTool("remove_credential_from_bound_deck", {
       title: "Remove Credential From Bound Deck",
       description: "Unlink an API key from the bound deck (credential stays in the vault)",
       inputSchema: { credential_id: z.string() },
@@ -897,7 +939,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("list_collection_playbooks", {
+    this.registerTool("list_collection_playbooks", {
       title: "List Collection Playbooks",
       description: "List all playbook cards in the collection (for linking existing playbooks to the bound deck)",
       inputSchema: {},
@@ -910,7 +952,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("add_playbook_to_bound_deck", {
+    this.registerTool("add_playbook_to_bound_deck", {
       title: "Add Playbook To Bound Deck",
       description: "Link an existing playbook card from the collection onto the bound deck",
       inputSchema: {
@@ -931,7 +973,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("remove_playbook_from_bound_deck", {
+    this.registerTool("remove_playbook_from_bound_deck", {
       title: "Remove Playbook From Bound Deck",
       description: "Unlink a playbook from the bound deck (playbook stays in the collection)",
       inputSchema: { playbook_id: z.string() },
@@ -949,7 +991,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("delete_playbook", {
+    this.registerTool("delete_playbook", {
       title: "Delete Playbook",
       description: "Delete a playbook from the collection (must be on the bound deck for agent clients)",
       inputSchema: { playbook_id: z.string() },
@@ -964,7 +1006,7 @@ export class AgentDeckMCPServer {
       }
     });
 
-    this.server.registerTool("create_deck", {
+    this.registerTool("create_deck", {
       title: "Create Deck",
       description: "Create a new deck in Agent Deck",
       inputSchema: {
@@ -985,7 +1027,7 @@ export class AgentDeckMCPServer {
     });
 
     // Remove duplicate old tools block - list_service_tools follows
-    this.server.registerTool("list_service_tools", {
+    this.registerTool("list_service_tools", {
       title: "List Service Tools",
       description: "List all available tools for a specific service in the active deck",
       inputSchema: { serviceId: z.string() }
@@ -999,7 +1041,7 @@ export class AgentDeckMCPServer {
     });
 
     // Call a tool on a service in the active deck
-    this.server.registerTool("call_service_tool", {
+    this.registerTool("call_service_tool", {
       title: "Call Service Tool",
       description: "Call a tool on a service from the active deck",
       inputSchema: {
@@ -1038,8 +1080,33 @@ export class AgentDeckMCPServer {
   }
 
   private setupResources() {
+    this.server.resource("bound_deck_summary", "agent-deck://bound-deck/summary", {
+      description: "One-line summary of the workspace-bound deck for status display",
+      mimeType: "text/plain",
+    }, async () => {
+      try {
+        const deck = await this.callBackendAPI('/api/scope/deck');
+        const summary = formatDisplayLine(deck?.name ?? null, countDeckCards(deck ?? {}));
+
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/summary",
+            mimeType: "text/plain",
+            text: summary,
+          }],
+        };
+      } catch (error) {
+        return {
+          contents: [{
+            uri: "agent-deck://bound-deck/summary",
+            mimeType: "text/plain",
+            text: formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }),
+          }],
+        };
+      }
+    });
+
     this.server.resource("bound_deck_services", "agent-deck://bound-deck/services", {
-      name: "Bound Deck Services",
       description: "MCP services on the workspace-bound deck",
       mimeType: "application/json"
     }, async () => {
@@ -1066,7 +1133,6 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("active_deck_services", "agent-deck://active-deck/services", {
-      name: "Active Deck Services (deprecated)",
       description: "Deprecated — use agent-deck://bound-deck/services",
       mimeType: "application/json"
     }, async () => {
@@ -1093,7 +1159,6 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("bound_deck_credentials", "agent-deck://bound-deck/credentials", {
-      name: "Bound Deck Credentials",
       description: "API key metadata on the workspace-bound deck",
       mimeType: "application/json"
     }, async () => {
@@ -1119,7 +1184,6 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("active_deck_credentials", "agent-deck://active-deck/credentials", {
-      name: "Active Deck Credentials (deprecated)",
       description: "Deprecated — use agent-deck://bound-deck/credentials",
       mimeType: "application/json"
     }, async () => {
@@ -1145,7 +1209,6 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("bound_deck", "agent-deck://bound-deck", {
-      name: "Bound Deck",
       description: "Deck bound via .agent-deck/deck.yaml in the workspace",
       mimeType: "application/json"
     }, async () => {
@@ -1171,7 +1234,6 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("active_deck", "agent-deck://active-deck", {
-      name: "Active Deck (deprecated)",
       description: "Deprecated — use agent-deck://bound-deck",
       mimeType: "application/json"
     }, async () => {
@@ -1198,7 +1260,6 @@ export class AgentDeckMCPServer {
 
     // Register resource for all decks
     this.server.resource("decks", "agent-deck://decks", {
-      name: "Agent Deck Decks",
       description: "List of all available decks",
       mimeType: "application/json"
     }, async () => {

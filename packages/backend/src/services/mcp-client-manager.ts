@@ -3,7 +3,11 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { LocalMCPServerManager } from './local-mcp-server-manager';
-import { formatMcpConnectionError, extractMcpErrorMessage } from '../lib/mcp-connection-error';
+import {
+  formatMcpConnectionError,
+  extractMcpErrorMessage,
+  shouldAttemptLegacySseFallback,
+} from '../lib/mcp-connection-error';
 
 interface MCPTool {
   name: string;
@@ -56,17 +60,12 @@ export class MCPClientManager {
       return this.clients.get(clientKey)!;
     }
 
-    const client = new Client({
-      name: 'agent-deck-mcp-client',
-      version: '1.0.0'
-    });
-
     const baseUrl = new URL(service.url);
     
-    // Prepare headers for MCP communication
+    // Shared headers for all transports. Do not set Content-Type here — each transport
+    // sets it per request (a global Content-Type breaks Streamable HTTP GET probes).
     const headers: Record<string, string> = {
-      'Accept': 'application/json, text/event-stream',
-      'Content-Type': 'application/json'
+      Accept: 'application/json, text/event-stream',
     };
     
     // Add OAuth token if available
@@ -91,44 +90,61 @@ export class MCPClientManager {
       }
     }
     
+    const client = await this.connectRemoteClient(baseUrl, headers, service.url);
+    this.clients.set(clientKey, client);
+    return client;
+  }
+
+  private async connectRemoteClient(
+    baseUrl: URL,
+    headers: Record<string, string>,
+    serviceUrl: string,
+  ): Promise<Client> {
+    const streamableClient = new Client({
+      name: 'agent-deck-mcp-client',
+      version: '1.0.0',
+    });
+
     try {
-      // Try StreamableHTTP transport first (modern approach with headers support)
-      console.log(`🔗 Attempting StreamableHTTP transport for ${service.url} with headers:`, headers);
-      
+      console.log(`🔗 Attempting StreamableHTTP transport for ${serviceUrl}`);
       const streamableTransport = new StreamableHTTPClientTransport(baseUrl, {
-        requestInit: {
-          headers
-        }
+        requestInit: { headers },
       });
-      await client.connect(streamableTransport);
-      console.log(`✅ Connected to MCP service ${service.url} using StreamableHTTP transport`);
+      await streamableClient.connect(streamableTransport);
+      console.log(`✅ Connected to MCP service ${serviceUrl} using StreamableHTTP transport`);
+      return streamableClient;
     } catch (streamableError) {
       const streamableMessage = extractMcpErrorMessage(streamableError);
       if (streamableMessage) {
         throw new Error(streamableMessage);
       }
 
-      console.log(`⚠️ StreamableHTTP failed for ${service.url}, trying SSE transport:`, streamableError);
-      
+      if (!shouldAttemptLegacySseFallback(streamableError)) {
+        console.error(`❌ StreamableHTTP failed for ${serviceUrl}:`, streamableError);
+        throw new Error(formatMcpConnectionError(streamableError, null));
+      }
+
+      console.log(`⚠️ StreamableHTTP failed for ${serviceUrl}, trying legacy SSE transport:`, streamableError);
+
+      const sseClient = new Client({
+        name: 'agent-deck-mcp-client',
+        version: '1.0.0',
+      });
+
       try {
-        // Fallback to SSE transport (legacy approach)
         const sseTransport = new SSEClientTransport(baseUrl, {
-          requestInit: {
-            headers,
-          },
+          requestInit: { headers },
         });
-        await client.connect(sseTransport);
-        console.log(`✅ Connected to MCP service ${service.url} using SSE transport`);
+        await sseClient.connect(sseTransport);
+        console.log(`✅ Connected to MCP service ${serviceUrl} using SSE transport`);
+        return sseClient;
       } catch (sseError) {
-        console.error(`❌ Both StreamableHTTP and SSE failed for ${service.url}`);
+        console.error(`❌ Both StreamableHTTP and SSE failed for ${serviceUrl}`);
         console.error(`StreamableHTTP error:`, streamableError);
         console.error(`SSE error:`, sseError);
         throw new Error(formatMcpConnectionError(streamableError, sseError));
       }
     }
-
-    this.clients.set(clientKey, client);
-    return client;
   }
 
   async discoverTools(service: Service): Promise<ServiceTool[]> {

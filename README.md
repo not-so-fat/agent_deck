@@ -13,13 +13,19 @@
 
 ## Quick Start
 
-Try Agent Deck in one command (MCP config + agent harness + optional start):
+**Required (one install)** — MCP, dashboard, vault, agent tools:
 
 ```bash
 npx @agent-deck/cli@latest setup --client cursor --start
 # or: --client claude
 # dashboard → http://127.0.0.1:11111 · MCP → http://127.0.0.1:11112/mcp
 ```
+
+**Optional — see bound deck in Cursor IDE** (status bar while you use Agent chat):
+
+Install the [Agent Deck extension](packages/cursor-extension) from **Open VSX** (search “Agent Deck” in Cursor → Extensions) or sideload the VSIX from `npm run extension:package`. Requires Agent Deck running (`agent-deck start` or `dev:all`). See [Publishing — Distribution](docs/PUBLISHING.md#distribution-what-users-install).
+
+**Optional — terminal agents** (Claude Code / Cursor CLI prompt footer): `agent-deck setup --statusline` when shipped (Phase 5b).
 
 Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy `.agent-deck/deck.yaml` into a repo. Your agent calls `bind_workspace` to use that deck.
 
@@ -187,7 +193,7 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 | [Architecture](docs/ARCHITECTURE.md) | Components, SQLite, secret storage |
 | [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools |
 | [PRD: Export / import](docs/PRD_EXPORT_IMPORT.md) | Proposed — laptop migration bundles |
-| [PRD: Deck display](docs/PRD_DECK_DISPLAY.md) | Proposed — status line / bound deck visibility |
+| [PRD: Deck display](docs/PRD_DECK_DISPLAY.md) | Status line (CLI) + IDE extension (status bar) |
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
 | [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** from `setup` |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
@@ -205,10 +211,11 @@ Agent Deck can be listed on:
 | **GitHub** | Ready | Public repo, README, demo GIF |
 | **npm** | Ready | `npx @agent-deck/cli setup --client cursor --start` — see [Publishing](docs/PUBLISHING.md) |
 | **MCP Registry** | Metadata ready | `server.json` — publish after npm |
-| **Cursor Marketplace** | Future | Plugin + skill packaging |
+| **Open VSX** (Cursor Extensions) | **Not published yet** | `packages/cursor-extension` — IDE status bar; [publish steps](docs/PUBLISHING.md#cursor-ide-extension-open-vsx) |
+| **Cursor Plugin Marketplace** | Not applicable | Rules/skills/MCP bundles — different product from our VS Code extension |
 
 ## Future Plan
 
-- Cursor plugin + skill packaging
+- Cursor **plugin** packaging (rules/skills/MCP bundle — separate from IDE extension)
 - Passthrough for downstream MCP Apps
 - Usage analytics and smarter deck recommendations

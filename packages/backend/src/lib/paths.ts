@@ -1,6 +1,8 @@
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
+import { isAgentDeckDevMode, resolveAgentDeckHome } from '@agent-deck/shared';
+
+export { isAgentDeckDevMode, resolveAgentDeckHome };
 
 /** Browser URL for the dashboard (OAuth return, docs). Bundled UI uses the API origin; dev uses Vite :3000. */
 export function resolveDashboardOrigin(): string {
@@ -16,32 +18,6 @@ export function resolveDashboardOrigin(): string {
   }
 
   return 'http://localhost:3000';
-}
-
-/** Dev monorepo / tsx — separate data dir from production `agent-deck start`. */
-export function isAgentDeckDevMode(): boolean {
-  const flag = process.env.AGENT_DECK_DEV?.trim().toLowerCase();
-  if (flag === '1' || flag === 'true' || flag === 'yes') {
-    return true;
-  }
-  if (flag === '0' || flag === 'false' || flag === 'no') {
-    return false;
-  }
-  return process.env.NODE_ENV === 'development';
-}
-
-/**
- * Agent Deck data root: SQLite, credential yaml metadata, dev secret files, icons.
- * Production CLI → ~/.agent-deck
- * Monorepo dev (AGENT_DECK_DEV=1) → ~/.agent-deck/dev
- */
-export function resolveAgentDeckHome(): string {
-  if (process.env.AGENT_DECK_HOME?.trim()) {
-    return path.resolve(process.env.AGENT_DECK_HOME.trim());
-  }
-
-  const base = path.join(os.homedir(), '.agent-deck');
-  return isAgentDeckDevMode() ? path.join(base, 'dev') : base;
 }
 
 export function resolveDatabasePath(): string {

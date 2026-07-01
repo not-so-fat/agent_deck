@@ -116,6 +116,71 @@ After npm publish:
 
 Users still run **`npx @agent-deck/cli start`** locally — the registry entry documents the HTTP MCP endpoint. After install, the command is still **`agent-deck`**.
 
+## Distribution (what users install)
+
+Agent Deck is **one engine** (`@agent-deck/cli`) plus **optional visibility** add-ons. Do not imply MCP setup alone shows the bound deck in Cursor IDE.
+
+| Artifact | Required? | Channel | What it does |
+|----------|-----------|---------|--------------|
+| **`@agent-deck/cli`** | **Yes** | npm | Backend API, MCP server, dashboard, vault, `setup`, `start`, `credential`, `exec` |
+| **Agent Deck extension** | No | Open VSX (Cursor Extensions) | Status bar: `◆ deck · N MCP · …` while using IDE Agent chat |
+| **CLI status line** | No | `~/.cursor/cli-config.json` or Claude Code settings | Prompt footer for **terminal** agents (Phase 5b: `setup --statusline`) |
+
+### User paths
+
+**Everyone (agents work):**
+
+```bash
+npx @agent-deck/cli@latest setup --client cursor --start
+```
+
+**Cursor IDE Agent chat (see bound deck):** same as above, **plus** install the extension from Open VSX (or VSIX sideload until published).
+
+**Claude Code terminal:** same CLI; optionally wire status line (see [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md)).
+
+**Monorepo contributors:** `npm run dev:all` instead of `agent-deck start`; extension defaults to API port `8000`.
+
+### What npm publish does *not* include
+
+`npm run publish:packages` ships **shared → backend → cli** only. The IDE extension is **not** on npm. Release it separately to Open VSX (version may differ from CLI semver).
+
+## Cursor IDE extension (Open VSX)
+
+**Is Cursor Marketplace ready?** Two different things:
+
+| Name | What it is | Our extension? |
+|------|------------|----------------|
+| **[Cursor Plugin Marketplace](https://cursor.com/marketplace)** | Official **plugins** (rules, skills, hooks, MCP bundles in `.cursor-plugin/`) | **No** — different format; manual review at cursor.com/marketplace/publish |
+| **Cursor → Extensions** (in-app search) | VS Code–style extensions via **[Open VSX](https://open-vsx.org)** | **Yes** — this is where `agent-deck-cursor` belongs |
+
+Cursor does **not** sync the Microsoft VS Code Marketplace. Publishing only to VS Code Marketplace is **not** enough for Cursor users.
+
+### Extension publish status
+
+| Step | Status |
+|------|--------|
+| Extension scaffold (`packages/cursor-extension`) | Done |
+| Local VSIX (`npm run extension:package`) | Done |
+| Open VSX namespace + publish | **Not done** — maintainer one-time setup |
+| Cursor Plugin Marketplace listing | **Not planned** for status-bar extension |
+
+### Maintainer: publish to Open VSX
+
+Prerequisites: [Open VSX account](https://open-vsx.org), sign [Eclipse Contributor Agreement](https://www.eclipse.org/legal/eca.php), access token.
+
+```bash
+# One-time: create publisher namespace (matches package.json "publisher": "agent-deck")
+npx ovsx create-namespace agent-deck -p <OVSX_TOKEN>
+
+# Build and publish (from repo root)
+npm run extension:package
+npx ovsx publish packages/cursor-extension/agent-deck-cursor-*.vsix -p <OVSX_TOKEN>
+```
+
+After publish, users install via **Cursor → Extensions → search “Agent Deck”**. Until then: **Extensions → … → Install from VSIX**.
+
+Extension `publisher` / `name` in `packages/cursor-extension/package.json` control the install id (`agent-deck.agent-deck-cursor`).
+
 ## End-user install (Claude Code)
 
 ```bash

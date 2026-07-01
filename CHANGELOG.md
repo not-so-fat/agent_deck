@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.2.3 — 2026-07-01
+
+### Deck display (Phase 5a)
+
+- **Bindings sidecar** (`~/.agent-deck/bindings.json`) written on `bind_workspace` / `switch_bound_deck`
+- **`GET /api/scope/display`** — resolved bound deck + `displayLine` for status surfaces
+- **CLI** `agent-deck statusline` for Claude Code / Cursor CLI prompt footer
+- **MCP** `get_session_binding.display_summary` and `agent-deck://bound-deck/summary` resource
+- **Cursor IDE extension** (`packages/cursor-extension`) — status bar indicator (Open VSX publish deferred; VSIX sideload for now)
+- Shared `deck-display` schemas; `resolveAgentDeckHome` in `@agent-deck/shared`
+
+### Backend fixes
+
+- MCP client: stop setting global `Content-Type` on transport headers (fixes Streamable HTTP GET probes)
+- Smarter SSE fallback — skip when Streamable HTTP returns actionable 4xx/5xx; prefer Streamable error over misleading SSE “Invalid content type”
+
+### Docs
+
+- [PUBLISHING.md](docs/PUBLISHING.md) — distribution model (CLI required, extension optional, Open VSX vs Cursor Plugin Marketplace)
+- [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md) — Phase 5a shipped; IDE extension noted
+
 ## 1.2.2 — 2026-07-01
 
 ### Backend

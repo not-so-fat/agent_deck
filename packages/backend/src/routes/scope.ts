@@ -3,6 +3,7 @@ import { ApiResponse } from '@agent-deck/shared';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
 import { isDashboardClient, requireDashboardClient } from '../lib/client-scope';
 import { formatRepoDeckManifest, loadRepoDeckManifest, RepoDeckManifestError } from '../scope/repo-deck';
+import { resolveDeckDisplay } from '../scope/display';
 
 export async function registerScopeRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { workspaceRoot: string } }>('/resolve', async (request, reply) => {
@@ -79,6 +80,29 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
     } catch (error) {
       const status = error instanceof AgentDeckContextError ? 400 : 500;
       return reply.status(status).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.get<{ Querystring: { workspaceRoot?: string } }>('/display', async (request, reply) => {
+    try {
+      const workspaceRoot = request.query.workspaceRoot?.trim();
+      if (!workspaceRoot) {
+        return reply.status(400).send({
+          success: false,
+          error: 'workspaceRoot query parameter is required',
+        } satisfies ApiResponse);
+      }
+
+      const display = await resolveDeckDisplay(workspaceRoot, fastify.db);
+      return reply.send({
+        success: true,
+        data: display,
+      } satisfies ApiResponse);
+    } catch (error) {
+      return reply.status(500).send({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       } satisfies ApiResponse);

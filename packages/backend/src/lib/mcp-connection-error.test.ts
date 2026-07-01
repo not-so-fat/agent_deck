@@ -5,6 +5,7 @@ import {
   extractMcpErrorMessage,
   formatMcpConnectionError,
   resolveMcpErrorMessage,
+  shouldAttemptLegacySseFallback,
 } from './mcp-connection-error';
 
 describe('formatMcpConnectionError', () => {
@@ -24,8 +25,33 @@ describe('formatMcpConnectionError', () => {
     const sse = new Error('SSE error: Invalid content type, expected "text/event-stream"');
 
     expect(formatMcpConnectionError(streamable, sse)).toBe(
-      'Failed to connect to MCP service: SSE error: Invalid content type, expected "text/event-stream"',
+      'Failed to connect to MCP service: Streamable HTTP connection closed',
     );
+  });
+
+  it('surfaces streamable-only failure without legacy SSE attempt', () => {
+    const streamable = new Error('Streamable HTTP error: Unexpected content type: application/json');
+
+    expect(formatMcpConnectionError(streamable, null)).toBe(
+      'Failed to connect to MCP service: Streamable HTTP error: Unexpected content type: application/json',
+    );
+  });
+});
+
+describe('shouldAttemptLegacySseFallback', () => {
+  it('returns false for streamable HTTP transport errors', () => {
+    expect(shouldAttemptLegacySseFallback(new Error('Streamable HTTP error: Unexpected content type: text/html'))).toBe(false);
+  });
+
+  it('returns false for JSON-RPC server errors', () => {
+    const err = new Error(
+      'Error POSTing to endpoint (HTTP 400): {"jsonrpc":"2.0","error":{"message":"bad token"}}',
+    );
+    expect(shouldAttemptLegacySseFallback(err)).toBe(false);
+  });
+
+  it('returns true for ambiguous legacy endpoint failures', () => {
+    expect(shouldAttemptLegacySseFallback(new Error('fetch failed'))).toBe(true);
   });
 });
 

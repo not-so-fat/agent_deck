@@ -35,4 +35,5 @@ echo "[dev-all] Starting MCP server (3001) ..."
 ) &
 
 echo "[dev-all] All services started. Logs in $LOG_DIR"
+echo "[dev-all] Deck status line: ensure ~/.cursor/cli-config.json statusLine → scripts/cursor-statusline.sh (uses API :8000, not MCP :3001)"
 wait

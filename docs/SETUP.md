@@ -92,6 +92,10 @@ npx @agent-deck/cli@latest setup --client cursor --start
 
 See [PUBLISHING.md](./PUBLISHING.md) and [README](../README.md).
 
+### IDE deck indicator (optional)
+
+MCP alone does **not** show the bound deck in Cursor Agent chat. For a status-bar indicator, install the Agent Deck extension — see [Distribution](./PUBLISHING.md#distribution-what-users-install).
+
 ## Ports
 
 Two installs can run on the same machine without clashing:

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { resolveAgentDeckHome } from '@agent-deck/shared';
 
 export interface RunState {
   host: string;
@@ -13,7 +13,7 @@ export interface RunState {
 }
 
 function agentDeckHome(): string {
-  return process.env.AGENT_DECK_HOME ?? path.join(os.homedir(), '.agent-deck');
+  return resolveAgentDeckHome();
 }
 
 export function runStatePath(): string {
