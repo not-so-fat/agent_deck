@@ -25,7 +25,7 @@ npx @agent-deck/cli setup --client claude --no-statusline   # skip prompt footer
 npx @agent-deck/cli setup --client cursor --scope project   # project MCP + project harness
 ```
 
-**Order of operations:** MCP must be connected before deck tools work (`claude mcp list` → agent-deck **Connected**). The harness tells the agent to call `bind_workspace` on first use. The **status line** shows the bound deck in the prompt footer after `bind_workspace` writes the bindings sidecar.
+**Order of operations:** MCP must be connected before deck tools work (`claude mcp list` → agent-deck **Connected**). On the **first turn** of a workspace conversation, the harness tells the agent to `bind_workspace`, call `get_session_binding`, and show `display_summary` to the user (IDE Agent chat has no status footer). Terminal **status line** shows the bound deck in the prompt footer after bind writes the bindings sidecar.
 
 **Manual status line (merge into existing settings — do not paste terminal output):**
 

@@ -20,7 +20,7 @@ Keep **written intent** aligned with **shipped behavior**. Doc filenames vary by
 ## When to update (same PR / change set)
 
 - Behavior, API, UI flow, or schema **differs** from what the doc says
-- A module or milestone is **finished**, deferred, or renamed
+- A module or milestone is **finished**, deferred, or renamed — including **surfaces ruled infeasible** (update doc to say deferred, not “use extension instead”)
 - Terminology in code/UI **no longer matches** the doc (fix the doc to as-built terms)
 
 ## What to do

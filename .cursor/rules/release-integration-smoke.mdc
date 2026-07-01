@@ -12,7 +12,7 @@ Generic pattern (any repo): Agent Deck playbook `pb_user_path_integration_smoke`
 
 ## When this applies
 
-Shipping **user-facing paths**: CLI `setup`, status line, MCP install, extension, or any CHANGELOG bullet users can try with one command.
+Shipping **user-facing paths**: CLI `setup`, terminal status line, MCP install, or any CHANGELOG bullet users can try with one command.
 
 ## Invariant chain (must all pass)
 
@@ -34,7 +34,7 @@ CHANGELOG (shipped) → dist/tarball contains code → setup wires it → artifa
 | `setup --client cursor` | same script, `~/.cursor/cli-config.json` → `statusLine` |
 | Status line stdout | Exactly **one** line, starts with `◆`, no `npm warn`, no ANSI |
 | Prod vs dev data | Merge prod + dev `bindings.json`; API unbound must not block sidecar |
-| Host matrix | Terminal status line ≠ Cursor IDE chat (extension is separate) |
+| Host matrix | Terminal footer only — see [user-surface-feasibility.mdc](./user-surface-feasibility.mdc) |
 
 ## Adding a new user path
 
@@ -48,3 +48,5 @@ CHANGELOG (shipped) → dist/tarball contains code → setup wires it → artifa
 - Test only `npm run dev:all` or monorepo `packages/cli/dist` without `npm pack` file audit
 - Document manual `settings.json` edits as the primary path when `setup` should do it
 - Replace entire user config files — merge JSON keys only
+- Ship or document deck display for **IDE Agent chat** — terminal `statusLine` only
+- Treat MCP bind success as “display shipped” for IDE users

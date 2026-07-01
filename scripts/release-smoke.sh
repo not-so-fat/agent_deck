@@ -101,7 +101,52 @@ fi
 if ! grep -q '^◆' "$STATUS_OUT"; then
   fail "statusline output must start with ◆ (got: $(cat "$STATUS_OUT"))"
 fi
-pass "statusline stdout: $(cat "$STATUS_OUT")"
+pass "statusline stdout (closed stdin): $(cat "$STATUS_OUT")"
+
+# --- 5b. Claude host POC: stdin left open (must not hang) ---
+OPEN_OUT="$LOG_DIR/release-smoke-statusline-open-stdin.out"
+OPEN_ERR="$LOG_DIR/release-smoke-statusline-open-stdin.err"
+if ! node -e "
+const { spawn } = require('child_process');
+const fs = require('fs');
+const script = process.argv[1];
+const outPath = process.argv[2];
+const errPath = process.argv[3];
+const budgetMs = 800;
+const hardMs = 2000;
+const start = Date.now();
+const child = spawn(script, [], {
+  env: {
+    ...process.env,
+    NO_COLOR: '1',
+    AGENT_DECK_PORT: '59999',
+    AGENT_DECK_STATUSLINE_TIMEOUT_MS: '50',
+  },
+  stdio: ['pipe', 'pipe', 'pipe'],
+});
+let stdout = '';
+let stderr = '';
+child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+child.stdin.write('{\"cwd\":\"/tmp/smoke-open-stdin\"}');
+const timer = setTimeout(() => {
+  child.kill('SIGKILL');
+  process.exit(2);
+}, hardMs);
+child.on('close', (code) => {
+  clearTimeout(timer);
+  fs.writeFileSync(outPath, stdout);
+  if (stderr) fs.writeFileSync(errPath, stderr);
+  const ms = Date.now() - start;
+  if (code !== 0 || ms > budgetMs) process.exit(1);
+  process.exit(0);
+});
+" "$SCRIPT_PATH" "$OPEN_OUT" "$OPEN_ERR" 2>>"$LOG"; then
+  fail "statusline hung with open stdin (Claude POC) — see $OPEN_ERR"
+fi
+OPEN_LINES="$(grep -c . "$OPEN_OUT" || true)"
+[[ "$OPEN_LINES" -eq 1 ]] || fail "open-stdin POC must print one line (got $OPEN_LINES)"
+pass "statusline stdout (open stdin POC): $(cat "$OPEN_OUT")"
 
 # --- 6. CHANGELOG honesty — fail if current version still has Pending publish for statusline ---
 CHANGELOG="$ROOT_DIR/CHANGELOG.md"

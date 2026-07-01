@@ -52,8 +52,25 @@ If any link is missing, the feature is **not shipped** — move the bullet to �
 | 5 | Does it work in **prod-like** env, not only dev? | Different ports, paths, or data dirs in dev |
 | 6 | Is the release note **honest**? | Listed as shipped before integration test passes |
 | 7 | Does the **published package** include the module? | Source in repo but not in tarball |
+| 8 | Does every **runtime `require()` / import** resolve inside the artifact? | `--no-dependencies` build still references workspace packages |
+| 9 | Does **activation / startup** succeed in a headless host stub? | Unit tests pass; plugin/extension shows nothing |
+| 10 | Is failure **visible** when activation breaks? | Silent crash with no log channel or smoke assertion |
 
-## Fresh-user simulation (15 min)
+## Packaged runtime completeness (extensions, plugins, `--no-dependencies`)
+
+When the host loads your code from a **packaged artifact** (VSIX, `.vsix`, webpack bundle, `npm pack` with `bundledDependencies: false`), unit tests in the monorepo do **not** prove the artifact works.
+
+| Check | How |
+|-------|-----|
+| Unpack artifact | `unzip` / `tar -xzf` — inspect what actually ships |
+| Scan entrypoint + `dist/` | Every `require("…")` must be: host API (`vscode`), Node builtin, or file **inside** the package |
+| Headless activate | Stub the host API, call `activate()` — must not throw `MODULE_NOT_FOUND` |
+| User-visible minimum | `activate()` must call `show()` / equivalent so a blank UI is a **test failure**, not user confusion |
+| Package script gate | Run the scan in `release:smoke` / CI before publish |
+
+**Symptom:** Install succeeds; host lists the extension; status bar / panel is empty; no error unless user opens Output.
+
+**Case pattern:** `vsce package --no-dependencies` + `require("@my-org/shared")` in compiled `dist/` → trivial to detect with unpack + grep, unacceptable to ship without that check.
 
 1. **Clean environment** — temp `HOME`, empty config dir, or disposable VM/container.
 2. **Install like a user** — package manager, `npm pack` + install, or published version — not monorepo `src/` directly.

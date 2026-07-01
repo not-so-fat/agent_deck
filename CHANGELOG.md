@@ -1,11 +1,26 @@
 # Changelog
 
+## 1.2.5 — 2026-07-01
+
+### Deck display — terminal only
+
+- **Removed Cursor IDE extension** — deck display is terminal `statusLine` only (Claude Code / Cursor CLI); IDE Agent chat has no host footer API
+- **Harness session opener** — on first turn: `bind_workspace` → `get_session_binding` → show `display_summary` to user (Glass/IDE workaround)
+- **Status line:** open-stdin host contract (no hang when Claude leaves pipe open); `readStdin` idle timeout; prod port `11111` before dev `8000` unless `AGENT_DECK_DEV`
+- **`setup --scope project`** — `repo-deck-init` writes/repairs `.agent-deck/deck.yaml`
+
+### Process & docs
+
+- `.cursor/rules/user-surface-feasibility.mdc` — gate user-visible surfaces; no IDE display claims
+- Release playbooks + smoke aligned to terminal-only scope
+- [PUBLISHING.md](docs/PUBLISHING.md), [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md) — IDE extension removed from distribution story
+
 ## 1.2.4 — 2026-07-01
 
 ### Deck display & CLI
 
 - **`setup` installs deck status line by default** for Claude Code / Cursor CLI (`--no-statusline` to skip); writes `~/.agent-deck/bin/statusline.sh` and merges `statusLine` into client settings
-- **Status line:** prefer `workspace.project_dir`; walk up bindings sidecar; fall through when prod API is unbound but dev/prod sidecar has a bind; strip ANSI; `NO_COLOR` + stderr redirect in wrapper (no `npm warn` on stdout)
+- **Status line:** prefer `workspace.project_dir`; walk up bindings sidecar; fall through when prod API is unbound but dev/prod sidecar has a bind; strip ANSI; `NO_COLOR` + stderr redirect in wrapper (no `npm warn` on stdout); **stdin host-contract tests** (Claude leaves pipe open)
 - **Bindings sidecar:** backend merges prod + dev `bindings.json` for `GET /api/scope/display`
 - **`npm run release:smoke`** — fresh-`HOME` setup + artifact checks; runs in `build:release` before publish
 
@@ -27,7 +42,6 @@
 - **`GET /api/scope/display`** — resolved bound deck + `displayLine` for status surfaces
 - **CLI** `agent-deck statusline` command (installer wiring completed in 1.2.4)
 - **MCP** `get_session_binding.display_summary` and `agent-deck://bound-deck/summary` resource
-- **Cursor IDE extension** (`packages/cursor-extension`) — status bar indicator (Open VSX publish deferred; VSIX sideload for now)
 - Shared `deck-display` schemas; `resolveAgentDeckHome` in `@agent-deck/shared`
 
 ### Backend fixes — on npm
@@ -38,23 +52,10 @@
 
 ### Docs — on npm
 
-- [PUBLISHING.md](docs/PUBLISHING.md) — distribution model (CLI required, extension optional, Open VSX vs Cursor Plugin Marketplace)
-- [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md) — Phase 5a shipped; IDE extension noted
+- [PUBLISHING.md](docs/PUBLISHING.md) — distribution model (CLI + terminal statusline)
+- [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md) — Phase 5a shipped; IDE display out of scope
 
 ## 1.2.2 — 2026-07-01
-
-### Backend
-
-- `call_service_tool`: propagate MCP failures with `error_code` and `details.cause` instead of a flat `"Failed to call tool"`
-- On tool-call failure, invalidate cached MCP client and mark service `unhealthy` so stale `healthy` snapshots do not linger
-- MCP client: Streamable HTTP first with legacy SSE fallback; SSE fallback now forwards OAuth/custom headers
-
-## 1.2.1 — 2026-06-30
-
-### Dashboard
-
-- Deck fan: extra vertical/side padding and softer edge gradients so tilted/hovered edge cards never clip
-- MCP and deck cards share a resilient icon component (favicon fallback → agent silhouette when missing)
 
 ### Backend
 

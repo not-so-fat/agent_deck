@@ -297,7 +297,7 @@ Agent Deck ignores model, tokens, and other payload fields.
 
 | Item | Rationale |
 |------|-----------|
-| Cursor/Claude Chat panel badge (non-CLI) | No host API; **IDE status bar extension** (`packages/cursor-extension`) instead |
+| Cursor/Claude IDE Agent chat panel | No host API; deferred — terminal statusline only |
 | Dynamic harness / per-bind rule rewrites | Breaks `setup` idempotency (F4.4) |
 | Global single-deck indicator across all repos | Conflicts with workspace bind model |
 | Dashboard live mirror of every Cursor window | US-6 optional P1 only |

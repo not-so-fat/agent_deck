@@ -3,7 +3,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { readJsonFile, writeJsonFile } from './mcp-config';
-import { getAgentDeckVersion } from './version';
 import { sanitizeJsonText } from './strip-ansi';
 
 export const STATUSLINE_SCRIPT_NAME = 'statusline.sh';
@@ -23,7 +22,21 @@ function resolveStatuslineScriptPath(): string {
   return path.join(os.homedir(), '.agent-deck', 'bin', STATUSLINE_SCRIPT_NAME);
 }
 
-function buildStatuslineScript(cliVersion: string): string {
+function resolveSetupCliBin(): string {
+  const candidate = path.join(__dirname, 'bin.js');
+  return fs.existsSync(candidate) ? candidate : '';
+}
+
+function buildStatuslineScript(setupCliBin: string): string {
+  const bakedSetupCli = setupCliBin
+    ? `
+SETUP_CLI="${setupCliBin}"
+if [ -f "$SETUP_CLI" ]; then
+  exec "$NODE_BIN" "$SETUP_CLI" statusline "$@"
+fi
+`
+    : '';
+
   return `#!/usr/bin/env bash
 # Agent Deck status line — installed by agent-deck setup
 set -euo pipefail
@@ -49,19 +62,21 @@ fi
 if [ -z "$NODE_BIN" ]; then
   NODE_BIN=node
 fi
-
+${bakedSetupCli}
 GLOBAL_CLI="$(npm root -g 2>/dev/null)/@agent-deck/cli/dist/bin.js"
 if [ -f "$GLOBAL_CLI" ]; then
   exec "$NODE_BIN" "$GLOBAL_CLI" statusline "$@"
 fi
 
-exec npx -y @agent-deck/cli@${cliVersion} statusline "$@" 2>/dev/null
+export NPM_CONFIG_FETCH_TIMEOUT=10000
+export NPM_CONFIG_FETCH_RETRIES=1
+exec npx -y @agent-deck/cli@latest statusline "$@" 2>/dev/null
 `;
 }
 
 export function installStatuslineScript(): { scriptPath: string; action: 'created' | 'updated' | 'unchanged' } {
   const scriptPath = resolveStatuslineScriptPath();
-  const next = buildStatuslineScript(getAgentDeckVersion());
+  const next = buildStatuslineScript(resolveSetupCliBin());
   const existing = fs.existsSync(scriptPath) ? fs.readFileSync(scriptPath, 'utf8') : '';
 
   fs.mkdirSync(path.dirname(scriptPath), { recursive: true });

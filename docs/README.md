@@ -29,7 +29,7 @@
 | [AGENT_HARNESS.md](./AGENT_HARNESS.md) | What `agent-deck setup` installs |
 | [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) | Playbooks vs Cursor skills |
 | [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | `deck.yaml` in monorepos |
-| [PUBLISHING.md](./PUBLISHING.md) | npm release, distribution, Open VSX extension |
+| [PUBLISHING.md](./PUBLISHING.md) | npm release, distribution |
 
 ## Proposed features
 

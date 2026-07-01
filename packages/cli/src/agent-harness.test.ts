@@ -22,6 +22,9 @@ describe('agent-harness templates', () => {
     expect(file).toContain('list_playbooks');
     expect(file).toContain('update_playbook');
     expect(file).toContain('get_playbook');
+    expect(file).toContain('display_summary');
+    expect(file).toContain('Session opener');
+    expect(file).toContain('get_session_binding');
     expect(file).toContain('this session');
     expect(file).toContain("don't infer from playbook title");
     expect(file).toContain('Do both');

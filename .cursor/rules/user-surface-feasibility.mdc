@@ -1,0 +1,27 @@
+---
+description: Deck display is terminal-only; gate other user-visible features on host API proof
+alwaysApply: true
+---
+
+# User surface feasibility
+
+**Deck display product scope:** terminal `statusLine` only (Claude Code + Cursor CLI footer). IDE Agent chat has no display API.
+
+## Before building or claiming shipped
+
+1. **Name the exact surface** — which window, which pixel region, which host app.
+2. **Host API must exist** on that surface — not a substitute surface.
+3. **User-visible proof** required for CHANGELOG/docs — headless/unit tests alone are insufficient.
+
+| Surface | Deck display |
+|---------|----------------|
+| Claude Code / Cursor CLI terminal footer | **In scope** — `statusLine` + `agent-deck statusline` |
+| Cursor IDE Agent chat / Glass composer | **Out of scope** — no API |
+| VS Code / Cursor editor status bar | **Out of scope** — removed; do not re-add without host API |
+
+If the user’s workflow is out of scope, **stop** — do not substitute MCP bind or extension work.
+
+## Communication
+
+- State blockers and deferrals factually. **No performative apologies.**
+- Update owning doc ([PRD_DECK_DISPLAY.md](../../docs/PRD_DECK_DISPLAY.md), README) when scope changes.

@@ -12,17 +12,54 @@ import { parseCliBackendPort, CLI_DEFAULT_BACKEND_PORT } from './defaults';
 import { stripAnsi } from './strip-ansi';
 
 const DEFAULT_TIMEOUT_MS = 1500;
+const STDIN_READ_TIMEOUT_MS = 300;
 
-async function readStdin(): Promise<string> {
+/** Claude/Cursor may keep stdin open — never block on EOF. */
+export async function readStdin(timeoutMs = STDIN_READ_TIMEOUT_MS): Promise<string> {
   if (process.stdin.isTTY) {
     return '';
   }
 
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let settled = false;
+
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(hardTimer);
+      clearTimeout(idleTimer);
+      process.stdin.removeListener('data', onData);
+      process.stdin.removeListener('end', onEnd);
+      process.stdin.removeListener('error', onEnd);
+      if (!process.stdin.destroyed) {
+        process.stdin.pause();
+      }
+      resolve(Buffer.concat(chunks).toString('utf8'));
+    };
+
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const onData = (chunk: Buffer | string) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+      // Hosts often leave stdin open after one JSON line — don't wait for EOF.
+      idleTimer = setTimeout(finish, 25);
+    };
+
+    const onEnd = () => finish();
+
+    const hardTimer = setTimeout(finish, timeoutMs);
+
+    process.stdin.on('data', onData);
+    process.stdin.on('end', onEnd);
+    process.stdin.on('error', onEnd);
+    process.stdin.resume();
+  });
 }
 
 function parseArgs(args: string[]): { workspace?: string } {
@@ -86,8 +123,12 @@ function resolveBackendPorts(): number[] {
     return [parseCliBackendPort(process.env.AGENT_DECK_PORT)];
   }
 
-  // Dev monorepo (npm run dev:all) first, then published CLI default.
-  return [8000, CLI_DEFAULT_BACKEND_PORT];
+  if (process.env.AGENT_DECK_DEV === '1' || process.env.AGENT_DECK_DEV === 'true') {
+    return [8000, CLI_DEFAULT_BACKEND_PORT];
+  }
+
+  // Published `agent-deck start` first — avoids 1.5s dead port wait on every refresh.
+  return [CLI_DEFAULT_BACKEND_PORT, 8000];
 }
 
 export function resolveStatuslineWorkspace(args: string[], stdin: string): string {

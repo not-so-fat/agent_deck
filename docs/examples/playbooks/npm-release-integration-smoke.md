@@ -71,8 +71,8 @@ Do this when the release touches **CLI setup**, **agent surfaces** (Claude/Curso
    No `npm warn`, no ANSI, no second line.
 4. **Host app matrix** — state explicitly where the feature works:
    - Claude Code **terminal** footer ✓
-   - Cursor **CLI** ✓
-   - Cursor **IDE Agent chat** ✗ (needs extension) — don’t imply otherwise in CHANGELOG
+   - Cursor **CLI** terminal footer ✓
+   - Cursor **IDE Agent chat** ✗ — no host API; do not imply otherwise in CHANGELOG
 5. **CHANGELOG honesty** — bullets under `X.Y.Z` are **only** what passed `release:smoke`. Everything else → `### Pending publish`.
 6. **Tag = tarball** — `git show vX.Y.Z:path` must contain the same files as `npm pack` at that version.
 
@@ -87,7 +87,7 @@ Do this when the release touches **CLI setup**, **agent surfaces** (Claude/Curso
 
 ## When to extend this playbook
 
-Add a row to the surface checklist and an assertion in `scripts/release-smoke.sh` when a new user path appears (extension publish, new MCP tool, new `setup --client`, etc.).
+Add a row to the surface checklist and an assertion in `scripts/release-smoke.sh` when a new user path appears (new MCP tool, new `setup --client`, etc.).
 
 ## Related
 

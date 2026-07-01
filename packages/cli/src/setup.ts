@@ -13,6 +13,7 @@ import {
   type SetupScope,
 } from './mcp-config';
 import { installStatusline, type StatuslineClient } from './statusline-setup';
+import { ensureRepoDeckManifest } from './repo-deck-init';
 import { CLI_DEFAULT_MCP_PORT, parseCliMcpPort } from './defaults';
 
 export interface SetupOptions {
@@ -159,17 +160,25 @@ Options:
 Setup installs MCP config, agent harness, and deck status line (Claude Code / Cursor CLI).`);
 }
 
-function finishSetup(
+async function finishSetup(
   client: McpClient,
   scope: SetupScope,
   endpoint: McpEndpoint,
   shouldStart: boolean,
   withStatusline: boolean,
-): number {
+): Promise<number> {
   const harness = installAgentHarness(client, scope);
   console.log(harness.message);
   if (!harness.installed && client === 'claude-desktop') {
     console.log('  See docs/AGENT_HARNESS.md if you also use Claude Code or Cursor.');
+  }
+
+  if (scope === 'project' && (client === 'cursor' || client === 'claude')) {
+    const deck = await ensureRepoDeckManifest(process.cwd(), { host: endpoint.host });
+    console.log(deck.message);
+    if (deck.action === 'skipped' && !deck.path) {
+      console.log('  Or in Claude: ask the agent to call MCP setup_repo_deck for this workspace.');
+    }
   }
 
   if (withStatusline) {
@@ -213,7 +222,7 @@ export async function runSetup(args: string[]): Promise<number> {
     if (added.ok) {
       console.log('Configured Claude Code via `claude mcp add` → ~/.claude.json');
       console.log('Verify: claude mcp list');
-      return finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
+      return await finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
     }
     console.warn(`Claude CLI failed (${added.error ?? 'unknown error'}) — writing ~/.claude.json instead`);
   }
@@ -229,7 +238,7 @@ export async function runSetup(args: string[]): Promise<number> {
     console.log('Start Agent Deck before opening Claude Desktop.');
   }
 
-  return finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
+  return await finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
 }
 
 function printNextSteps(

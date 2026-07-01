@@ -94,7 +94,7 @@ See [PUBLISHING.md](./PUBLISHING.md) and [README](../README.md).
 
 ### IDE deck indicator (optional)
 
-MCP alone does **not** show the bound deck in Cursor Agent chat. For a status-bar indicator, install the Agent Deck extension — see [Distribution](./PUBLISHING.md#distribution-what-users-install).
+MCP alone does **not** show the bound deck in Cursor IDE Agent chat. Terminal status line (Claude Code / Cursor CLI footer) is installed by default via `setup` — see [Distribution](./PUBLISHING.md#distribution-what-users-install).
 
 ## Ports
 
