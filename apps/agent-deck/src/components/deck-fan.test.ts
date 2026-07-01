@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CARD_OVERLAP,
+  CARD_HEIGHT,
   VISIBLE_CARD_SLOTS,
   deckFanCardZIndex,
+  fanCardSlotMinHeight,
   fanContentWidth,
   tiltFromViewportPosition,
   visibleFanWidth,
@@ -24,6 +26,12 @@ describe("deck fan layout", () => {
     const tenCards = fanContentWidth(10, CARD_OVERLAP);
     const twentyOneCards = fanContentWidth(21, CARD_OVERLAP);
     expect(twentyOneCards).toBeGreaterThan(tenCards);
+  });
+
+  it("reserves enough vertical space for tilted cards", () => {
+    const slotHeight = fanCardSlotMinHeight();
+    expect(slotHeight).toBeGreaterThan(CARD_HEIGHT);
+    expect(slotHeight).toBeLessThan(CARD_HEIGHT + 56);
   });
 });
 

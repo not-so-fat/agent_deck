@@ -377,7 +377,7 @@ export default function Home() {
           {/* Main Content - 75% width */}
           <div className="xl:col-span-3 space-y-6 min-w-0">
             {/* Deck editor */}
-            <div className="panel-surface p-4 h-80 overflow-hidden min-w-0">
+            <div className="panel-surface p-4 h-88 overflow-hidden min-w-0">
               {editingDeck ? (
                 <div className="h-full">
                   <DeckBuilder

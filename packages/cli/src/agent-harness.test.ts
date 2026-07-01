@@ -17,12 +17,16 @@ describe('agent-harness templates', () => {
     expect(CURSOR_RULE_FILENAME).toBe('agent-deck.mdc');
   });
 
-  it('global cursor file is compact', () => {
+  it('global cursor file includes self-improvement playbook rules', () => {
     const file = buildCursorHarnessFile('global');
-    const bodyLines = file.split('\n').filter((line) => !line.startsWith('---') && line.trim());
-    expect(bodyLines.length).toBeLessThan(12);
     expect(file).toContain('list_playbooks');
     expect(file).toContain('update_playbook');
+    expect(file).toContain('get_playbook');
+    expect(file).toContain('this session');
+    expect(file).toContain("don't infer from playbook title");
+    expect(file).toContain('Do both');
+    expect(file).toContain('Generalize');
+    expect(file).toContain('audit drift');
     expect(file).not.toContain('weekly priority');
   });
 

@@ -54,15 +54,22 @@ Add your own notes above/below the harness markers in `agent-deck.mdc`, or anywh
 
 ---
 
-## Harness content (compact)
+## Harness content
 
-One short rule block — skill-description density, no project-specific examples:
+Three behaviors in one rule block (templates stay generic — no project-specific examples):
 
-1. **Capability rescue** — use agent-deck before declining tool requests  
-2. **Playbooks** — `list_playbooks` / `get_playbook`; don’t mirror into `.cursor/skills/`  
-3. **Feedback loop** — `update_playbook` after fixing playbook output  
+1. **Capability rescue** — use agent-deck before declining tool requests (`bind_workspace`, `list_bound_deck_services`, `call_service_tool`).
+2. **Playbooks as source of truth** — `list_playbooks` / `get_playbook` (match `triggers`); don’t mirror into `.cursor/skills/`.
+3. **Self-improvement loop** — applies when the user gives feedback on output you produced **after** `get_playbook` + following that playbook this session (identify from session trace, not title or artifact type). Default actions:
+   1. Fix the current output.
+   2. `update_playbook` on that playbook so the next run avoids the same mistake.
+   Update principles:
+   - Generalize lessons (drop project-specific names, paths, schemas)
+   - Place correctly: checklist for verification, technique for patterns, anti-pattern for mistakes
+   - Restructure the playbook if the structure can’t absorb the lesson cleanly
+   - Surface what changed so the user can audit drift
 
-**Project scope** adds: bind this repo’s workspace root; prefer deck playbooks before improvising.
+**Project scope** adds: `bind_workspace` with this repo’s root; `list_playbooks` + match `triggers` before improvising.
 
 Templates: [cursor-agent-deck.mdc](./examples/agent-harness/cursor-agent-deck.mdc), [claude-harness.md](./examples/agent-harness/claude-harness.md).
 

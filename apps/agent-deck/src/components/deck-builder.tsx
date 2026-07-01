@@ -62,7 +62,7 @@ export default function DeckBuilder({
       </div>
 
       <div
-        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed px-4 py-5 min-w-0"
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-visible rounded-xl border-2 border-dashed px-4 py-2 min-w-0"
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         style={{
@@ -72,7 +72,7 @@ export default function DeckBuilder({
         }}
         data-testid="deck-drop-zone"
       >
-        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden min-w-0">
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-x-hidden overflow-y-visible min-w-0">
           {deckCards === 0 ? (
             <div className="text-center">
               <div className="w-32 h-48 border-2 border-dashed border-gray-500 rounded-lg flex items-center justify-center opacity-50 hover:opacity-75 transition-all mb-4">

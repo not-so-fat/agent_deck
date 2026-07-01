@@ -10,17 +10,29 @@ import {
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const CARD_WIDTH = 128;
+export const CARD_HEIGHT = 192;
 export const CARD_OVERLAP = 48;
 /** How many cards fit in the visible deck window at once. */
 export const VISIBLE_CARD_SLOTS = 10;
-/** Room for tilt + hover scale without clipping card corners. */
-export const FAN_VERTICAL_PAD_PX = 28;
 export const FAN_HORIZONTAL_PAD_PX = 12;
 const EDGE_ZONE_PX = 64;
 const SCROLL_SPEED_MIN = 4;
 const SCROLL_SPEED_MAX = 14;
 const MAX_TILT_DEG = 12;
 const HOVER_SCALE = 1.08;
+
+/** Min wrapper height so tilted + scaled cards are not clipped vertically. */
+export function fanCardSlotMinHeight(
+  maxTiltDeg = MAX_TILT_DEG,
+  hoverScale = HOVER_SCALE,
+): number {
+  const rad = (maxTiltDeg * Math.PI) / 180;
+  const rotatedHeight =
+    CARD_WIDTH * Math.sin(rad) + CARD_HEIGHT * Math.cos(rad);
+  return Math.ceil(rotatedHeight * hoverScale) + 8;
+}
+
+export const FAN_SLOT_MIN_HEIGHT = fanCardSlotMinHeight();
 
 interface DeckFanProps {
   cardCount: number;
@@ -208,7 +220,7 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
 
   return (
     <div
-      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-hidden"
+      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden overflow-y-visible"
       data-testid="deck-fan"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
@@ -250,42 +262,38 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
       )}
 
       <div
-        className="flex h-full w-full min-w-0 items-center justify-center"
+        ref={scrollRef}
+        className="max-w-full overflow-x-auto overflow-y-visible [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={{
-          paddingTop: FAN_VERTICAL_PAD_PX,
-          paddingBottom: FAN_VERTICAL_PAD_PX,
+          width: visibleFanWidth,
+          maxWidth: "100%",
         }}
       >
         <div
-          ref={scrollRef}
-          className="h-full max-w-full overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex items-center justify-start isolate group/fan"
           style={{
-            width: visibleFanWidth,
-            maxWidth: "100%",
+            minHeight: FAN_SLOT_MIN_HEIGHT,
+            paddingLeft: FAN_HORIZONTAL_PAD_PX,
+            paddingRight: FAN_HORIZONTAL_PAD_PX,
           }}
         >
-          <div
-            className="flex h-full items-center justify-start isolate group/fan"
-            style={{
-              paddingLeft: FAN_HORIZONTAL_PAD_PX,
-              paddingRight: FAN_HORIZONTAL_PAD_PX,
-            }}
-          >
           {Children.map(children, (child, index) => (
             <div
               key={child && typeof child === "object" && "key" in child ? child.key : index}
               ref={(el) => {
                 cardRefs.current[index] = el;
               }}
-              className="relative transition-[transform,box-shadow] duration-500 will-change-transform"
-              style={deckFanCardStyle(index)}
+              className="relative flex items-center justify-center transition-[transform,box-shadow] duration-500 will-change-transform"
+              style={{
+                ...deckFanCardStyle(index),
+                minHeight: FAN_SLOT_MIN_HEIGHT,
+              }}
               onMouseEnter={() => setHoveredIndex(index)}
               onMouseLeave={() => setHoveredIndex(null)}
             >
               {child}
             </div>
           ))}
-          </div>
         </div>
       </div>
     </div>
