@@ -145,6 +145,23 @@ export function lookupWorkspaceBinding(
   return null;
 }
 
+/** Session sidecar first; legacy pre-1.2.7 workspace keys as fallback. */
+export function resolveBindingEntry(
+  bindings: BindingsFile,
+  options: { sessionId?: string; workspaceRoot?: string },
+): BindingEntry | null {
+  const sessionId = options.sessionId?.trim();
+  if (sessionId && bindings[sessionId]) {
+    return bindings[sessionId];
+  }
+
+  if (options.workspaceRoot?.trim()) {
+    return lookupWorkspaceBinding(bindings, options.workspaceRoot);
+  }
+
+  return null;
+}
+
 export function resolveStatusLineSessionId(payload: StatusLinePayload): string | undefined {
   const sessionId = payload.session_id?.trim();
   return sessionId || undefined;

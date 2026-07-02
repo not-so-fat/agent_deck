@@ -8,6 +8,7 @@ import {
   formatDisplayLine,
   formatDisplayUpdatedSuffix,
   lookupWorkspaceBinding,
+  resolveBindingEntry,
   resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
 } from './deck-display';
@@ -92,6 +93,43 @@ describe('deck-display', () => {
       expect(resolveStatusLineWorkspace({ workspace: { current_dir: '/repo' } })).toBe(
         path.resolve('/repo'),
       );
+    });
+  });
+
+  describe('resolveBindingEntry', () => {
+    const bindings = {
+      '123e4567-e89b-12d3-a456-426614174000': {
+        deckId: '223e4567-e89b-12d3-a456-426614174001',
+        deckName: 'Session Deck',
+        source: 'session_override' as const,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+      },
+      [path.resolve('/repo')]: {
+        deckId: '323e4567-e89b-12d3-a456-426614174002',
+        deckName: 'Legacy Deck',
+        source: 'repo_manifest' as const,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        cardCounts: { mcp: 2, credentials: 0, playbooks: 0 },
+      },
+    };
+
+    it('prefers session key over legacy workspace key', () => {
+      expect(
+        resolveBindingEntry(bindings, {
+          sessionId: '123e4567-e89b-12d3-a456-426614174000',
+          workspaceRoot: '/repo',
+        })?.deckName,
+      ).toBe('Session Deck');
+    });
+
+    it('falls back to legacy workspace key when session is missing', () => {
+      expect(
+        resolveBindingEntry(bindings, {
+          sessionId: 'missing-session',
+          workspaceRoot: '/repo/packages/app',
+        })?.deckName,
+      ).toBe('Legacy Deck');
     });
   });
 

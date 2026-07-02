@@ -4,6 +4,7 @@ import {
   DeckDisplay,
   formatDisplayLine,
   listBindingsFileCandidates,
+  resolveBindingEntry,
   resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
   StatusLinePayloadSchema,
@@ -99,11 +100,7 @@ async function fetchDisplay(
   }
 }
 
-function readSidecarEntry(sessionId: string | undefined) {
-  if (!sessionId) {
-    return null;
-  }
-
+function readSidecarEntry(sessionId: string | undefined, workspaceRoot: string) {
   for (const filePath of listBindingsFileCandidates()) {
     try {
       const raw = fs.readFileSync(filePath, 'utf8');
@@ -111,7 +108,7 @@ function readSidecarEntry(sessionId: string | undefined) {
       if (!parsed.success) {
         continue;
       }
-      const entry = parsed.data[sessionId];
+      const entry = resolveBindingEntry(parsed.data, { sessionId, workspaceRoot });
       if (entry) {
         return entry;
       }
@@ -123,17 +120,14 @@ function readSidecarEntry(sessionId: string | undefined) {
   return null;
 }
 
-function readSidecarLine(sessionId: string | undefined): string | null {
-  const entry = readSidecarEntry(sessionId);
+function readSidecarLine(sessionId: string | undefined, workspaceRoot: string): string | null {
+  const entry = readSidecarEntry(sessionId, workspaceRoot);
   if (!entry) {
     return null;
   }
   return formatDisplayLine(entry.deckName, entry.cardCounts, { updatedAt: entry.updatedAt });
 }
 
-function shouldUseApiDisplay(display: DeckDisplay): boolean {
-  return Boolean(display.deckName && display.source !== 'unbound');
-}
 
 function resolveBackendPorts(): number[] {
   if (process.env.AGENT_DECK_PORT?.trim()) {
@@ -201,23 +195,19 @@ export async function runStatusline(args: string[]): Promise<number> {
   for (const backendPort of backendPorts) {
     const backendUrl = `http://${host}:${backendPort}`;
     const display = await fetchDisplay(backendUrl, workspaceRoot, sessionId, timeoutMs);
-    if (display && shouldUseApiDisplay(display)) {
-      printStatusLine(display.displayLine);
-      return 0;
-    }
-    if (display && display.source === 'repo_manifest') {
+    if (display?.displayLine) {
       printStatusLine(display.displayLine);
       return 0;
     }
   }
 
-  const sidecarLine = readSidecarLine(sessionId);
+  const sidecarLine = readSidecarLine(sessionId, workspaceRoot);
   if (sidecarLine) {
     printStatusLine(sidecarLine);
     return 0;
   }
 
-  const offlineEntry = readSidecarEntry(sessionId);
+  const offlineEntry = readSidecarEntry(sessionId, workspaceRoot);
   printStatusLine(
     formatDisplayLine(
       offlineEntry?.deckName ?? null,

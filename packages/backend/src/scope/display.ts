@@ -7,7 +7,7 @@ import {
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
 import { loadRepoDeckManifest } from './repo-deck';
-import { readBindingForSession } from './bindings-sidecar';
+import { readBindingForDisplay } from './bindings-sidecar';
 
 const EMPTY_COUNTS = { mcp: 0, credentials: 0, playbooks: 0 };
 
@@ -53,14 +53,12 @@ export async function resolveDeckDisplay(
   const normalizedRoot = input.workspaceRoot.trim();
   const sessionId = input.sessionId?.trim();
 
-  if (sessionId) {
-    const sidecar = await readBindingForSession(sessionId);
-    if (sidecar) {
-      const deck = await db.getDeck(sidecar.deckId);
-      return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, sidecar.source, deck, {
-        sidecar,
-      });
-    }
+  const sidecar = await readBindingForDisplay({ sessionId, workspaceRoot: normalizedRoot });
+  if (sidecar) {
+    const deck = await db.getDeck(sidecar.deckId);
+    return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, sidecar.source, deck, {
+      sidecar,
+    });
   }
 
   const envDeckId = process.env.AGENT_DECK_DECK_ID?.trim();

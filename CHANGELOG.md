@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.8 — 2026-07-02
+
+### Deck display — upgrade fix
+
+- **Legacy sidecar fallback** — pre-1.2.7 workspace-keyed `bindings.json` entries still resolve when `session_id` is missing or not yet written
+- **Statusline API handling** — trust any successful `/api/scope/display` response (fixes `◆ —` incorrectly falling through to **Agent Deck offline**)
+
+### Upgrade from 1.2.6 / 1.2.7
+
+1. **Install globally** (avoids slow `npx` on every statusline refresh): `npm i -g @agent-deck/cli@1.2.8`
+2. **Restart backend:** `agent-deck start` (or `setup --client claude --start`)
+3. **Re-run setup:** `agent-deck setup --client claude` — refreshes `statusline.sh` and drops `refreshInterval`
+4. **Re-bind once per session:** ask the agent to `bind_workspace` (writes session-keyed sidecar)
+
+If the footer still says **Agent Deck offline**, the statusline subprocess cannot reach `http://127.0.0.1:11111` (backend stopped) or is timing out (install global CLI; Claude `statusLine.timeoutMs` ≥ 3000).
+
 ## 1.2.7 — 2026-07-02
 
 ### Deck display (terminal status line)
@@ -13,9 +29,12 @@
 - **My Collection:** flex layout fills remaining column height; card grid scrolls inside panel; `5rem` column width + right padding so fan overlap is not clipped
 - **Deck fan:** hide scroll chevrons at scroll ends (no disabled ghost buttons); remove edge gradients; stronger chevron styling
 
-### Docs
+### Upgrade from 1.2.6
 
-- [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md), [AGENT_HARNESS.md](docs/AGENT_HARNESS.md) — per-session status model; no timer polling in setup example
+1. **Install globally:** `npm i -g @agent-deck/cli@1.2.7`
+2. **Restart backend:** `agent-deck start`
+3. **Re-run setup:** `agent-deck setup --client claude`
+4. **Re-bind once per session:** `bind_workspace` in agent chat
 
 ## 1.2.6 — 2026-07-02
 

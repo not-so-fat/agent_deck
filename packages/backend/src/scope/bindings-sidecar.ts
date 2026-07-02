@@ -7,6 +7,7 @@ import {
   listBindingsFileCandidates,
   lookupWorkspaceBinding,
   normalizeWorkspaceRoot,
+  resolveBindingEntry,
   resolveBindingsFilePath,
 } from '@agent-deck/shared';
 
@@ -39,6 +40,14 @@ async function writeBindingsFile(bindings: BindingsFile): Promise<void> {
 export async function readBindingForSession(sessionId: string): Promise<BindingEntry | null> {
   const bindings = await readBindingsFile();
   return bindings[sessionId.trim()] ?? null;
+}
+
+export async function readBindingForDisplay(options: {
+  sessionId?: string;
+  workspaceRoot: string;
+}): Promise<BindingEntry | null> {
+  const bindings = await readBindingsFile();
+  return resolveBindingEntry(bindings, options);
 }
 
 export async function upsertBindingForSession(
