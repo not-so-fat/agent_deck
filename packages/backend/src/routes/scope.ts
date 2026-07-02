@@ -86,7 +86,7 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get<{ Querystring: { workspaceRoot?: string } }>('/display', async (request, reply) => {
+  fastify.get<{ Querystring: { workspaceRoot?: string; sessionId?: string } }>('/display', async (request, reply) => {
     try {
       const workspaceRoot = request.query.workspaceRoot?.trim();
       if (!workspaceRoot) {
@@ -96,7 +96,8 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
         } satisfies ApiResponse);
       }
 
-      const display = await resolveDeckDisplay(workspaceRoot, fastify.db);
+      const sessionId = request.query.sessionId?.trim() || undefined;
+      const display = await resolveDeckDisplay({ sessionId, workspaceRoot }, fastify.db);
       return reply.send({
         success: true,
         data: display,

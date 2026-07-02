@@ -36,11 +36,27 @@ async function writeBindingsFile(bindings: BindingsFile): Promise<void> {
   await fs.writeFile(filePath, `${JSON.stringify(bindings, null, 2)}\n`, 'utf8');
 }
 
+export async function readBindingForSession(sessionId: string): Promise<BindingEntry | null> {
+  const bindings = await readBindingsFile();
+  return bindings[sessionId.trim()] ?? null;
+}
+
+export async function upsertBindingForSession(
+  sessionId: string,
+  entry: BindingEntry,
+): Promise<void> {
+  const bindings = await readBindingsFile();
+  bindings[sessionId.trim()] = entry;
+  await writeBindingsFile(bindings);
+}
+
+/** @deprecated Legacy workspace-keyed sidecar; status display is session-scoped. */
 export async function readBindingForWorkspace(workspaceRoot: string): Promise<BindingEntry | null> {
   const bindings = await readBindingsFile();
   return lookupWorkspaceBinding(bindings, workspaceRoot);
 }
 
+/** @deprecated Legacy workspace-keyed sidecar; use upsertBindingForSession. */
 export async function upsertBindingForWorkspace(
   workspaceRoot: string,
   entry: BindingEntry,

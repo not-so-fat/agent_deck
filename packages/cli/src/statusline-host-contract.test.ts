@@ -153,25 +153,27 @@ describe('statusline host contract (subprocess POC)', () => {
     assertHostContract(result);
   });
 
-  it('uses sidecar when API port is dead (no infinite retry)', async () => {
+  it('uses session sidecar when API port is dead (no infinite retry)', async () => {
     const workspace = path.join(tmpHome, 'bound-repo');
+    const sessionId = '11111111-1111-4111-8111-111111111111';
     const bindingsDir = path.join(tmpHome, '.agent-deck');
     fs.mkdirSync(workspace, { recursive: true });
     fs.mkdirSync(bindingsDir, { recursive: true });
     fs.writeFileSync(
       path.join(bindingsDir, 'bindings.json'),
       JSON.stringify({
-        [workspace]: {
-          deckId: '11111111-1111-4111-8111-111111111111',
+        [sessionId]: {
+          deckId: '22222222-2222-4222-8222-222222222222',
           deckName: 'poc-deck',
-          source: 'repo_manifest',
-          updatedAt: new Date().toISOString(),
+          source: 'session_override',
+          updatedAt: '2026-07-02T07:20:00.000Z',
           cardCounts: { mcp: 2, credentials: 1, playbooks: 0 },
+          workspaceRoot: workspace,
         },
       }),
     );
 
-    const payload = JSON.stringify({ cwd: workspace });
+    const payload = JSON.stringify({ session_id: sessionId, cwd: workspace });
     const result = await spawnStatuslineHost(payload, {
       closeStdin: false,
       env: { HOME: tmpHome },
@@ -180,5 +182,6 @@ describe('statusline host contract (subprocess POC)', () => {
     assertHostContract(result);
     expect(result.stdout).toContain('poc-deck');
     expect(result.stdout).toContain('2 MCP');
+    expect(result.stdout).toContain('(updated');
   });
 });

@@ -244,6 +244,11 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
     return <>{children}</>;
   }
 
+  const scrollButtonClass = (side: "left" | "right", scrolling: boolean) =>
+    `absolute ${side === "left" ? "left-2" : "right-2"} top-1/2 z-30 -translate-y-1/2 rounded-full bg-gray-950/90 p-1.5 text-yellow-300 shadow-lg ring-1 ring-black/50 transition-all duration-150 hover:bg-gray-950 hover:ring-yellow-300/40 ${
+      scrolling ? "scale-110" : "scale-100"
+    }`;
+
   return (
     <div
       className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-hidden"
@@ -251,46 +256,27 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {needsEdgeScroll && (
+      {needsEdgeScroll && canScrollLeft && (
         <button
           type="button"
-          className={`absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 hover:bg-black/80 ${
-            canScrollLeft ? "opacity-90" : "cursor-default opacity-25"
-          } ${scrollingLeft ? "scale-125" : "scale-100"}`}
+          className={scrollButtonClass("left", scrollingLeft)}
           aria-label="Scroll deck left"
-          disabled={!canScrollLeft}
           data-testid="deck-scroll-left"
           onClick={() => scrollByStep("left")}
         >
           <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
         </button>
       )}
-      {needsEdgeScroll && (
+      {needsEdgeScroll && canScrollRight && (
         <button
           type="button"
-          className={`absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 hover:bg-black/80 ${
-            canScrollRight ? "opacity-90" : "cursor-default opacity-25"
-          } ${scrollingRight ? "scale-125" : "scale-100"}`}
+          className={scrollButtonClass("right", scrollingRight)}
           aria-label="Scroll deck right"
-          disabled={!canScrollRight}
           data-testid="deck-scroll-right"
           onClick={() => scrollByStep("right")}
         >
           <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
         </button>
-      )}
-
-      {needsEdgeScroll && (
-        <>
-          <div
-            className="pointer-events-none absolute inset-y-0 left-0 z-20 w-24 bg-gradient-to-r from-gray-950/95 via-gray-950/50 to-transparent"
-            aria-hidden
-          />
-          <div
-            className="pointer-events-none absolute inset-y-0 right-0 z-20 w-24 bg-gradient-to-l from-gray-950/95 via-gray-950/50 to-transparent"
-            aria-hidden
-          />
-        </>
       )}
 
       <div

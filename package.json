@@ -1,6 +1,6 @@
 {
   "name": "agent-deck",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "Agent Deck - Local app for MCP access (like a browser for agents)",
   "private": true,
   "workspaces": [

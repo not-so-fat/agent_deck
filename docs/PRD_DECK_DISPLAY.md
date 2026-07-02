@@ -119,17 +119,17 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F1.1 | On `bind_workspace` / `switch_bound_deck` success, upsert sidecar entry keyed by `workspaceRoot` | File matches `BindingsFile` schema (§7.1) |
+| F1.1 | On `bind_workspace` / `switch_bound_deck` success, upsert sidecar entry keyed by **MCP session id** | File matches `BindingsFile` schema (§7.1) |
 | F1.2 | Sidecar path under `resolveAgentDeckHome()` | `bindings.json` |
 | F1.3 | Entry includes `deckId`, `deckName`, `source`, `updatedAt`, `cardCounts` | No secrets |
-| F1.4 | Last bind wins for same `workspaceRoot` | Documented; multi-window P0 |
+| F1.4 | **Per-session** bindings; same workspace path may have different decks in different sessions | No “last bind wins per path” for status |
 
 ### Pillar B — Display resolution
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F2.1 | Precedence: sidecar → env (`AGENT_DECK_*`) → repo manifest → unbound | Matches Module 1 bind order |
-| F2.2 | `GET /api/scope/display?workspaceRoot=` returns `DeckDisplay` (§7.2) | Used by statusline |
+| F2.1 | Precedence: **session** sidecar → env (`AGENT_DECK_*`) → repo manifest → unbound | Matches Module 1 bind order |
+| F2.2 | `GET /api/scope/display?workspaceRoot=&sessionId=` returns `DeckDisplay` (§7.2) | Used by statusline |
 | F2.3 | Monorepo walk-up for manifest | Same rules as `loadRepoDeckManifest` |
 | F2.4 | Unbound returns `deckName: null`; status line shows `—` or hides | US-4 |
 
@@ -137,11 +137,12 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F3.1 | `agent-deck statusline` reads JSON stdin (Cursor `StatusLinePayload`) | Uses `cwd` field |
+| F3.1 | `agent-deck statusline` reads JSON stdin (`StatusLinePayload`) | Uses `session_id` + `cwd` |
 | F3.2 | `agent-deck statusline --workspace <path>` for debug | No stdin required |
-| F3.3 | Output format: `◆ {name} · {mcp} MCP · {cred} keys · {pb} playbooks` (plain text stdout, no ANSI) | Max 120 chars; truncate name |
+| F3.3 | Output format: `◆ {name} · {counts} (updated YYYY-MM-DD HH:mm)` when bound | Max 120 chars; truncate name |
 | F3.4 | Respects `AGENT_DECK_PORT` / CLI defaults for API URL | Works in dev and prod |
 | F3.5 | Exit 0 always unless misconfiguration | Never blocks host |
+| F3.6 | **No timer polling** in setup — host refreshes on prompt/conversation update only | Claude: omit `refreshInterval`; Cursor: omit `updateIntervalMs` |
 
 ### Pillar D — MCP & harness
 
@@ -249,10 +250,13 @@ JSON Schema Draft 2020-12. Implementation: `packages/shared/src/schemas/deck-dis
 
 | Field | Type | Required | Use |
 |-------|------|----------|-----|
-| `cwd` | string | yes | Resolve workspace |
+| `session_id` | string | yes (from host) | Lookup session-scoped sidecar + display API |
+| `cwd` | string | yes | Resolve workspace for manifest fallback |
 | `workspace.current_dir` | string | no | Fallback if `cwd` absent |
 
 Agent Deck ignores model, tokens, and other payload fields.
+
+**Session id contract:** `bindings.json` keys use the MCP session id written on `bind_workspace`. The host must pass the same id as `session_id` in the status line stdin payload so the footer reflects that session’s deck (not another session at the same path).
 
 ---
 

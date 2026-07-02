@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readBindingForWorkspace, upsertBindingForWorkspace } from './bindings-sidecar';
+import { readBindingForSession, upsertBindingForSession } from './bindings-sidecar';
 
 describe('bindings-sidecar', () => {
   const originalHome = process.env.AGENT_DECK_HOME;
@@ -22,32 +22,36 @@ describe('bindings-sidecar', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it('upserts and reads workspace bindings', async () => {
-    const workspace = '/Users/me/repo';
-    await upsertBindingForWorkspace(workspace, {
-      deckId: '123e4567-e89b-12d3-a456-426614174000',
+  it('upserts and reads session bindings', async () => {
+    const sessionId = '123e4567-e89b-12d3-a456-426614174000';
+    await upsertBindingForSession(sessionId, {
+      deckId: '223e4567-e89b-12d3-a456-426614174001',
       deckName: 'Dev Deck',
       source: 'session_override',
       updatedAt: '2026-01-01T00:00:00.000Z',
       cardCounts: { mcp: 2, credentials: 1, playbooks: 0 },
+      workspaceRoot: '/Users/me/repo',
     });
 
-    const entry = await readBindingForWorkspace(workspace);
+    const entry = await readBindingForSession(sessionId);
     expect(entry?.deckName).toBe('Dev Deck');
     expect(entry?.source).toBe('session_override');
+    expect(entry?.workspaceRoot).toBe('/Users/me/repo');
   });
 
-  it('finds bindings on parent workspace paths', async () => {
-    const workspace = path.resolve('/Users/me/repo');
-    await upsertBindingForWorkspace(workspace, {
-      deckId: '123e4567-e89b-12d3-a456-426614174000',
-      deckName: 'Dev Deck',
-      source: 'repo_manifest',
+  it('does not share bindings across sessions', async () => {
+    const sessionA = '123e4567-e89b-12d3-a456-426614174000';
+    const sessionB = '323e4567-e89b-12d3-a456-426614174002';
+
+    await upsertBindingForSession(sessionA, {
+      deckId: '223e4567-e89b-12d3-a456-426614174001',
+      deckName: 'Deck A',
+      source: 'session_override',
       updatedAt: '2026-01-01T00:00:00.000Z',
       cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
     });
 
-    const entry = await readBindingForWorkspace(path.join(workspace, 'packages', 'app'));
-    expect(entry?.deckName).toBe('Dev Deck');
+    expect(await readBindingForSession(sessionB)).toBeNull();
+    expect((await readBindingForSession(sessionA))?.deckName).toBe('Deck A');
   });
 });

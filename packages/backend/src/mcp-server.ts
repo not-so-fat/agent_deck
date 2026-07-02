@@ -23,7 +23,7 @@ import {
   McpSessionBindingStore,
   resolveDeckBindingSource,
 } from './mcp-session-binding';
-import { upsertBindingForWorkspace } from './scope/bindings-sidecar';
+import { upsertBindingForSession } from './scope/bindings-sidecar';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -128,12 +128,13 @@ export class AgentDeckMCPServer {
       return;
     }
 
-    await upsertBindingForWorkspace(snapshot.workspaceRoot, {
+    await upsertBindingForSession(sessionId, {
       deckId: deck.id as string,
       deckName: deck.name as string,
       source: resolveDeckBindingSource(snapshot, manifestDeckId),
       updatedAt: new Date().toISOString(),
       cardCounts: countDeckCards(deck),
+      workspaceRoot: snapshot.workspaceRoot,
     });
   }
 

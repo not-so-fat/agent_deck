@@ -21,23 +21,28 @@ export const BindingEntrySchema = z.object({
   updatedAt: z.string().datetime(),
   cardCounts: DeckCardCountsSchema,
   oauthWarningCount: z.number().int().min(0).optional(),
+  /** Workspace at bind time (metadata only; display is keyed by session). */
+  workspaceRoot: z.string().optional(),
 });
 
-/** Keys are absolute workspace root paths. */
+/** Keys are host/MCP session ids (see StatusLinePayload.session_id). */
 export const BindingsFileSchema = z.record(z.string(), BindingEntrySchema);
 
 export const DeckDisplaySchema = z.object({
   workspaceRoot: z.string(),
+  sessionId: z.string().nullable().optional(),
   deckId: z.string().uuid().nullable(),
   deckName: z.string().nullable(),
   source: DeckDisplaySourceSchema,
   cardCounts: DeckCardCountsSchema,
   oauthWarningCount: z.number().int().min(0).optional(),
   agentDeckOnline: z.boolean(),
+  updatedAt: z.string().datetime().optional(),
   displayLine: z.string(),
 });
 
 export const StatusLinePayloadSchema = z.object({
+  session_id: z.string().optional(),
   cwd: z.string().optional(),
   workspace: z
     .object({
@@ -69,15 +74,28 @@ export function countDeckCards(deck: {
   };
 }
 
+export function formatDisplayUpdatedSuffix(updatedAt: string): string {
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return ` (updated ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())})`;
+}
+
 export function formatDisplayLine(
   deckName: string | null,
   counts: DeckCardCounts,
-  options?: { offline?: boolean },
+  options?: { offline?: boolean; updatedAt?: string },
 ): string {
   const prefix = '◆ ';
+  const updatedSuffix = options?.updatedAt ? formatDisplayUpdatedSuffix(options.updatedAt) : '';
 
   if (options?.offline) {
-    return `${prefix}Agent Deck offline`;
+    const offlineLine = `${prefix}Agent Deck offline${updatedSuffix}`;
+    return offlineLine.length > DISPLAY_LINE_MAX_LENGTH
+      ? offlineLine.slice(0, DISPLAY_LINE_MAX_LENGTH)
+      : offlineLine;
   }
 
   if (!deckName) {
@@ -86,18 +104,20 @@ export function formatDisplayLine(
 
   const countsPart = `${counts.mcp} MCP · ${counts.credentials} keys · ${counts.playbooks} playbooks`;
   const separator = ' · ';
-  const fixedLength = prefix.length + separator.length + countsPart.length;
+  const suffixLength = updatedSuffix.length;
+  const fixedLength = prefix.length + separator.length + countsPart.length + suffixLength;
   const maxNameLength = DISPLAY_LINE_MAX_LENGTH - fixedLength;
 
   let name = deckName;
   if (maxNameLength < 1) {
-    return `${prefix}${countsPart}`.slice(0, DISPLAY_LINE_MAX_LENGTH);
+    const line = `${prefix}${countsPart}${updatedSuffix}`;
+    return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
   }
   if (name.length > maxNameLength) {
     name = `${name.slice(0, Math.max(1, maxNameLength - 1))}…`;
   }
 
-  const line = `${prefix}${name}${separator}${countsPart}`;
+  const line = `${prefix}${name}${separator}${countsPart}${updatedSuffix}`;
   return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
 }
 
@@ -123,6 +143,11 @@ export function lookupWorkspaceBinding(
     current = parent;
   }
   return null;
+}
+
+export function resolveStatusLineSessionId(payload: StatusLinePayload): string | undefined {
+  const sessionId = payload.session_id?.trim();
+  return sessionId || undefined;
 }
 
 export function resolveStatusLineWorkspace(payload: StatusLinePayload, fallbackCwd?: string): string | undefined {

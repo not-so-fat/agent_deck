@@ -375,9 +375,9 @@ export default function Home() {
           </div>
           
           {/* Main Content - 75% width */}
-          <div className="xl:col-span-3 space-y-6 min-w-0">
+          <div className="xl:col-span-3 flex h-full min-h-0 flex-col gap-6 min-w-0">
             {/* Deck editor */}
-            <div className="panel-surface p-4 h-80 overflow-hidden min-w-0">
+            <div className="panel-surface h-80 shrink-0 overflow-hidden p-4 min-w-0">
               {editingDeck ? (
                 <div className="h-full">
                   <DeckBuilder
@@ -441,8 +441,11 @@ export default function Home() {
             </div>
 
             {/* My Collection */}
-            <div className="panel-surface p-4 h-80">
-              <div className="flex items-center justify-between mb-3">
+            <div
+              className="panel-surface flex min-h-0 flex-1 flex-col overflow-hidden p-4 min-w-0"
+              data-testid="collection-panel"
+            >
+              <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-bold flex items-center">
                   <LayoutGrid className="w-4 h-4 mr-2" style={{ color: "#92E4DD" }} />
                   <span style={{ color: "#92E4DD" }}>My Collection</span>
@@ -498,7 +501,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setWarningsOnlyFilter((active) => !active)}
-                  className={`mb-4 w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                  className={`mb-3 w-full shrink-0 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
                     warningsOnlyFilter
                       ? "border-amber-300/60 bg-amber-500/15 text-amber-100"
                       : "border-amber-400/30 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
@@ -536,9 +539,10 @@ export default function Home() {
                   </span>
                 </button>
               )}
-              
+
+              <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2">
               {servicesLoading || credentialsLoading || playbooksLoading ? (
-                <div className="grid grid-cols-[repeat(auto-fill,80px)] gap-0">
+                <div className="grid grid-cols-[repeat(auto-fill,5rem)] gap-y-2 pr-12">
                   {Array.from({ length: 10 }).map((_, i) => (
                     <div key={i} className="animate-pulse">
                       <div className="bg-white/10 rounded-lg w-32 h-48 aspect-[2/3]"></div>
@@ -587,7 +591,11 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,80px)] gap-0 relative isolate" style={{ isolation: "isolate" }}>
+                <div
+                  className="relative isolate grid grid-cols-[repeat(auto-fill,5rem)] gap-y-2 pr-12"
+                  style={{ isolation: "isolate" }}
+                  data-testid="collection-card-grid"
+                >
                   {filteredPlaybooks.map((playbook, index) => (
                     <div
                       key={playbook.id}
@@ -665,6 +673,7 @@ export default function Home() {
                   ))}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>

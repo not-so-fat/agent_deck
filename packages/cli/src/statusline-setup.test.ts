@@ -25,13 +25,13 @@ describe('statusline-setup', () => {
     expect(fs.readFileSync(scriptPath, 'utf8')).toContain('agent-deck statusline');
   });
 
-  it('merges statusLine into Claude settings.json', () => {
+  it('merges statusLine into Claude settings.json without timer polling', () => {
     const result = installStatusline('claude');
     expect(result.installed).toBe(true);
     const settings = JSON.parse(fs.readFileSync(result.configPath, 'utf8')) as {
       statusLine?: { command?: string; refreshInterval?: number };
     };
     expect(settings.statusLine?.command).toBe(result.scriptPath);
-    expect(settings.statusLine?.refreshInterval).toBeGreaterThan(0);
+    expect(settings.statusLine?.refreshInterval).toBeUndefined();
   });
 });

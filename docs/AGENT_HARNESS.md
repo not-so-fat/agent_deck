@@ -33,10 +33,11 @@ npx @agent-deck/cli setup --client cursor --scope project   # project MCP + proj
 "statusLine": {
   "type": "command",
   "command": "/Users/you/.agent-deck/bin/statusline.sh",
-  "padding": 2,
-  "refreshInterval": 3
+  "padding": 2
 }
 ```
+
+Refreshes on **prompt / conversation update** only (no `refreshInterval` timer). Bound lines include `(updated YYYY-MM-DD HH:mm)` from the last bind.
 
 Prefer `agent-deck setup --client claude` (writes the script + merges JSON). Do **not** put `npx ...` directly in `command` — npm color codes can corrupt `settings.json` if copied from terminal output.
 

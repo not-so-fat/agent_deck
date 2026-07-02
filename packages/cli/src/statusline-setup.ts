@@ -6,7 +6,6 @@ import { readJsonFile, writeJsonFile } from './mcp-config';
 import { sanitizeJsonText } from './strip-ansi';
 
 export const STATUSLINE_SCRIPT_NAME = 'statusline.sh';
-export const STATUSLINE_REFRESH_INTERVAL_SEC = 3;
 
 export type StatuslineClient = 'cursor' | 'claude';
 
@@ -110,10 +109,7 @@ function buildStatuslineConfig(scriptPath: string, client: StatuslineClient): Re
     };
   }
 
-  return {
-    ...base,
-    refreshInterval: STATUSLINE_REFRESH_INTERVAL_SEC,
-  };
+  return base;
 }
 
 function mergeStatuslineConfig(
@@ -123,12 +119,16 @@ function mergeStatuslineConfig(
 ): { config: Record<string, unknown>; changed: boolean } {
   const nextStatusLine = buildStatuslineConfig(scriptPath, client);
   const current = existing.statusLine;
+  const currentRecord =
+    current && typeof current === 'object' && !Array.isArray(current)
+      ? (current as Record<string, unknown>)
+      : undefined;
+  const hasStaleRefresh = typeof currentRecord?.refreshInterval === 'number';
   const unchanged =
-    current &&
-    typeof current === 'object' &&
-    !Array.isArray(current) &&
-    (current as Record<string, unknown>).command === nextStatusLine.command &&
-    (current as Record<string, unknown>).type === nextStatusLine.type;
+    !hasStaleRefresh &&
+    currentRecord &&
+    currentRecord.command === nextStatusLine.command &&
+    currentRecord.type === nextStatusLine.type;
 
   if (unchanged) {
     return { config: existing, changed: false };

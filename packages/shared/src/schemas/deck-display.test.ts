@@ -6,7 +6,9 @@ import {
   DeckDisplaySchema,
   countDeckCards,
   formatDisplayLine,
+  formatDisplayUpdatedSuffix,
   lookupWorkspaceBinding,
+  resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
 } from './deck-display';
 
@@ -42,10 +44,28 @@ describe('deck-display', () => {
       );
     });
 
+    it('appends updated timestamp suffix', () => {
+      const suffix = formatDisplayUpdatedSuffix('2026-07-02T07:20:00.000Z');
+      expect(suffix).toMatch(/\(updated 2026-07-02 \d{2}:20\)/);
+      expect(formatDisplayLine('Dev Deck', counts, { updatedAt: '2026-07-02T07:20:00.000Z' })).toContain(
+        '(updated',
+      );
+    });
+
     it('truncates long deck names within max length', () => {
       const line = formatDisplayLine('A'.repeat(200), counts);
       expect(line.length).toBeLessThanOrEqual(DISPLAY_LINE_MAX_LENGTH);
       expect(line.endsWith('playbooks')).toBe(true);
+    });
+  });
+
+  describe('resolveStatusLineSessionId', () => {
+    it('reads session_id from stdin payload', () => {
+      expect(
+        resolveStatusLineSessionId({
+          session_id: '123e4567-e89b-12d3-a456-426614174000',
+        }),
+      ).toBe('123e4567-e89b-12d3-a456-426614174000');
     });
   });
 
@@ -95,8 +115,8 @@ describe('deck-display', () => {
   describe('schemas', () => {
     it('validates bindings file entries', () => {
       const result = BindingsFileSchema.safeParse({
-        '/Users/me/repo': {
-          deckId: '123e4567-e89b-12d3-a456-426614174000',
+        '123e4567-e89b-12d3-a456-426614174000': {
+          deckId: '223e4567-e89b-12d3-a456-426614174001',
           deckName: 'Dev',
           source: 'session_override',
           updatedAt: '2026-01-01T00:00:00.000Z',

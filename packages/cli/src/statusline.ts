@@ -4,7 +4,7 @@ import {
   DeckDisplay,
   formatDisplayLine,
   listBindingsFileCandidates,
-  lookupWorkspaceBinding,
+  resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
   StatusLinePayloadSchema,
 } from '@agent-deck/shared';
@@ -75,9 +75,14 @@ function parseArgs(args: string[]): { workspace?: string } {
 async function fetchDisplay(
   backendUrl: string,
   workspaceRoot: string,
+  sessionId: string | undefined,
   timeoutMs: number,
 ): Promise<DeckDisplay | null> {
-  const url = `${backendUrl}/api/scope/display?workspaceRoot=${encodeURIComponent(workspaceRoot)}`;
+  const params = new URLSearchParams({ workspaceRoot });
+  if (sessionId) {
+    params.set('sessionId', sessionId);
+  }
+  const url = `${backendUrl}/api/scope/display?${params.toString()}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -94,7 +99,11 @@ async function fetchDisplay(
   }
 }
 
-function readSidecarLine(workspaceRoot: string): string | null {
+function readSidecarEntry(sessionId: string | undefined) {
+  if (!sessionId) {
+    return null;
+  }
+
   for (const filePath of listBindingsFileCandidates()) {
     try {
       const raw = fs.readFileSync(filePath, 'utf8');
@@ -102,9 +111,9 @@ function readSidecarLine(workspaceRoot: string): string | null {
       if (!parsed.success) {
         continue;
       }
-      const entry = lookupWorkspaceBinding(parsed.data, workspaceRoot);
+      const entry = parsed.data[sessionId];
       if (entry) {
-        return formatDisplayLine(entry.deckName, entry.cardCounts);
+        return entry;
       }
     } catch {
       // try next candidate
@@ -112,6 +121,14 @@ function readSidecarLine(workspaceRoot: string): string | null {
   }
 
   return null;
+}
+
+function readSidecarLine(sessionId: string | undefined): string | null {
+  const entry = readSidecarEntry(sessionId);
+  if (!entry) {
+    return null;
+  }
+  return formatDisplayLine(entry.deckName, entry.cardCounts, { updatedAt: entry.updatedAt });
 }
 
 function shouldUseApiDisplay(display: DeckDisplay): boolean {
@@ -155,10 +172,26 @@ export function resolveStatuslineWorkspace(args: string[], stdin: string): strin
   return process.cwd();
 }
 
+export function resolveStatuslineSessionId(args: string[], stdin: string): string | undefined {
+  if (stdin.trim()) {
+    try {
+      const payload = StatusLinePayloadSchema.safeParse(JSON.parse(stdin));
+      if (payload.success) {
+        return resolveStatusLineSessionId(payload.data);
+      }
+    } catch {
+      // ignore malformed stdin
+    }
+  }
+
+  return undefined;
+}
+
 export async function runStatusline(args: string[]): Promise<number> {
   const { workspace: workspaceArg } = parseArgs(args);
   const stdin = workspaceArg?.trim() ? '' : await readStdin();
   const workspaceRoot = resolveStatuslineWorkspace(args, stdin);
+  const sessionId = resolveStatuslineSessionId(args, stdin);
 
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
   const backendPorts = resolveBackendPorts();
@@ -167,20 +200,34 @@ export async function runStatusline(args: string[]): Promise<number> {
 
   for (const backendPort of backendPorts) {
     const backendUrl = `http://${host}:${backendPort}`;
-    const display = await fetchDisplay(backendUrl, workspaceRoot, timeoutMs);
+    const display = await fetchDisplay(backendUrl, workspaceRoot, sessionId, timeoutMs);
     if (display && shouldUseApiDisplay(display)) {
+      printStatusLine(display.displayLine);
+      return 0;
+    }
+    if (display && display.source === 'repo_manifest') {
       printStatusLine(display.displayLine);
       return 0;
     }
   }
 
-  const sidecarLine = readSidecarLine(workspaceRoot);
+  const sidecarLine = readSidecarLine(sessionId);
   if (sidecarLine) {
     printStatusLine(sidecarLine);
     return 0;
   }
 
-  printStatusLine(formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }, { offline: true }));
+  const offlineEntry = readSidecarEntry(sessionId);
+  printStatusLine(
+    formatDisplayLine(
+      offlineEntry?.deckName ?? null,
+      offlineEntry?.cardCounts ?? { mcp: 0, credentials: 0, playbooks: 0 },
+      {
+        offline: true,
+        updatedAt: offlineEntry?.updatedAt,
+      },
+    ),
+  );
   return 0;
 }
 

@@ -7,12 +7,17 @@ import {
 } from '@agent-deck/shared';
 import { DatabaseManager } from '../models/database';
 import { loadRepoDeckManifest } from './repo-deck';
-import { readBindingForWorkspace } from './bindings-sidecar';
+import { readBindingForSession } from './bindings-sidecar';
 
 const EMPTY_COUNTS = { mcp: 0, credentials: 0, playbooks: 0 };
 
+export type ResolveDeckDisplayInput = {
+  sessionId?: string;
+  workspaceRoot: string;
+};
+
 function buildDisplay(
-  workspaceRoot: string,
+  input: ResolveDeckDisplayInput,
   source: DeckDisplaySource,
   deck: { id: string; name: string; services?: Array<{ type?: string }>; credentials?: unknown[]; playbooks?: unknown[] } | null,
   options?: { agentDeckOnline?: boolean; sidecar?: BindingEntry | null },
@@ -21,37 +26,48 @@ function buildDisplay(
   const cardCounts = deck ? countDeckCards(deck) : options?.sidecar?.cardCounts ?? EMPTY_COUNTS;
   const deckName = deck?.name ?? options?.sidecar?.deckName ?? null;
   const deckId = deck?.id ?? options?.sidecar?.deckId ?? null;
+  const updatedAt = options?.sidecar?.updatedAt;
 
   return {
-    workspaceRoot,
+    workspaceRoot: input.workspaceRoot,
+    sessionId: input.sessionId ?? null,
     deckId,
     deckName,
     source,
     cardCounts,
     oauthWarningCount: options?.sidecar?.oauthWarningCount,
     agentDeckOnline,
-    displayLine: formatDisplayLine(deckName, cardCounts, { offline: !agentDeckOnline }),
+    updatedAt,
+    displayLine: formatDisplayLine(deckName, cardCounts, {
+      offline: !agentDeckOnline,
+      updatedAt,
+    }),
   };
 }
 
-/** Resolve bound-deck display for a workspace (sidecar → env → manifest → unbound). */
+/** Resolve bound-deck display for a CLI/MCP session (session sidecar → env → manifest → unbound). */
 export async function resolveDeckDisplay(
-  workspaceRoot: string,
+  input: ResolveDeckDisplayInput,
   db: DatabaseManager,
 ): Promise<DeckDisplay> {
-  const normalizedRoot = workspaceRoot.trim();
-  const sidecar = await readBindingForWorkspace(normalizedRoot);
+  const normalizedRoot = input.workspaceRoot.trim();
+  const sessionId = input.sessionId?.trim();
 
-  if (sidecar) {
-    const deck = await db.getDeck(sidecar.deckId);
-    return buildDisplay(normalizedRoot, sidecar.source, deck, { sidecar });
+  if (sessionId) {
+    const sidecar = await readBindingForSession(sessionId);
+    if (sidecar) {
+      const deck = await db.getDeck(sidecar.deckId);
+      return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, sidecar.source, deck, {
+        sidecar,
+      });
+    }
   }
 
   const envDeckId = process.env.AGENT_DECK_DECK_ID?.trim();
   if (envDeckId) {
     const deck = await db.getDeck(envDeckId);
     if (deck) {
-      return buildDisplay(normalizedRoot, 'env', deck);
+      return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, 'env', deck);
     }
   }
 
@@ -59,9 +75,9 @@ export async function resolveDeckDisplay(
   if (manifest) {
     const deck = await db.getDeck(manifest.deck_id);
     if (deck) {
-      return buildDisplay(normalizedRoot, 'repo_manifest', deck);
+      return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, 'repo_manifest', deck);
     }
   }
 
-  return buildDisplay(normalizedRoot, 'unbound', null);
+  return buildDisplay({ sessionId, workspaceRoot: normalizedRoot }, 'unbound', null);
 }

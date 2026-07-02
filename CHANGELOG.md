@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.7 — 2026-07-02
+
+### Deck display (terminal status line)
+
+- **Session-scoped bindings** — `bindings.json` keyed by session id (not workspace path); `GET /api/scope/display?sessionId=`; statusline reads host `session_id` from stdin
+- **Event-driven refresh** — setup no longer sets `refreshInterval` (Claude) or timer polling; host refreshes on prompt/conversation update
+- **Timestamp suffix** — bound lines show `(updated YYYY-MM-DD HH:mm)` from last bind; offline shows last known time when available
+
+### Dashboard
+
+- **My Collection:** flex layout fills remaining column height; card grid scrolls inside panel; `5rem` column width + right padding so fan overlap is not clipped
+- **Deck fan:** hide scroll chevrons at scroll ends (no disabled ghost buttons); remove edge gradients; stronger chevron styling
+
+### Docs
+
+- [PRD_DECK_DISPLAY.md](docs/PRD_DECK_DISPLAY.md), [AGENT_HARNESS.md](docs/AGENT_HARNESS.md) — per-session status model; no timer polling in setup example
+
 ## 1.2.6 — 2026-07-02
 
 ### Dashboard
