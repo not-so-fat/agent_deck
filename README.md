@@ -25,9 +25,7 @@ npx @agent-deck/cli@latest setup --client cursor --start
 
 Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy `.agent-deck/deck.yaml` into a repo. Your agent calls `bind_workspace` to use that deck.
 
-**Dev repo:** `npm install && npm run dev:all` → dashboard `http://localhost:3000`, MCP `http://127.0.0.1:3001/mcp`. See [SETUP.md](docs/SETUP.md).
-
-**Requirements:** Node.js 20+ (24 typical). Full install options below in [Install & run](#install--run).
+**Requirements:** Node.js 20+ (24 typical). See [Install & run](#install--run) for options.
 
 
 ## Problem: Too Many MCPs on My Agent
@@ -50,10 +48,9 @@ Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http:/
 
 ### Dashboard
 
-**CLI / npx (`agent-deck start`):** `http://127.0.0.1:11111` · MCP `http://127.0.0.1:11112/mcp`  
-**dev (`npm run dev:all`):** `http://localhost:3000` · MCP `http://127.0.0.1:3001/mcp` (backend `:8000`)
+**CLI / npx (`agent-deck start`):** dashboard `http://127.0.0.1:11111` · MCP `http://127.0.0.1:11112/mcp`
 
-Both can run on one machine — see [SETUP.md](docs/SETUP.md#ports).
+See [Setup](docs/SETUP.md#ports) for port details. **Contributors:** dev repo ports and workflow → [Development](docs/DEVELOPMENT.md).
 
 <img src="./misc/UI.png" alt="Frontend" width="70%" />
 
@@ -70,7 +67,6 @@ Both can run on one machine — see [SETUP.md](docs/SETUP.md#ports).
 | Mode | URL |
 |------|-----|
 | **CLI / npx** | `http://127.0.0.1:11112/mcp` |
-| **Dev repo** | `http://127.0.0.1:3001/mcp` |
 
 Most setup and runtime work goes through the agent. **Dashboard-only (human-in-the-loop):** storing API key **secrets** and completing MCP **OAuth** in the browser.
 
@@ -128,7 +124,7 @@ Setup installs **MCP config** and **agent harness** (global Cursor rule or Claud
 
 ```bash
 npx @agent-deck/cli@latest start --open
-# Dashboard → http://127.0.0.1:11111  (CLI; dev repo uses :8000 / :3000)
+# Dashboard → http://127.0.0.1:11111
 # MCP       → http://127.0.0.1:11112/mcp
 ```
 
@@ -138,22 +134,7 @@ npx @agent-deck/cli@latest start --open
 
 See [Publishing & install](docs/PUBLISHING.md) for version bumps and npm publish.
 
-**From source (development):**
-
-```bash
-git clone https://github.com/not-so-fat/agent_deck.git
-cd agent_deck
-npm install
-npm run build
-npm run dev:all
-```
-
-This starts:
-- Dashboard → `http://localhost:3000` (Vite dev server)
-- Backend API → `http://localhost:8000`
-- MCP server → `http://127.0.0.1:3001/mcp`
-
-Or after build: `npm run build:release && npx @agent-deck/cli start`
+**Contributing / from source:** clone, build, and run the monorepo → [Development guide](docs/DEVELOPMENT.md).
 
 ### Prerequisites
 
@@ -168,7 +149,7 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 
 ### Connect your agent
 
-1. **Set up decks** — dashboard at `http://127.0.0.1:11111` (CLI) or `http://localhost:3000` (dev). Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
+1. **Set up decks** — dashboard at `http://127.0.0.1:11111`. Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
 2. **Add MCP** — `agent-deck setup --client cursor` (or see [Connect MCP in Cursor](#connect-mcp-in-cursor))
 3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
 4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth
@@ -193,7 +174,7 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
 | [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** from `setup` |
 | [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
-| [Development](docs/DEVELOPMENT.md) | Contributing, tests, workflow |
+| [Development](docs/DEVELOPMENT.md) | **Contributors** — clone, dev servers, tests, workflow |
 | [MCP integration strategy](docs/MCP_INTEGRATION_STRATEGY.md) | OAuth tiers, provider reality, deferred work |
 | [Slack OAuth app (maintainers)](docs/SLACK_OAUTH_APP.md) | Shared Slack app for one-click Connect |
 | [Slack read-only workaround](docs/SLACK_READ_WORKAROUND.md) | Skip official MCP for DM/channel read |

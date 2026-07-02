@@ -187,6 +187,16 @@ npm rebuild better-sqlite3 -w @agent-deck/backend
 agent-deck stop
 ```
 
+### MCP tools missing after reconnect (Claude Code)
+
+If `claude mcp list` shows agent-deck as **Connected** but the agent cannot call any `mcp__agent-deck__*` tool (`ToolSearch` returns no matches), the host session has a **stale tool index** — the server is healthy; the harness did not refresh after a brief disconnect.
+
+**Fix:** Exit and restart the Claude Code session.
+
+**Workaround:** Call the MCP JSON-RPC endpoint directly (`initialize` → `tools/call`) or use `curl` against `http://127.0.0.1:11112/mcp` (port may differ — check `claude mcp list`).
+
+The terminal status line can still show a bound deck from cached sidecar data while tools are unavailable; it does not prove the harness can reach agent-deck.
+
 ### Slack distribution requires HTTPS
 
 [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) — set `AGENT_DECK_PUBLIC_URL` on your hosted backend.

@@ -321,6 +321,9 @@ export class ServiceManager {
       return annotated;
     } catch (error) {
       console.error(`Failed to discover tools for service ${serviceId}:`, error);
+      if (service.type === 'mcp' || service.type === 'local-mcp') {
+        this.mcpClient.invalidateClient(serviceId);
+      }
       await this.db.updateServiceStatus(serviceId, false, 'unhealthy');
       const message = error instanceof Error ? error.message : 'Failed to discover tools';
       return { success: false, error: message };

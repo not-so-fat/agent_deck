@@ -37,8 +37,7 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
   const serverDisabledKey = useMemo(
     () =>
       tools
-        .filter((tool) => tool.enabled === false)
-        .map((tool) => tool.name)
+        .map((tool) => `${tool.name}:${tool.enabled === false ? "0" : "1"}`)
         .sort()
         .join("\0"),
     [tools],
@@ -46,7 +45,7 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
 
   useEffect(() => {
     setDisabledTools(disabledToolsFromServer(tools));
-  }, [serviceId, serverDisabledKey, tools.length]);
+  }, [serviceId, serverDisabledKey]);
 
   const saveMutation = useMutation({
     mutationFn: async (nextDisabled: string[]) => {

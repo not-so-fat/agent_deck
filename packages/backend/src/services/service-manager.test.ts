@@ -230,6 +230,26 @@ describe('ServiceManager', () => {
       expect(result).toEqual(expectedTools);
     });
 
+    it('invalidates cached MCP client when discovery fails', async () => {
+      const serviceId = '123e4567-e89b-12d3-a456-426614174000';
+      const service = {
+        id: serviceId,
+        name: 'Test Service',
+        type: 'mcp',
+        url: 'https://example.com',
+      };
+
+      mockDbManager.getService.mockResolvedValue(service);
+      mockMCPClientManager.discoverTools.mockRejectedValue(new Error('Connection failed'));
+      mockDbManager.updateServiceStatus.mockResolvedValue(true);
+
+      const result = await serviceManager.discoverServiceTools(serviceId);
+
+      expect(mockMCPClientManager.invalidateClient).toHaveBeenCalledWith(serviceId);
+      expect(mockDbManager.updateServiceStatus).toHaveBeenCalledWith(serviceId, false, 'unhealthy');
+      expect(result).toEqual({ success: false, error: 'Connection failed' });
+    });
+
     it('should discover tools for A2A service', async () => {
       const serviceId = '123e4567-e89b-12d3-a456-426614174000';
       const service = {

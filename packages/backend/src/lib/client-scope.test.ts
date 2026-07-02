@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { applyDeckCredentialScope } from './client-scope';
-import { Deck } from '@agent-deck/shared';
+import { applyDeckCredentialScope, sanitizeServiceForAgent } from './client-scope';
+import { Deck, Service } from '@agent-deck/shared';
 
 const baseDeck = (overrides: Partial<Deck>): Deck => ({
   id: 'deck-1',
@@ -25,5 +25,35 @@ describe('applyDeckCredentialScope', () => {
 
     expect(applyDeckCredentialScope(bound, 'agent', 'deck-bound').credentials).toHaveLength(1);
     expect(applyDeckCredentialScope(other, 'agent', 'deck-bound').credentials).toHaveLength(0);
+  });
+});
+
+describe('sanitizeServiceForAgent', () => {
+  it('strips OAuth tokens, secrets, and Authorization headers', () => {
+    const service: Service = {
+      id: 'svc-1',
+      name: 'Slack',
+      type: 'mcp',
+      url: 'https://example.com/mcp',
+      health: 'healthy',
+      cardColor: '#000',
+      isConnected: true,
+      registeredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      oauthClientSecret: 'secret',
+      oauthAccessToken: 'gho_token',
+      oauthRefreshToken: 'refresh',
+      oauthState: 'state',
+      headers: { Authorization: 'Bearer token', 'X-Custom': 'ok' },
+      localEnv: { API_KEY: 'abc' },
+    };
+
+    const sanitized = sanitizeServiceForAgent(service);
+    expect(sanitized.oauthClientSecret).toBeUndefined();
+    expect(sanitized.oauthAccessToken).toBeUndefined();
+    expect(sanitized.oauthRefreshToken).toBeUndefined();
+    expect(sanitized.oauthState).toBeUndefined();
+    expect(sanitized.localEnv).toBeUndefined();
+    expect(sanitized.headers).toEqual({ 'X-Custom': 'ok' });
   });
 });

@@ -3,9 +3,42 @@ import {
   AGENT_DECK_CLIENT_HEADER,
   AGENT_DECK_DASHBOARD_CLIENT,
   Deck,
+  Service,
 } from '@agent-deck/shared';
 
 export type ClientScope = 'dashboard' | 'agent';
+
+function stripAuthorizationHeader(
+  headers?: Record<string, string> | null,
+): Record<string, string> | undefined {
+  if (!headers) {
+    return undefined;
+  }
+  const next = { ...headers };
+  delete next.Authorization;
+  delete next.authorization;
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Remove secrets from service payloads returned to agent clients. */
+export function sanitizeServiceForAgent(service: Service): Service {
+  return {
+    ...service,
+    oauthClientSecret: undefined,
+    oauthAccessToken: undefined,
+    oauthRefreshToken: undefined,
+    oauthState: undefined,
+    headers: stripAuthorizationHeader(service.headers),
+    localEnv: undefined,
+  };
+}
+
+function sanitizeDeckForAgent(deck: Deck): Deck {
+  return {
+    ...deck,
+    services: deck.services?.map(sanitizeServiceForAgent) ?? [],
+  };
+}
 
 export function getClientScope(request: FastifyRequest): ClientScope {
   const value = request.headers[AGENT_DECK_CLIENT_HEADER];
@@ -41,10 +74,11 @@ export function applyDeckScope(
   if (scope === 'dashboard') {
     return deck;
   }
+  const sanitized = sanitizeDeckForAgent(deck);
   if (visibleDeckId && deck.id === visibleDeckId) {
-    return deck;
+    return sanitized;
   }
-  return { ...deck, credentials: [], playbooks: [] };
+  return { ...sanitized, credentials: [], playbooks: [] };
 }
 
 /** @deprecated Use applyDeckScope */

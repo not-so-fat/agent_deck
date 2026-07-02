@@ -3,7 +3,7 @@
   "name": "io.github.not-so-fat/agent-deck",
   "title": "Agent Deck",
   "description": "Local context-aware MCP proxy. One endpoint for your agent; switch MCP servers and API keys with decks.",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "websiteUrl": "https://github.com/not-so-fat/agent_deck",
   "repository": {
     "url": "https://github.com/not-so-fat/agent_deck",
@@ -14,7 +14,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@agent-deck/cli",
-      "version": "1.2.5",
+      "version": "1.2.6",
       "transport": {
         "type": "streamable-http",
         "url": "http://127.0.0.1:11112/mcp"

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.6 — 2026-07-02
+
+### Dashboard
+
+- **Deck fan:** fix right-edge clipping at 10 cards (viewport includes horizontal padding); clickable scroll chevrons; align Deck panel height with My Decks (`h-80`); remove spurious scrollbar on yellow drop zone
+- **MCP tools panel:** resync disabled-tool state when tool list changes after reconnect (not only when count changes)
+
+### Backend
+
+- **Agent API:** redact OAuth tokens, client secrets, `Authorization` headers, and `localEnv` from deck service payloads returned to agent clients (`get_decks`, bound deck reads)
+- **MCP client cache:** invalidate cached connection on tool discovery failure (same as tool-call failures)
+
+### Docs
+
+- **README:** end-user Quick Start only — dev clone/`dev:all` moved to [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **SETUP.md:** document Claude Code stale MCP tool index after reconnect (session restart workaround)
+
 ## 1.2.5 — 2026-07-01
 
 ### Deck display — terminal only

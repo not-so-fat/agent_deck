@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   CARD_OVERLAP,
   CARD_HEIGHT,
+  FAN_HORIZONTAL_PAD_PX,
   VISIBLE_CARD_SLOTS,
   deckFanCardZIndex,
   fanCardSlotMinHeight,
   fanContentWidth,
+  fanScrollContentWidth,
+  fanViewportWidth,
   tiltFromViewportPosition,
   visibleFanWidth,
 } from "./deck-fan";
@@ -18,8 +21,14 @@ describe("deck fan layout", () => {
   });
 
   it("fits ten cards in the visible window", () => {
-    expect(visibleFanWidth).toBe(fanContentWidth(VISIBLE_CARD_SLOTS, CARD_OVERLAP));
-    expect(visibleFanWidth).toBe(128 + 9 * 80);
+    expect(visibleFanWidth).toBe(fanViewportWidth(VISIBLE_CARD_SLOTS, CARD_OVERLAP));
+    expect(visibleFanWidth).toBe(128 + 9 * 80 + 2 * FAN_HORIZONTAL_PAD_PX);
+  });
+
+  it("includes horizontal padding in scroll content width", () => {
+    expect(fanScrollContentWidth(10, CARD_OVERLAP)).toBe(
+      fanContentWidth(10, CARD_OVERLAP) + 2 * FAN_HORIZONTAL_PAD_PX,
+    );
   });
 
   it("needs edge scroll when the deck has more than ten cards", () => {

@@ -46,7 +46,20 @@ export function fanContentWidth(cardCount: number, overlap = CARD_OVERLAP): numb
   return CARD_WIDTH + Math.max(0, cardCount - 1) * (CARD_WIDTH - overlap);
 }
 
-export const visibleFanWidth = fanContentWidth(VISIBLE_CARD_SLOTS, CARD_OVERLAP);
+/** Viewport width including horizontal padding so the last card's edge is not clipped. */
+export function fanViewportWidth(
+  cardSlots = VISIBLE_CARD_SLOTS,
+  overlap = CARD_OVERLAP,
+  padPx = FAN_HORIZONTAL_PAD_PX,
+): number {
+  return fanContentWidth(cardSlots, overlap) + 2 * padPx;
+}
+
+export function fanScrollContentWidth(cardCount: number, overlap = CARD_OVERLAP): number {
+  return fanContentWidth(cardCount, overlap) + 2 * FAN_HORIZONTAL_PAD_PX;
+}
+
+export const visibleFanWidth = fanViewportWidth();
 
 export function tiltFromViewportPosition(
   cardCenterX: number,
@@ -118,12 +131,24 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
     });
   }, [cardCount]);
 
+  const scrollByStep = useCallback((direction: "left" | "right") => {
+    const scroll = scrollRef.current;
+    if (!scroll) {
+      return;
+    }
+    const step = CARD_WIDTH - CARD_OVERLAP;
+    scroll.scrollBy({
+      left: direction === "left" ? -step : step,
+      behavior: "smooth",
+    });
+  }, []);
+
   const updateScrollState = useCallback(() => {
     const scroll = scrollRef.current;
     if (!scroll) {
       return;
     }
-    const contentWidth = fanContentWidth(cardCount, CARD_OVERLAP);
+    const contentWidth = fanScrollContentWidth(cardCount, CARD_OVERLAP);
     const overflow = contentWidth > scroll.clientWidth + 2;
     setNeedsEdgeScroll(overflow);
     setCanScrollLeft(overflow && scroll.scrollLeft > 4);
@@ -211,6 +236,7 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
   };
 
   useLayoutEffect(() => {
+    cardRefs.current.length = cardCount;
     updateCardTilts();
   }, [cardCount, hoveredIndex, updateCardTilts]);
 
@@ -220,32 +246,38 @@ export default function DeckFan({ cardCount, children }: DeckFanProps) {
 
   return (
     <div
-      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-x-hidden overflow-y-visible"
+      className="relative flex h-full w-full min-w-0 max-w-full items-center justify-center overflow-hidden"
       data-testid="deck-fan"
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
       {needsEdgeScroll && (
-        <div
-          className={`pointer-events-none absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 ${
-            canScrollLeft ? "opacity-90" : "opacity-25"
+        <button
+          type="button"
+          className={`absolute left-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 hover:bg-black/80 ${
+            canScrollLeft ? "opacity-90" : "cursor-default opacity-25"
           } ${scrollingLeft ? "scale-125" : "scale-100"}`}
-          aria-hidden
+          aria-label="Scroll deck left"
+          disabled={!canScrollLeft}
           data-testid="deck-scroll-left"
+          onClick={() => scrollByStep("left")}
         >
           <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
-        </div>
+        </button>
       )}
       {needsEdgeScroll && (
-        <div
-          className={`pointer-events-none absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 ${
-            canScrollRight ? "opacity-90" : "opacity-25"
+        <button
+          type="button"
+          className={`absolute right-2 top-1/2 z-30 -translate-y-1/2 rounded-full bg-black/60 p-1 text-yellow-300 shadow-lg transition-all duration-150 hover:bg-black/80 ${
+            canScrollRight ? "opacity-90" : "cursor-default opacity-25"
           } ${scrollingRight ? "scale-125" : "scale-100"}`}
-          aria-hidden
+          aria-label="Scroll deck right"
+          disabled={!canScrollRight}
           data-testid="deck-scroll-right"
+          onClick={() => scrollByStep("right")}
         >
           <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
-        </div>
+        </button>
       )}
 
       {needsEdgeScroll && (
