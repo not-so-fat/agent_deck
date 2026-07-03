@@ -77,7 +77,7 @@ When behavior changes, update the **owning doc** ([MVP.md](./MVP.md) for product
 
 When working in this repo with Agent Deck MCP:
 
-1. `bind_workspace` with repo root (or use committed `.agent-deck/deck.yaml` when present)
+1. `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` with repo root
 2. Procedure cards: `get_playbook` — **not** direct SQLite / `~/.agent-deck/*.db`
 3. Product truth: [MVP.md](./MVP.md); proposed features: `PRD_*.md`
 

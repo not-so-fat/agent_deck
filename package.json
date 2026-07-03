@@ -21,6 +21,7 @@
     "postinstall": "node scripts/rebuild-native.mjs",
     "agent-deck": "node packages/cli/dist/bin.js",
     "agent-deck:dev": "tsx packages/cli/src/bin.ts",
+    "setup:dev": "AGENT_DECK_DEV=1 npm run agent-deck:dev -- setup",
     "build:release": "node scripts/prepare-release.mjs",
     "version:sync": "node scripts/sync-versions.mjs",
     "release:tag": "node scripts/release-tag.mjs",

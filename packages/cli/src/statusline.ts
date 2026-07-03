@@ -91,7 +91,7 @@ async function fetchDisplay(
   }
 }
 
-function resolveBackendPorts(): number[] {
+export function resolveBackendPorts(): number[] {
   if (process.env.AGENT_DECK_PORT?.trim()) {
     return [parseCliBackendPort(process.env.AGENT_DECK_PORT)];
   }

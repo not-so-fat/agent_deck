@@ -1,10 +1,15 @@
 import { Deck } from "@agent-deck/shared";
+import type { LiveBinding } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
 import { Layers, Plus, Trash2, Copy } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  countSessionsByDeckId,
+  formatDeckListSubtitle,
+} from "@/lib/live-bindings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +36,16 @@ export default function DeckManagementPanel({
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const { data: bindingsData } = useQuery<{ success: boolean; data: LiveBinding[] }>({
+    queryKey: ['/api/scope/bindings'],
+    refetchInterval: 3_000,
+  });
+
+  const sessionCountByDeckId = useMemo(
+    () => countSessionsByDeckId(bindingsData?.data ?? []),
+    [bindingsData],
+  );
 
   const createDeckMutation = useMutation({
     mutationFn: async (data: typeof newDeckData) => {
@@ -90,22 +105,17 @@ export default function DeckManagementPanel({
     },
   });
 
-  const handleCopyManifest = async (e: React.MouseEvent, deck: Deck) => {
+  const handleCopyDeckId = async (e: React.MouseEvent, deck: Deck) => {
     e.stopPropagation();
     try {
-      const response = await apiRequest(
-        "GET",
-        `/api/scope/manifest-template?deckId=${encodeURIComponent(deck.id)}&name=${encodeURIComponent(deck.name)}`,
-      );
-      const body = await response.json();
-      await navigator.clipboard.writeText(body.data.content);
+      await navigator.clipboard.writeText(deck.id);
       toast({
-        title: "Copied deck.yaml snippet",
-        description: "Paste into .agent-deck/deck.yaml in repos that use this deck.",
+        title: "Copied deck id",
+        description: "Use with bind_workspace({ workspaceRoot, deckId }) in your agent.",
       });
     } catch (error) {
       toast({
-        title: "Failed to copy manifest",
+        title: "Failed to copy deck id",
         description: error instanceof Error ? error.message : "Unknown error",
         variant: "destructive",
       });
@@ -173,6 +183,8 @@ export default function DeckManagementPanel({
             {decks.map((deck) => {
               const isEditing = deck.id === editingDeckId;
               const count = deckCardCount(deck);
+              const sessions = sessionCountByDeckId.get(deck.id) ?? 0;
+              const subtitle = formatDeckListSubtitle(count, sessions);
 
               return (
                 <div
@@ -190,8 +202,8 @@ export default function DeckManagementPanel({
                       size="sm"
                       variant="secondary"
                       className="h-5 w-5 p-0"
-                      onClick={(e) => handleCopyManifest(e, deck)}
-                      title="Copy .agent-deck/deck.yaml snippet"
+                      onClick={(e) => handleCopyDeckId(e, deck)}
+                      title="Copy deck id for bind_workspace"
                     >
                       <Copy className="w-2 h-2" />
                     </Button>
@@ -212,8 +224,8 @@ export default function DeckManagementPanel({
                     >
                       {deck.name}
                     </h3>
-                    <p className="text-xs text-gray-400">
-                      {count > 0 ? `${count} cards` : "Empty"}
+                    <p className="text-xs text-gray-400 select-none pointer-events-none">
+                      {subtitle}
                     </p>
                   </div>
                 </div>

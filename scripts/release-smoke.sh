@@ -56,7 +56,7 @@ pass "npm pack includes statusline-setup.js"
 
 # --- 3. setup --client claude in clean HOME (built dist = tarball payload) ---
 SETUP_OUT="$LOG_DIR/release-smoke-setup.log"
-if ! node "$CLI_DIST/bin.js" setup --client claude >"$SETUP_OUT" 2>&1; then
+if ! node "$CLI_DIST/bin.js" setup --client claude --no-menubar >"$SETUP_OUT" 2>&1; then
   # claude mcp add may fail in CI — status line install must still run
   if ! grep -qE 'Status line|status line' "$SETUP_OUT"; then
     cat "$SETUP_OUT" >>"$LOG"

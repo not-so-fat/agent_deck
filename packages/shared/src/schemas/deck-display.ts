@@ -3,7 +3,6 @@ import path from 'node:path';
 
 export const DeckDisplaySourceSchema = z.enum([
   'session_override',
-  'repo_manifest',
   'env',
   'unbound',
 ]);
@@ -12,6 +11,18 @@ export const DeckCardCountsSchema = z.object({
   mcp: z.number().int().min(0),
   credentials: z.number().int().min(0),
   playbooks: z.number().int().min(0),
+});
+
+export const LiveBindingSchema = z.object({
+  badge: z.string().min(1),
+  deckId: z.string().uuid(),
+  deckName: z.string().min(1),
+  source: DeckDisplaySourceSchema.exclude(['unbound']),
+  workspaceRoot: z.string().min(1),
+  clientName: z.string().min(1).optional(),
+  cardCounts: DeckCardCountsSchema,
+  updatedAt: z.string().datetime(),
+  lastActivityAt: z.string().datetime(),
 });
 
 export const DeckDisplaySchema = z.object({
@@ -40,6 +51,7 @@ export const StatusLinePayloadSchema = z.object({
 
 export type DeckDisplaySource = z.infer<typeof DeckDisplaySourceSchema>;
 export type DeckCardCounts = z.infer<typeof DeckCardCountsSchema>;
+export type LiveBinding = z.infer<typeof LiveBindingSchema>;
 export type DeckDisplay = z.infer<typeof DeckDisplaySchema>;
 export type StatusLinePayload = z.infer<typeof StatusLinePayloadSchema>;
 
@@ -70,7 +82,7 @@ export function formatDisplayUpdatedSuffix(updatedAt: string): string {
 export function formatDisplayLine(
   deckName: string | null,
   counts: DeckCardCounts,
-  options?: { offline?: boolean; mcpOffline?: boolean; updatedAt?: string },
+  options?: { offline?: boolean; mcpOffline?: boolean; updatedAt?: string; badge?: string },
 ): string {
   const prefix = '◆ ';
   const updatedSuffix = options?.updatedAt ? formatDisplayUpdatedSuffix(options.updatedAt) : '';
@@ -92,21 +104,22 @@ export function formatDisplayLine(
 
   const countsPart = `${counts.mcp} MCP · ${counts.credentials} keys · ${counts.playbooks} playbooks`;
   const separator = ' · ';
+  const badgeSuffix = options?.badge ? ` · ⌘${options.badge}` : '';
   const mcpSuffix = options?.mcpOffline ? ' · MCP offline' : '';
-  const suffixLength = updatedSuffix.length + mcpSuffix.length;
+  const suffixLength = updatedSuffix.length + mcpSuffix.length + badgeSuffix.length;
   const fixedLength = prefix.length + separator.length + countsPart.length + suffixLength;
   const maxNameLength = DISPLAY_LINE_MAX_LENGTH - fixedLength;
 
   let name = deckName;
   if (maxNameLength < 1) {
-    const line = `${prefix}${countsPart}${mcpSuffix}${updatedSuffix}`;
+    const line = `${prefix}${countsPart}${badgeSuffix}${mcpSuffix}${updatedSuffix}`;
     return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
   }
   if (name.length > maxNameLength) {
     name = `${name.slice(0, Math.max(1, maxNameLength - 1))}…`;
   }
 
-  const line = `${prefix}${name}${separator}${countsPart}${mcpSuffix}${updatedSuffix}`;
+  const line = `${prefix}${name}${separator}${countsPart}${badgeSuffix}${mcpSuffix}${updatedSuffix}`;
   return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
 }
 

@@ -10,6 +10,7 @@ import { runDoctor, runStart } from './start';
 import { runSetup, shouldStartAfterSetup } from './setup';
 import { runStatus } from './status';
 import { runStatusline } from './statusline';
+import { runMenubar } from './menubar';
 import { runStop } from './stop';
 import { runUpgrade } from './upgrade';
 import { getAgentDeckVersion } from './version';
@@ -34,6 +35,7 @@ function printUsage() {
   agent-deck stop
   agent-deck status
   agent-deck statusline [--workspace <path>]
+  agent-deck menubar
   agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--start]
   agent-deck upgrade [--check]
   agent-deck doctor
@@ -272,6 +274,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runStatus();
     case 'statusline':
       return runStatusline(rest);
+    case 'menubar':
+      return await runMenubar();
     case 'setup': {
       const code = await runSetup(rest);
       if (shouldStartAfterSetup(code)) {

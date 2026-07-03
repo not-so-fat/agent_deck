@@ -2,8 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiResponse, DeckCardCountsSchema, DeckDisplaySourceSchema } from '@agent-deck/shared';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
-import { isDashboardClient, requireAgentClient, requireDashboardClient } from '../lib/client-scope';
-import { formatRepoDeckManifest, loadRepoDeckManifest, RepoDeckManifestError } from '../scope/repo-deck';
+import { isDashboardClient, requireAgentClient } from '../lib/client-scope';
 import { resolveDeckDisplay } from '../scope/display';
 
 const LiveDisplayBodySchema = z.object({
@@ -12,60 +11,16 @@ const LiveDisplayBodySchema = z.object({
   deckId: z.string().uuid(),
   deckName: z.string().min(1),
   source: DeckDisplaySourceSchema.exclude(['unbound']),
+  clientName: z.string().min(1).optional(),
   cardCounts: DeckCardCountsSchema,
   updatedAt: z.string().datetime(),
 });
 
+const LiveDisplayTouchSchema = z.object({
+  at: z.string().datetime().optional(),
+});
+
 export async function registerScopeRoutes(fastify: FastifyInstance) {
-  fastify.post<{ Body: { workspaceRoot: string } }>('/resolve', async (request, reply) => {
-    try {
-      const { workspaceRoot } = request.body;
-      if (!workspaceRoot?.trim()) {
-        return reply.status(400).send({
-          success: false,
-          error: 'workspaceRoot is required',
-        } satisfies ApiResponse);
-      }
-
-      const manifest = await loadRepoDeckManifest(workspaceRoot);
-      if (!manifest) {
-        return reply.status(404).send({
-          success: false,
-          error: 'No .agent-deck/deck.yaml found in workspace',
-        } satisfies ApiResponse);
-      }
-
-      const deck = await fastify.db.getDeck(manifest.deck_id);
-      if (!deck) {
-        return reply.status(404).send({
-          success: false,
-          error: `Deck not found: ${manifest.deck_id}`,
-        } satisfies ApiResponse);
-      }
-
-      return reply.send({
-        success: true,
-        data: {
-          manifest,
-          deck,
-          manifestPath: '.agent-deck/deck.yaml',
-        },
-      } satisfies ApiResponse);
-    } catch (error) {
-      const message =
-        error instanceof RepoDeckManifestError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : 'Unknown error';
-
-      return reply.status(400).send({
-        success: false,
-        error: message,
-      } satisfies ApiResponse);
-    }
-  });
-
   fastify.get('/deck', async (request, reply) => {
     try {
       if (isDashboardClient(request)) {
@@ -135,8 +90,8 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
         } satisfies ApiResponse);
       }
 
-      fastify.liveDisplayRegistry.upsert(parsed.data);
-      return reply.send({ success: true } satisfies ApiResponse);
+      const entry = fastify.liveDisplayRegistry.upsert(parsed.data);
+      return reply.send({ success: true, data: { badge: entry.badge } } satisfies ApiResponse);
     } catch (error) {
       return reply.status(403).send({
         success: false,
@@ -169,26 +124,23 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Querystring: { deckId?: string; name?: string } }>(
-    '/manifest-template',
+  fastify.post<{ Params: { mcpSessionId: string } }>(
+    '/live-display/:mcpSessionId/touch',
     async (request, reply) => {
       try {
-        requireDashboardClient(request);
-        const { deckId, name } = request.query;
-        if (!deckId) {
+        requireAgentClient(request);
+        const mcpSessionId = request.params.mcpSessionId?.trim();
+        if (!mcpSessionId) {
           return reply.status(400).send({
             success: false,
-            error: 'deckId query parameter is required',
+            error: 'mcpSessionId is required',
           } satisfies ApiResponse);
         }
 
-        return reply.send({
-          success: true,
-          data: {
-            path: '.agent-deck/deck.yaml',
-            content: formatRepoDeckManifest(deckId, name),
-          },
-        } satisfies ApiResponse);
+        const parsed = LiveDisplayTouchSchema.safeParse(request.body ?? {});
+        const at = parsed.success && parsed.data.at ? parsed.data.at : new Date().toISOString();
+        fastify.liveDisplayRegistry.touch(mcpSessionId, at);
+        return reply.send({ success: true } satisfies ApiResponse);
       } catch (error) {
         return reply.status(403).send({
           success: false,
@@ -197,4 +149,19 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.get('/bindings', async (_request, reply) => {
+    const data = fastify.liveDisplayRegistry.list().map((entry) => ({
+      badge: entry.badge,
+      deckId: entry.deckId,
+      deckName: entry.deckName,
+      source: entry.source,
+      workspaceRoot: entry.workspaceRoot,
+      clientName: entry.clientName,
+      cardCounts: entry.cardCounts,
+      updatedAt: entry.updatedAt,
+      lastActivityAt: entry.lastActivityAt,
+    }));
+    return reply.send({ success: true, data } satisfies ApiResponse);
+  });
 }

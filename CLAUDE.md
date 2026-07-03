@@ -1,9 +1,5 @@
----
-description: Agent Deck MCP — check decks for tools; playbooks for recipes; self-improve playbooks from feedback
-alwaysApply: true
----
-
-# Agent Deck
+<!-- agent-deck:harness:start -->
+## Agent Deck
 
 **Connect first:** Ensure Agent Deck MCP is connected before using deck tools (`agent-deck setup --client cursor|claude --start`, then restart the host). Claude Code: `claude mcp list` should show agent-deck as Connected when the backend is running.
 
@@ -28,3 +24,6 @@ Deck playbooks are task recipes — `list_playbooks` / `get_playbook` (match `tr
 - **Place the lesson** — checklist item for verification, technique for positive patterns, anti-pattern for mistakes to avoid
 - **Restructure** if the playbook can't absorb the lesson cleanly — don't bolt it on
 - **Surface the change** in your response so the user can audit drift
+
+In this repo: `get_decks`, then `bind_workspace` with the workspace root and `deckId`. When a task matches deck playbooks (check `triggers` via `list_playbooks`), `get_playbook` before improvising.
+<!-- agent-deck:harness:end -->

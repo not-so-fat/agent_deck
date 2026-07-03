@@ -83,6 +83,28 @@ curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:3001/backend-status
 ```
 
+### Dev setup (unpublished CLI — menubar, badges)
+
+Global `npm i -g @agent-deck/cli` tracks **published** npm only. Before release, use the monorepo CLI:
+
+```bash
+npm run build          # once
+npm link -w @agent-deck/cli   # optional: `agent-deck` on PATH → local build
+
+# With dev:all running (backend :8000, MCP :3001):
+npm run setup:dev -- --client cursor --start
+npm run setup:dev -- --client claude
+```
+
+On **macOS**, `setup` now **defaults to menubar** (SwiftBar plugin + status line + MCP + harness):
+
+- Interactive terminal: tries `brew install --cask swiftbar` when SwiftBar is missing
+- Sets SwiftBar’s plugin folder via `defaults write` (no manual Preferences step)
+- Opt out: `--no-menubar`
+- CI / scripts: `--no-menubar` or `AGENT_DECK_SETUP_NO_BREW=1`
+
+Menubar-only refresh: `npm run setup:dev -- --menubar`
+
 ## Quick start (npm / end users)
 
 ```bash
@@ -209,12 +231,12 @@ Open the dashboard after [Quick start](#quick-start-npm--end-users) or `npm run 
 |------|----------------|
 | **My Collection** | All MCP, API key, and playbook cards (vault) |
 | **Deck fan** | Cards on the **editing deck** — drag from collection to link/unlink |
-| **My Decks** | Select which deck to edit; copy `.agent-deck/deck.yaml` snippet (copy icon) |
+| **My Decks** | Select which deck to edit; copy deck id (copy icon) |
 
 **Terminology ([MVP.md](./MVP.md)):**
 
 - **Editing deck** — dashboard UI only; does not change agent scope
-- **Bound deck** — what agents see via `bind_workspace` + repo manifest or session override
+- **Bound deck** — what agents see via `bind_workspace({ workspaceRoot, deckId })` or session override
 - There is no “activate deck” for agents; ignore legacy API `POST /api/decks/:id/activate`
 
 **Common tasks:**
@@ -223,7 +245,7 @@ Open the dashboard after [Quick start](#quick-start-npm--end-users) or `npm run 
 2. **Register API key** — secret stored in Keychain; metadata in collection
 3. **Register playbook** — markdown body; deps auto-detected on save
 4. **OAuth** — Connect on MCP card; redirect URI shown in UI ([OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md))
-5. **Repo bind** — paste `deck.yaml` snippet into `.agent-deck/deck.yaml`; agent calls `bind_workspace`
+5. **Session bind** — agent calls `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`
 
 Card colors are fixed by type (MCP, API key, playbook). Service health and OAuth status update live via WebSocket.
 

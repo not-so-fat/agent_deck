@@ -5,6 +5,7 @@ import ServiceCardIcon from "@/components/service-card-icon";
 import CardWarningBadge from "@/components/card-warning-badge";
 import CredentialCardIcon from "@/components/credential-card-icon";
 import DeckFan from "@/components/deck-fan";
+import LiveSessionBadges from "@/components/live-session-badges";
 import type { CollectionWarningsView } from "@/lib/collection-warnings";
 
 interface DeckBuilderProps {
@@ -52,13 +53,14 @@ export default function DeckBuilder({
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <div className="mb-4 shrink-0 flex items-center justify-between">
-        <h3 className="text-lg font-bold flex items-center">
+      <div className="mb-4 shrink-0 flex items-center justify-between gap-3">
+        <h3 className="text-lg font-bold flex items-center min-w-0">
           <i className="fas fa-layer-group mr-2 text-blue-400"></i>
           Deck
-          <span className="ml-2 text-sm font-normal text-gray-400">{deck.name}</span>
-          <span className="ml-2 text-sm font-normal text-gray-400">({deckCards} cards)</span>
+          <span className="ml-2 text-sm font-normal text-gray-400 truncate">{deck.name}</span>
+          <span className="ml-2 text-sm font-normal text-gray-400 shrink-0">({deckCards} cards)</span>
         </h3>
+        <LiveSessionBadges highlightDeckId={deck.id} />
       </div>
 
       <div

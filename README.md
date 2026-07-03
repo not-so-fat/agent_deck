@@ -23,7 +23,7 @@ npx @agent-deck/cli@latest setup --client cursor --start
 
 **Optional — terminal agents** (Claude Code / Cursor CLI prompt footer): installed automatically by `agent-deck setup --client claude|cursor` (use `--no-statusline` to skip). **Not** shown in IDE Agent chat — terminal footer only.
 
-Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy `.agent-deck/deck.yaml` into a repo. Your agent calls `bind_workspace` to use that deck.
+Then open the dashboard, register an MCP or API key, drag cards onto a deck, and copy a deck id from My Decks. Your agent calls `bind_workspace({ workspaceRoot, deckId })` to use that deck.
 
 **Requirements:** Node.js 20+ (24 typical). See [Install & run](#install--run) for options.
 
@@ -41,7 +41,7 @@ When coding, documenting, or trying new MCP services, you don't need every serve
 
 <img src="./misc/Idea.png" alt="Frontend" width="70%" />
 
-Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http://127.0.0.1:3001/mcp`) to your agent. It exposes only the MCP servers in the **deck bound to your workspace** (via `.agent-deck/deck.yaml`). See [MVP spec](docs/MVP.md) for the full Modules 1–3 behavior.
+Agent Deck is a **local context-aware MCP proxy**. Connect one endpoint (`http://127.0.0.1:3001/mcp`) to your agent. It exposes only the MCP servers in the **deck bound to your session** (via `bind_workspace`). See [MVP spec](docs/MVP.md) for the full Modules 1–3 behavior.
 
 
 ## Features
@@ -60,7 +60,7 @@ See [Setup](docs/SETUP.md#ports) for port details. **Contributors:** dev repo po
 - **MCP service details** — health status, per-tool enable/disable table, OAuth connect
 - **API key details** — edit name/docs link, rotate key; secret value never shown after save
 - **Collection warnings** — missing secrets, OAuth, or playbook dependencies
-- Copy `.agent-deck/deck.yaml` from the deck sidebar; agents **bind** via `bind_workspace`
+- Copy deck id from the deck sidebar; agents **bind** via `bind_workspace({ workspaceRoot, deckId })`
 
 ### MCP Server
 
@@ -72,8 +72,7 @@ Most setup and runtime work goes through the agent. **Dashboard-only (human-in-t
 
 | Tool | Purpose |
 |------|---------|
-| `bind_workspace` / `switch_bound_deck` / `get_session_binding` | Bind workspace; session deck override; inspect binding |
-| `setup_repo_deck` / `get_repo_deck_status` | Create or check `.agent-deck/deck.yaml` |
+| `bind_workspace` / `switch_bound_deck` / `get_session_binding` | Bind workspace + deck; switch deck; inspect binding |
 | `get_decks` / `get_bound_deck` / `create_deck` | List, read, or create decks |
 | `list_bound_deck_services` / `list_bound_deck_credentials` | Cards on the bound deck |
 | `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
@@ -149,9 +148,9 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 
 ### Connect your agent
 
-1. **Set up decks** — dashboard at `http://127.0.0.1:11111`. Register MCPs, store API key secrets, build a deck, copy `deck.yaml` into your repo
+1. **Set up decks** — dashboard at `http://127.0.0.1:11111`. Register MCPs, store API key secrets, build a deck, copy deck id from My Decks
 2. **Add MCP** — `agent-deck setup --client cursor` (or see [Connect MCP in Cursor](#connect-mcp-in-cursor))
-3. **Bind workspace** — agent calls `bind_workspace` with your repo root (or set `AGENT_DECK_WORKSPACE`)
+3. **Bind workspace** — agent calls `bind_workspace({ workspaceRoot, deckId })` (or set `AGENT_DECK_WORKSPACE` + `AGENT_DECK_DECK_ID` for dev)
 4. **Manage from chat** — register MCPs, link cards, toggle tools, and call service tools via MCP; use the dashboard only for secrets and OAuth
 
 (Steps 1–2 run `setup`, which also installs the [agent harness](docs/AGENT_HARNESS.md) in your global Cursor rules or Claude `CLAUDE.md`.)
@@ -168,12 +167,12 @@ Node 20+ is supported; the repo does **not** ask you to downgrade from 24.
 | [OAuth requirements](docs/OAUTH_REQUIREMENTS.md) | **Product OAuth needs, marketplace, Stytch feasibility** |
 | [Publishing](docs/PUBLISHING.md) | npm publish, versioning, Claude Code install |
 | [Architecture](docs/ARCHITECTURE.md) | Components, SQLite, secret storage |
-| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, repo deck, agent tools |
+| [MVP](docs/MVP.md) | **Source of truth** — vault, playbooks, session bind, agent tools |
 | [PRD: Export / import](docs/PRD_EXPORT_IMPORT.md) | Proposed — laptop migration bundles |
 | [PRD: Deck display](docs/PRD_DECK_DISPLAY.md) | Terminal statusline + harness session opener (IDE Agent chat) |
 | [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | When to use playbook cards vs Cursor skills |
 | [Agent harness](docs/AGENT_HARNESS.md) | **CLAUDE.md & Cursor rules** from `setup` |
-| [Monorepo scope](docs/MONOREPO_SCOPE.md) | Where to put `deck.yaml` in monorepos |
+| [Monorepo scope](docs/MONOREPO_SCOPE.md) | Session binding in monorepos |
 | [Development](docs/DEVELOPMENT.md) | **Contributors** — clone, dev servers, tests, workflow |
 | [MCP integration strategy](docs/MCP_INTEGRATION_STRATEGY.md) | OAuth tiers, provider reality, deferred work |
 | [Slack OAuth app (maintainers)](docs/SLACK_OAUTH_APP.md) | Shared Slack app for one-click Connect |

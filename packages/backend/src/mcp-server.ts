@@ -4,20 +4,12 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import {
   AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
-  REPO_DECK_MANIFEST_PATH,
   countDeckCards,
   formatDisplayLine,
 } from '@agent-deck/shared';
 import express, { Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { z } from 'zod';
-import {
-  formatRepoDeckManifest,
-  loadRepoDeckManifest,
-  repoDeckManifestFilePath,
-} from './scope/repo-deck';
 import { getAgentDeckVersion } from './lib/version';
 import {
   McpSessionBindingStore,
@@ -44,6 +36,9 @@ export class AgentDeckMCPServer {
   /** Per-session workspace + optional deck override (see mcp-session-binding.ts). */
   private sessionBinding: McpSessionBindingStore;
   private activeSessionId: string | undefined;
+  /** Session badge from the backend registry (POST /api/scope/live-display response). */
+  private badgeBySession = new Map<string, string>();
+  private lastTouchAtMs = new Map<string, number>();
 
   private get server(): McpServer {
     if (!this.mcpServerForRegistration) {
@@ -104,19 +99,23 @@ export class AgentDeckMCPServer {
     return body.data;
   }
 
-  private async buildBindingPayload(sessionId: string, manifestDeckId?: string) {
+  private async buildBindingPayload(sessionId: string) {
     const snapshot = this.sessionBinding.getBinding(sessionId);
     const deck = await this.callBackendAPI('/api/scope/deck');
+    const badge = this.badgeBySession.get(sessionId);
+    const cardCounts = deck ? countDeckCards(deck) : { mcp: 0, credentials: 0, playbooks: 0 };
     return {
       workspaceRoot: snapshot.workspaceRoot,
       deck_id: deck?.id as string,
       deck_name: deck?.name as string,
-      deck_source: resolveDeckBindingSource(snapshot, manifestDeckId),
+      deck_source: resolveDeckBindingSource(snapshot),
       session_deck_override: this.sessionBinding.hasSessionDeckOverride(sessionId),
+      badge,
+      display_summary: formatDisplayLine(deck?.name ?? null, cardCounts, { badge }),
     };
   }
 
-  private async registerLiveDisplay(sessionId: string, manifestDeckId?: string): Promise<void> {
+  private async registerLiveDisplay(sessionId: string): Promise<void> {
     const snapshot = this.sessionBinding.getBinding(sessionId);
     if (!snapshot.workspaceRoot) {
       return;
@@ -127,7 +126,8 @@ export class AgentDeckMCPServer {
       return;
     }
 
-    await this.callBackendAPI('/api/scope/live-display', {
+    const clientName = this.sessions.get(sessionId)?.server.server.getClientVersion()?.name;
+    const result = await this.callBackendAPI('/api/scope/live-display', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,11 +135,37 @@ export class AgentDeckMCPServer {
         workspaceRoot: snapshot.workspaceRoot,
         deckId: deck.id,
         deckName: deck.name,
-        source: resolveDeckBindingSource(snapshot, manifestDeckId),
+        source: resolveDeckBindingSource(snapshot),
+        clientName,
         cardCounts: countDeckCards(deck),
         updatedAt: new Date().toISOString(),
       }),
     });
+    if (result && typeof result.badge === 'string') {
+      this.badgeBySession.set(sessionId, result.badge);
+    }
+  }
+
+  private static readonly TOUCH_DEBOUNCE_MS = 5_000;
+
+  /** Fire-and-forget lastActivityAt bump; only for sessions the registry knows. */
+  private touchLiveDisplay(sessionId: string): void {
+    if (!this.badgeBySession.has(sessionId)) {
+      return;
+    }
+    const now = Date.now();
+    if (now - (this.lastTouchAtMs.get(sessionId) ?? 0) < AgentDeckMCPServer.TOUCH_DEBOUNCE_MS) {
+      return;
+    }
+    this.lastTouchAtMs.set(sessionId, now);
+    void this.callBackendAPI(
+      `/api/scope/live-display/${encodeURIComponent(sessionId)}/touch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ at: new Date().toISOString() }),
+      },
+    ).catch(() => {});
   }
 
   private async unregisterLiveDisplay(sessionId: string): Promise<void> {
@@ -225,101 +251,53 @@ export class AgentDeckMCPServer {
     this.registerTool("bind_workspace", {
       title: "Bind Workspace",
       description:
-        "Bind this MCP session to a workspace root. Pass deckId for a session-only deck override (same path, different concurrent agents). Without deckId, uses .agent-deck/deck.yaml when present.",
+        "Bind this MCP session to a workspace root and deck. Use get_decks to list deck ids.",
       inputSchema: {
         workspaceRoot: z.string(),
-        deckId: z.string().uuid().optional(),
+        deckId: z.string().uuid(),
       },
     }, async ({ workspaceRoot, deckId }) => {
       try {
         const sessionId = this.getSessionId();
         this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
-
-        if (deckId) {
-          const deck = await this.fetchDeck(deckId);
-          this.sessionBinding.setDeckId(sessionId, deckId);
-          const payload = await this.buildBindingPayload(sessionId);
-          await this.registerLiveDisplay(sessionId);
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                ...payload,
-                deck_name: deck.name,
-                message:
-                  'Session bound with deck override. .agent-deck/deck.yaml is unchanged; other MCP sessions can use a different deck at the same path.',
-              }, null, 2),
-            }],
-          };
-        }
-
-        this.sessionBinding.clearDeckId(sessionId);
-
-        const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
-          method: 'POST',
-          headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceRoot }),
-        });
-        const body = (await resolved.json()) as {
-          success: boolean;
-          error?: string;
-          data?: {
-            manifestPath: string;
-            manifest: { deck_id: string };
-            deck: { name: string };
-          };
-        };
-        if (!body.success || !body.data) {
-          throw new Error(
-            body.error ??
-              'Failed to resolve workspace deck. Pass deckId to bind without deck.yaml, or call setup_repo_deck.',
-          );
-        }
-
-        const { data } = body;
-        const payload = await this.buildBindingPayload(sessionId, data.manifest.deck_id);
-        await this.registerLiveDisplay(sessionId, data.manifest.deck_id);
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              ...payload,
-              manifestPath: data.manifestPath,
-              message: 'Session bound via .agent-deck/deck.yaml.',
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        const message = String(error);
-        const hint = message.includes('deck.yaml') || message.includes('No .agent-deck')
-          ? ' Pass deckId on bind_workspace, call setup_repo_deck, or get_repo_deck_status to diagnose.'
-          : '';
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: message + hint }, null, 2) }],
-        };
-      }
-    });
-
-    this.registerTool("switch_bound_deck", {
-      title: "Switch Bound Deck",
-      description:
-        "Switch the deck for this MCP session only. Does not modify .agent-deck/deck.yaml. Use when multiple agent sessions share the same workspace path.",
-      inputSchema: { deckId: z.string().uuid() },
-    }, async ({ deckId }) => {
-      try {
-        const sessionId = this.getSessionId();
         const deck = await this.fetchDeck(deckId);
         this.sessionBinding.setDeckId(sessionId, deckId);
-        const payload = await this.buildBindingPayload(sessionId);
         await this.registerLiveDisplay(sessionId);
+        const payload = await this.buildBindingPayload(sessionId);
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
               ...payload,
               deck_name: deck.name,
-              message: 'Session deck switched. Other sessions and deck.yaml are unchanged.',
+              message: 'Session bound to deck.',
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return this.toolError(error);
+      }
+    });
+
+    this.registerTool("switch_bound_deck", {
+      title: "Switch Bound Deck",
+      description:
+        "Switch the deck for this MCP session only. Use when multiple agent sessions share the same workspace path.",
+      inputSchema: { deckId: z.string().uuid() },
+    }, async ({ deckId }) => {
+      try {
+        const sessionId = this.getSessionId();
+        const deck = await this.fetchDeck(deckId);
+        this.sessionBinding.setDeckId(sessionId, deckId);
+        await this.registerLiveDisplay(sessionId);
+        const payload = await this.buildBindingPayload(sessionId);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              ...payload,
+              deck_name: deck.name,
+              message: 'Session deck switched. Other sessions are unchanged.',
             }, null, 2),
           }],
         };
@@ -331,200 +309,33 @@ export class AgentDeckMCPServer {
     this.registerTool("get_session_binding", {
       title: "Get Session Binding",
       description:
-        "Show workspace and effective deck for this MCP session, including whether the deck comes from a session override or repo deck.yaml.",
+        "Show workspace and effective deck for this MCP session (session override or env default).",
       inputSchema: {},
     }, async () => {
       try {
         const sessionId = this.getSessionId();
         const snapshot = this.sessionBinding.getBinding(sessionId);
-        let manifestDeckId: string | undefined;
-        if (snapshot.workspaceRoot && !snapshot.deckSource) {
-          const manifest = await loadRepoDeckManifest(snapshot.workspaceRoot);
-          manifestDeckId = manifest?.deck_id;
-        }
         const deck = await this.callBackendAPI('/api/scope/deck');
+        const badge = this.badgeBySession.get(sessionId);
         const cardCounts = deck ? countDeckCards(deck) : { mcp: 0, credentials: 0, playbooks: 0 };
-        const displaySummary = formatDisplayLine(deck?.name ?? null, cardCounts);
+        const displaySummary = formatDisplayLine(deck?.name ?? null, cardCounts, { badge });
         return {
           content: [{
             type: "text",
             text: JSON.stringify({
               workspaceRoot: snapshot.workspaceRoot,
-              session_deck_override: snapshot.deckId,
+              session_deck_id: snapshot.deckId,
               session_deck_source: snapshot.deckSource,
-              repo_manifest_deck_id: manifestDeckId,
               effective_deck_id: deck?.id,
               effective_deck_name: deck?.name,
-              effective_deck_source: resolveDeckBindingSource(snapshot, manifestDeckId),
+              effective_deck_source: resolveDeckBindingSource(snapshot),
+              badge,
               display_summary: displaySummary,
             }, null, 2),
           }],
         };
       } catch (error) {
         return this.toolError(error);
-      }
-    });
-
-    this.registerTool("get_repo_deck_status", {
-      title: "Get Repo Deck Status",
-      description:
-        "Check whether .agent-deck/deck.yaml exists in a workspace and whether it links to a valid deck",
-      inputSchema: { workspaceRoot: z.string() },
-    }, async ({ workspaceRoot }) => {
-      try {
-        const filePath = repoDeckManifestFilePath(workspaceRoot);
-        const manifest = await loadRepoDeckManifest(workspaceRoot);
-
-        if (!manifest) {
-          const decks = await this.callBackendAPI('/api/decks');
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                status: 'missing',
-                workspaceRoot,
-                expectedPath: REPO_DECK_MANIFEST_PATH,
-                message: 'No .agent-deck/deck.yaml found. Use setup_repo_deck to create one.',
-                availableDecks: Array.isArray(decks)
-                  ? decks.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name }))
-                  : decks,
-              }, null, 2),
-            }],
-          };
-        }
-
-        const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
-          method: 'POST',
-          headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceRoot }),
-        });
-        const body = (await resolved.json()) as {
-          success: boolean;
-          error?: string;
-          data?: { manifest: { deck_id: string; name?: string }; deck: { name: string } };
-        };
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              status: body.success ? 'ok' : 'invalid',
-              workspaceRoot,
-              filePath,
-              manifest,
-              deck: body.data?.deck,
-              error: body.success ? undefined : body.error,
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
-        };
-      }
-    });
-
-    this.registerTool("setup_repo_deck", {
-      title: "Setup Repo Deck",
-      description:
-        "Create or verify .agent-deck/deck.yaml in a repo. Links the workspace to an Agent Deck by deck_id. Optionally writes the file.",
-      inputSchema: {
-        workspaceRoot: z.string(),
-        deckId: z.string().uuid().optional(),
-        deckName: z.string().optional(),
-        writeFile: z.boolean().optional(),
-      },
-    }, async ({ workspaceRoot, deckId, deckName, writeFile = true }) => {
-      try {
-        const sessionId = this.getSessionId();
-        const existing = await loadRepoDeckManifest(workspaceRoot);
-
-        if (existing) {
-          this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
-          const resolved = await fetch(`${this.backendUrl}/api/scope/resolve`, {
-            method: 'POST',
-            headers: { ...agentClientHeaders, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ workspaceRoot }),
-          });
-          const body = (await resolved.json()) as {
-            success: boolean;
-            error?: string;
-            data?: { manifestPath: string; manifest: { deck_id: string }; deck: { name: string } };
-          };
-          if (!body.success || !body.data) {
-            throw new Error(body.error ?? 'Existing manifest is invalid');
-          }
-
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                status: 'existing',
-                workspaceRoot,
-                manifestPath: body.data.manifestPath,
-                deck_id: body.data.manifest.deck_id,
-                deck_name: body.data.deck.name,
-                message: 'Workspace already linked. Session bound to this deck.',
-              }, null, 2),
-            }],
-          };
-        }
-
-        if (!deckId) {
-          const decks = await this.callBackendAPI('/api/decks');
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify({
-                status: 'needs_deck_id',
-                workspaceRoot,
-                expectedPath: REPO_DECK_MANIFEST_PATH,
-                message:
-                  'Pick a deck id from the dashboard (My Decks → copy icon) and call setup_repo_deck again with deckId.',
-                availableDecks: Array.isArray(decks)
-                  ? decks.map((d: { id: string; name: string }) => ({ id: d.id, name: d.name }))
-                  : decks,
-              }, null, 2),
-            }],
-          };
-        }
-
-        const deck = await this.callBackendAPI(`/api/decks/${deckId}`);
-        if (!deck?.id) {
-          throw new Error(`Deck not found: ${deckId}`);
-        }
-
-        const content = formatRepoDeckManifest(deckId, deckName ?? deck.name);
-        const dirPath = path.join(path.resolve(workspaceRoot), '.agent-deck');
-        const filePath = repoDeckManifestFilePath(workspaceRoot);
-
-        if (writeFile) {
-          await fs.mkdir(dirPath, { recursive: true });
-          await fs.writeFile(filePath, content, 'utf8');
-        }
-
-        this.sessionBinding.setWorkspace(sessionId, workspaceRoot);
-
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify({
-              status: writeFile ? 'created' : 'preview',
-              workspaceRoot,
-              filePath,
-              deck_id: deckId,
-              deck_name: deck.name,
-              manifestContent: content,
-              message: writeFile
-                ? 'Created .agent-deck/deck.yaml and bound this session to the deck.'
-                : 'Preview only — set writeFile true to write the file.',
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: String(error) }, null, 2) }],
-        };
       }
     });
 
@@ -549,7 +360,7 @@ export class AgentDeckMCPServer {
     this.registerTool("get_bound_deck", {
       title: "Get Bound Deck",
       description:
-        "Get the deck bound to this session (session deckId override, env, or .agent-deck/deck.yaml)",
+        "Get the deck bound to this session (session deckId or env AGENT_DECK_DECK_ID)",
       inputSchema: {},
     }, async () => {
       try {
@@ -1224,7 +1035,7 @@ export class AgentDeckMCPServer {
     });
 
     this.server.resource("bound_deck", "agent-deck://bound-deck", {
-      description: "Deck bound via .agent-deck/deck.yaml in the workspace",
+      description: "Deck bound to this MCP session",
       mimeType: "application/json"
     }, async () => {
       try {
@@ -1352,8 +1163,9 @@ export class AgentDeckMCPServer {
     const sessionIdHeader = this.getSessionIdHeader(req);
     const existing = sessionIdHeader ? this.sessions.get(sessionIdHeader) : undefined;
 
-    if (existing) {
+    if (existing && sessionIdHeader) {
       this.activeSessionId = sessionIdHeader;
+      this.touchLiveDisplay(sessionIdHeader);
       await existing.transport.handleRequest(req, res, req.body);
       return;
     }
@@ -1391,6 +1203,8 @@ export class AgentDeckMCPServer {
       if (sessionId) {
         this.sessions.delete(sessionId);
         this.sessionBinding.clearSession(sessionId);
+        this.badgeBySession.delete(sessionId);
+        this.lastTouchAtMs.delete(sessionId);
         void this.unregisterLiveDisplay(sessionId);
       }
     };
@@ -1418,6 +1232,7 @@ export class AgentDeckMCPServer {
     }
 
     this.activeSessionId = sessionId;
+    this.touchLiveDisplay(sessionId);
     await session.transport.handleRequest(req, res);
   }
 
@@ -1429,12 +1244,10 @@ export class AgentDeckMCPServer {
       this.app.listen(this.port, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
-        console.log(`   - bind_workspace: Bind session to workspace; optional deckId override`);
+        console.log(`   - bind_workspace: Bind session to workspace + deck (deckId required)`);
         console.log(`   - switch_bound_deck: Switch deck for this session only`);
         console.log(`   - get_session_binding: Show session workspace + effective deck`);
-        console.log(`   - get_repo_deck_status: Check repo deck manifest`);
-        console.log(`   - setup_repo_deck: Create .agent-deck/deck.yaml for a repo`);
-        console.log(`   - get_bound_deck: Get workspace-bound deck`);
+        console.log(`   - get_bound_deck: Get session-bound deck`);
         console.log(`   - list_service_tools: List tools for a specific service`);
         console.log(`   - call_service_tool: Call a tool on a service`);
         console.log(`📋 Available resources:`);

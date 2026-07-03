@@ -5,7 +5,7 @@ alwaysApply: true
 
 # User surface feasibility
 
-**Deck display product scope:** terminal `statusLine` only (Claude Code + Cursor CLI footer). IDE Agent chat has no display API.
+**Deck display product scope:** terminal `statusLine` (Claude Code + Cursor CLI) and macOS menu bar (SwiftBar). IDE Agent chat has no display API.
 
 ## Before building or claiming shipped
 
@@ -16,7 +16,8 @@ alwaysApply: true
 | Surface | Deck display |
 |---------|----------------|
 | Claude Code / Cursor CLI terminal footer | **In scope** — `statusLine` + `agent-deck statusline` |
-| Cursor IDE Agent chat / Glass composer | **Out of scope** — no API |
+| macOS menu bar (SwiftBar) | **In scope** — SwiftBar plugin contract + `agent-deck menubar`; session badge (`⌘fox`) joins rows to chat openers |
+| Cursor IDE Agent chat / Glass composer | **Out of scope** — no API; menu bar + transcript badge is the sanctioned workaround |
 | VS Code / Cursor editor status bar | **Out of scope** — removed; do not re-add without host API |
 
 If the user’s workflow is out of scope, **stop** — do not substitute MCP bind or extension work.

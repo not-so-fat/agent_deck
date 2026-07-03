@@ -6,7 +6,7 @@ import {
   AGENT_DECK_WORKSPACE_HEADER,
 } from '@agent-deck/shared';
 
-export type DeckBindingSource = 'session_override' | 'env' | 'repo_manifest';
+export type DeckBindingSource = 'session_override' | 'env';
 
 export type SessionBindingSnapshot = {
   workspaceRoot?: string;
@@ -14,7 +14,7 @@ export type SessionBindingSnapshot = {
   deckSource?: 'session_override' | 'env';
 };
 
-/** Per-MCP-session workspace + deck override (deck id wins over repo deck.yaml on the backend). */
+/** Per-MCP-session workspace + deck (set by bind_workspace / switch_bound_deck). */
 export class McpSessionBindingStore {
   private workspaceBySession = new Map<string, string>();
   private deckIdBySession = new Map<string, string>();
@@ -47,7 +47,6 @@ export class McpSessionBindingStore {
     return this.workspaceBySession.get(sessionId) ?? this.defaultWorkspace;
   }
 
-  /** Session or env deck override. When set, backend prefers this over repo deck.yaml. */
   getDeckOverride(sessionId: string): string | undefined {
     return this.deckIdBySession.get(sessionId) ?? this.defaultDeckId;
   }
@@ -86,15 +85,6 @@ export class McpSessionBindingStore {
   }
 }
 
-export function resolveDeckBindingSource(
-  binding: SessionBindingSnapshot,
-  manifestDeckId?: string,
-): DeckBindingSource {
-  if (binding.deckSource === 'session_override' || binding.deckSource === 'env') {
-    return binding.deckSource === 'env' ? 'env' : 'session_override';
-  }
-  if (manifestDeckId) {
-    return 'repo_manifest';
-  }
-  return 'session_override';
+export function resolveDeckBindingSource(binding: SessionBindingSnapshot): DeckBindingSource {
+  return binding.deckSource === 'env' ? 'env' : 'session_override';
 }

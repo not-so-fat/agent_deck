@@ -12,7 +12,7 @@ playbooks: pb_ai_codegen_prd, pb_product_principle
 
 ## 1. Product overview
 
-Agent Deck scopes MCP tools via a **bound deck** (session override, env, or repo `.agent-deck/deck.yaml`). The [agent harness](./AGENT_HARNESS.md) teaches agents to call `bind_workspace` but exposes **no human-visible indicator** of which deck is active. Users report uncertainty after `switch_bound_deck` or when multiple decks share similar MCP sets.
+Agent Deck scopes MCP tools via a **bound deck** (session `bind_workspace`, env, or header). The [agent harness](./AGENT_HARNESS.md) teaches agents to call `bind_workspace` but exposes **no human-visible indicator** of which deck is active. Users report uncertainty after `switch_bound_deck` or when multiple decks share similar MCP sets.
 
 This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` CLI** integrated with Cursor/Claude status lines, a display API, and minimal MCP/harness additions. Session binding remains in-memory (`McpSessionBindingStore`); the backend registry bridges live MCP binds to the terminal footer.
 
@@ -21,8 +21,8 @@ This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` 
 | # | Criterion | Target window |
 |---|-----------|---------------|
 | SC-1 | Status line shows correct deck name within one prompt update after `bind_workspace` | Phase 5a |
-| SC-2 | `switch_bound_deck` updates status line without editing `deck.yaml` | Phase 5a |
-| SC-3 | Repo with only `deck.yaml` shows deck when Agent Deck is running | Phase 5a |
+| SC-2 | `switch_bound_deck` updates status line for this session only | Phase 5a |
+| SC-3 | Unbound until `bind_workspace({ deckId })`; no repo file auto-bind | Phase 5a |
 | SC-4 | No secret values in sidecar, status line, or summary resource | Phase 5a |
 | SC-5 | `agent-deck setup --statusline` installs config idempotently | Phase 5b — shipped |
 
@@ -58,7 +58,7 @@ This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` 
 
 ### US-2 — Session deck override visible
 
-**As a** user who called `switch_bound_deck` **I want** the status line to reflect the override **so that** I know `deck.yaml` was not edited.
+**As a** user who called `switch_bound_deck` **I want** the status line to reflect the override **so that** I know only this session changed decks.
 
 **Acceptance:**
 
@@ -73,8 +73,8 @@ This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` 
 
 **Acceptance:**
 
-- [ ] `agent-deck statusline` with `cwd` in repo shows `◆ Unbound — bind a deck to use Agent Deck` until `bind_workspace`
-- [ ] `deck.yaml` alone does not populate the footer
+- [ ] `agent-deck statusline` with `cwd` in repo shows `◆ Unbound — bind a deck to use Agent Deck` until `bind_workspace({ deckId })`
+- [ ] Leftover `.agent-deck/deck.yaml` files do not populate the footer
 
 *v1 · Phase 5a (reality-only model)*
 
@@ -103,13 +103,15 @@ This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` 
 
 ### US-6 — Dashboard sessions panel
 
-**As a** debugger **I want** to see all sidecar bindings **so that** I can fix stale workspace keys.
+**As a** debugger **I want** to see live MCP session binds (with badges) **so that** I can correlate chats with menu bar rows and spot stale binds.
 
 **Acceptance:**
 
-- [ ] `GET /api/scope/bindings` lists workspace → deck rows with `updatedAt`
+- [x] `GET /api/scope/bindings` lists live session rows (badge, deck, workspace, activity)
+- [x] Deck panel header shows live session **count** (`⌘N`); click opens all badges grouped by workspace
+- [ ] Full dedicated sessions sidebar (optional P1 — out of initial badge chip scope)
 
-*Deferred · Phase 5c*
+*Shipped · Phase 5c (badge chip on Deck panel)*
 
 ---
 
@@ -200,7 +202,7 @@ Agent client only. Body fields: `mcpSessionId`, `workspaceRoot`, `deckId`, `deck
     "deckId": { "type": ["string", "null"], "format": "uuid" },
     "deckName": { "type": ["string", "null"] },
     "source": {
-      "enum": ["session_override", "repo_manifest", "env", "unbound"]
+      "enum": ["session_override", "env", "unbound"]
     },
     "cardCounts": {
       "type": "object",

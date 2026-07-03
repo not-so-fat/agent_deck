@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   DISPLAY_LINE_MAX_LENGTH,
   DeckDisplaySchema,
+  LiveBindingSchema,
   countDeckCards,
   formatDisplayLine,
   formatDisplayUpdatedSuffix,
@@ -98,6 +99,52 @@ describe('deck-display', () => {
       expect(resolveStatusLineWorkspace({ workspace: { current_dir: '/repo' } })).toBe(
         path.resolve('/repo'),
       );
+    });
+  });
+
+  describe('formatDisplayLine badge', () => {
+    it('appends ⌘badge after counts', () => {
+      expect(
+        formatDisplayLine(
+          'Product Design',
+          { mcp: 4, credentials: 0, playbooks: 6 },
+          { badge: 'fox' },
+        ),
+      ).toBe('◆ Product Design · 4 MCP · 0 keys · 6 playbooks · ⌘fox');
+    });
+
+    it('counts the badge suffix in the 120-char budget', () => {
+      const line = formatDisplayLine(
+        'x'.repeat(200),
+        { mcp: 4, credentials: 0, playbooks: 6 },
+        { badge: 'zephyr' },
+      );
+      expect(line.length).toBeLessThanOrEqual(120);
+      expect(line.endsWith('· ⌘zephyr')).toBe(true);
+    });
+
+    it('omits badge when unbound', () => {
+      expect(
+        formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }, { badge: 'fox' }),
+      ).not.toContain('⌘');
+    });
+  });
+
+  describe('LiveBindingSchema', () => {
+    it('accepts a full binding row and rejects missing badge', () => {
+      const row = {
+        badge: 'fox',
+        deckId: '11111111-1111-4111-8111-111111111111',
+        deckName: 'Product Design',
+        source: 'session_override',
+        workspaceRoot: '/repo',
+        clientName: 'cursor',
+        cardCounts: { mcp: 4, credentials: 0, playbooks: 6 },
+        updatedAt: '2026-07-03T00:00:00.000Z',
+        lastActivityAt: '2026-07-03T00:00:10.000Z',
+      };
+      expect(LiveBindingSchema.parse(row).badge).toBe('fox');
+      expect(LiveBindingSchema.safeParse({ ...row, badge: undefined }).success).toBe(false);
     });
   });
 

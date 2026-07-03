@@ -3,7 +3,6 @@ export * from './schemas/service';
 export * from './schemas/deck';
 export * from './schemas/credential';
 export * from './schemas/oauth';
-export * from './schemas/repo-deck';
 export * from './schemas/playbook';
 export * from './schemas/deck-display';
 

@@ -129,7 +129,7 @@ High level:
 - **Validation:** Zod at API boundary (`packages/shared` schemas)
 - **API shape:** `{ success, data?, error? }`
 - **Real-time:** WebSocket ` /api/ws/events` for dashboard
-- **Session bind:** in-memory per MCP session + optional repo `deck.yaml` — `McpSessionBindingStore`
+- **Session bind:** in-memory per MCP session — `McpSessionBindingStore`
 
 ---
 

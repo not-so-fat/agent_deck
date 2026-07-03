@@ -25,7 +25,7 @@ npx @agent-deck/cli setup --client claude --no-statusline   # skip prompt footer
 npx @agent-deck/cli setup --client cursor --scope project   # project MCP + project harness
 ```
 
-**Order of operations:** MCP must be connected before deck tools work (`claude mcp list` → agent-deck **Connected**). On the **first turn** of a workspace conversation, the harness tells the agent to `bind_workspace`, call `get_session_binding`, and show `display_summary` to the user (IDE Agent chat has no status footer). Terminal **status line** shows the bound deck in the prompt footer after `bind_workspace` registers the live MCP display on the backend (unbound until bind).
+**Order of operations:** MCP must be connected before deck tools work (`claude mcp list` → agent-deck **Connected**). On the **first turn** of a workspace conversation, the harness tells the agent to `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`, call `get_session_binding`, and show `display_summary` to the user (IDE Agent chat has no status footer). Terminal **status line** shows the bound deck in the prompt footer after `bind_workspace` registers the live MCP display on the backend (unbound until bind).
 
 **Manual status line (merge into existing settings — do not paste terminal output):**
 
@@ -75,7 +75,7 @@ Add your own notes above/below the harness markers in `agent-deck.mdc`, or anywh
 
 Three behaviors in one rule block (templates stay generic — no project-specific examples):
 
-0. **Connect MCP first** — `agent-deck setup --client … --start`, restart host; verify `claude mcp list` (Claude) or MCP panel (Cursor). Call `bind_workspace` with the project root at the start of each workspace session.
+0. **Connect MCP first** — `agent-deck setup --client … --start`, restart host; verify `claude mcp list` (Claude) or MCP panel (Cursor). Call `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` at the start of each workspace session.
 1. **Capability rescue** — use agent-deck before declining tool requests (`bind_workspace`, `list_bound_deck_services`, `call_service_tool`).
 2. **Playbooks as source of truth** — `list_playbooks` / `get_playbook` (match `triggers`); don’t mirror into `.cursor/skills/`.
 3. **Self-improvement loop** — applies when the user gives feedback on output you produced **after** `get_playbook` + following that playbook this session (identify from session trace, not title or artifact type). Default actions:
@@ -87,7 +87,9 @@ Three behaviors in one rule block (templates stay generic — no project-specifi
    - Restructure the playbook if the structure can’t absorb the lesson cleanly
    - Surface what changed so the user can audit drift
 
-**Project scope** adds: `bind_workspace` with this repo’s root; `list_playbooks` + match `triggers` before improvising.
+**Project scope** adds: `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` for this repo’s root; `list_playbooks` + match `triggers` before improvising.
+
+**After upgrading** (especially when repo-deck tools were removed): re-run `setup` so the marked harness block in `~/.cursor/rules/agent-deck.mdc` or `CLAUDE.md` picks up the new session-only bind wording. Editing the repo’s `packages/cli/src/agent-harness.ts` alone does not change already-installed global rules until `setup` runs again.
 
 Templates: [cursor-agent-deck.mdc](./examples/agent-harness/cursor-agent-deck.mdc), [claude-harness.md](./examples/agent-harness/claude-harness.md).
 

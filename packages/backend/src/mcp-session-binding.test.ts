@@ -32,7 +32,7 @@ describe('McpSessionBindingStore', () => {
     expect(headers[AGENT_DECK_DECK_ID_HEADER]).toBe('11111111-1111-4111-8111-111111111111');
   });
 
-  it('omits deck id header after clearDeckId so repo manifest can apply', () => {
+  it('omits deck id header after clearDeckId', () => {
     const store = new McpSessionBindingStore();
     store.setWorkspace('s1', '/Users/me');
     store.setDeckId('s1', '11111111-1111-4111-8111-111111111111');
@@ -68,18 +68,21 @@ describe('McpSessionBindingStore', () => {
 });
 
 describe('resolveDeckBindingSource', () => {
-  it('prefers session override over repo manifest', () => {
+  it('returns session_override when set on binding', () => {
     expect(
-      resolveDeckBindingSource(
-        { deckId: '11111111-1111-4111-8111-111111111111', deckSource: 'session_override' },
-        '22222222-2222-4222-8222-222222222222',
-      ),
+      resolveDeckBindingSource({
+        deckId: '11111111-1111-4111-8111-111111111111',
+        deckSource: 'session_override',
+      }),
     ).toBe('session_override');
   });
 
-  it('falls back to repo manifest when no override', () => {
+  it('returns env when binding comes from env default', () => {
     expect(
-      resolveDeckBindingSource({ workspaceRoot: '/repo' }, '22222222-2222-4222-8222-222222222222'),
-    ).toBe('repo_manifest');
+      resolveDeckBindingSource({
+        deckId: '22222222-2222-4222-8222-222222222222',
+        deckSource: 'env',
+      }),
+    ).toBe('env');
   });
 });

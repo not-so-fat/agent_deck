@@ -14,7 +14,7 @@
 
 | Module | Feature | User outcome |
 |--------|---------|--------------|
-| **1. Scope** | Repo `.agent-deck/deck.yaml` + workspace bind | Open workspace → correct deck, no MCP reconfig |
+| **1. Scope** | Session `bind_workspace` + optional env | Agent picks deck per session; no repo file |
 | **2. Vault** | Credentials in Keychain + `agent-deck exec` | One place for API keys; scripts run without `.env` |
 | **3. Playbooks** | Playbook cards + MCP read/write tools | Repeat procedures without re-explaining in chat |
 
@@ -28,7 +28,7 @@
 
 | Term | Meaning |
 |------|---------|
-| **Bound deck** | Deck for an **agent MCP session** via `bind_workspace` / `switch_bound_deck` (session `deckId` override), env `AGENT_DECK_DECK_ID`, repo `.agent-deck/deck.yaml`, or header `x-agent-deck-deck-id`. |
+| **Bound deck** | Deck for an **agent MCP session** via `bind_workspace({ workspaceRoot, deckId })`, `switch_bound_deck`, env `AGENT_DECK_DECK_ID`, or header `x-agent-deck-deck-id`. |
 | **Editing deck** | Deck selected in the **dashboard** for layout edits (`localStorage`: `agent-deck-editing-deck-id`). Does not affect agent scope. |
 | **My Collection** | Dashboard vault UI — all registered MCP services, API keys, and playbook cards (not a sidebar list). |
 | **Legacy active deck** | v1 `decks.is_active` + `POST /api/decks/:id/activate` + `GET /api/decks/active` still exist in the API/DB for backward compatibility; **MVP agent scoping and dashboard do not use them**. |
@@ -39,14 +39,15 @@
 
 Changes agreed during MVP implementation:
 
-1. **No global active deck for agents** — scoping is per-workspace manifest, not “one active deck for the whole MCP server.”
-2. **MCP tool names** — primary tools use `*_bound_deck_*`; `*_active_deck_*` tools remain as **deprecated aliases**.
-3. **Dashboard** — selects an **editing deck** only; copy manifest snippet from deck sidebar; **Import Deck** removed.
-4. **API keys** — shown only in **My Collection** (with MCP cards); vault API requires `x-agent-deck-client: dashboard`.
-5. **Fixed card colors** — MCP `#39FF14`; API keys `#F9386D`; playbooks `#FFFFFF`; MCP registration no longer exposes a color picker.
-6. **MCP card logos** — favicons auto-resolved from MCP URL on register; served at `GET /api/services/:id/icon` (POC shipped).
-7. **v1 header migration** — not automated; re-register as Credential + optional `credential_id` on Service.
-8. **Playbook cards** — stored in SQLite collection (like MCP/API key cards); markdown body + dependency refs; no filesystem discovery.
+1. **No global active deck for agents** — scoping is per MCP session (`bind_workspace` + `deckId`), not “one active deck for the whole MCP server.”
+2. **No repo deck manifest** — `.agent-deck/deck.yaml` is not read; agents bind explicitly each session.
+3. **MCP tool names** — primary tools use `*_bound_deck_*`; `*_active_deck_*` tools remain as **deprecated aliases**.
+4. **Dashboard** — selects an **editing deck** only; copy deck id from deck sidebar; **Import Deck** removed.
+5. **API keys** — shown only in **My Collection** (with MCP cards); vault API requires `x-agent-deck-client: dashboard`.
+6. **Fixed card colors** — MCP `#39FF14`; API keys `#F9386D`; playbooks `#FFFFFF`; MCP registration no longer exposes a color picker.
+7. **MCP card logos** — favicons auto-resolved from MCP URL on register; served at `GET /api/services/:id/icon` (POC shipped).
+8. **v1 header migration** — not automated; re-register as Credential + optional `credential_id` on Service.
+9. **Playbook cards** — stored in SQLite collection (like MCP/API key cards); markdown body + dependency refs; no filesystem discovery.
 
 ---
 
@@ -71,7 +72,7 @@ Changes agreed during MVP implementation:
 │  Agent Deck                                              │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐ │
 │  │ Deck scope  │  │ Vault        │  │ Playbooks     │ │
-│  │ (yaml bind) │  │ (Keychain)   │  │ (cards)       │ │
+│  │ (session)   │  │ (Keychain)   │  │ (cards)       │ │
 │  └─────────────┘  └──────────────┘  └───────────────┘ │
 │  ┌─────────────┐  ┌──────────────┐                     │
 │  │ MCP proxy   │  │ CLI: exec    │                     │
@@ -84,42 +85,35 @@ Changes agreed during MVP implementation:
 
 ## Module 1 — Scope
 
-### Repo deck manifest (lightweight)
+### Session binding
 
-Many repos can share one deck (N repos → 1 deck). Each repo points at a deck:
+Each MCP session starts **unbound**. The agent calls `bind_workspace({ workspaceRoot, deckId })` with a deck id from `get_decks` or the dashboard (My Decks → copy icon).
 
-```yaml
-# .agent-deck/deck.yaml
-deck_id: "<uuid-from-dashboard>"
-name: Hiring stack   # optional, for humans reading the repo
-```
+**Agent binding:**
 
-**Agent binding** (no global active deck):
+1. MCP `bind_workspace({ workspaceRoot, deckId })` — required `deckId`; sets workspace + deck for this session
+2. MCP `switch_bound_deck({ deckId })` — change deck mid-session
+3. Optional env `AGENT_DECK_WORKSPACE` + `AGENT_DECK_DECK_ID` for dev/single-session defaults
 
-1. MCP `bind_workspace({ workspaceRoot, deckId? })` — optional **session-only** `deckId` when multiple agents share the same path
-2. MCP `switch_bound_deck({ deckId })` — change deck mid-session without editing yaml
-3. Or env `AGENT_DECK_WORKSPACE` + optional `AGENT_DECK_DECK_ID`
-4. Or repo `.agent-deck/deck.yaml` when no session override (backend reads via `x-agent-deck-workspace`)
+**Precedence:** session `deckId` / `x-agent-deck-deck-id` → env default → error (unbound)
 
-**Precedence:** session `deckId` / `x-agent-deck-deck-id` → repo manifest → error
+**Dashboard** does not activate decks for agents. It only **edits** whichever deck you select (UI state in `localStorage`). Copy the deck id from the deck sidebar for `bind_workspace`.
 
-**Dashboard** does not activate decks for agents. It only **edits** whichever deck you select (UI state in `localStorage`). Copy the manifest snippet from the deck sidebar (copy icon) into repos that should use that deck.
-
-Monorepo conventions: [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md).
+Monorepo note: same workspace path can bind different decks per concurrent MCP session — see [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md).
 
 ### Behavior
 
-1. Agent calls `bind_workspace` with workspace root; pass `deckId` when concurrent sessions at the same path need different decks.
-2. If session has no `deckId` override and `.agent-deck/deck.yaml` exists → scope to manifest `deck_id`.
+1. Agent calls `get_decks`, then `bind_workspace` with workspace root and `deckId`.
+2. Concurrent sessions at the same path can use different `deckId` values via session binding.
 3. No fallback to a global active deck or `decks.is_active`.
 
 ### Deliverables
 
-- [x] Schema for `.agent-deck/deck.yaml` (`deck_id`, optional `name`)
-- [x] Backend: resolve manifest, `GET /api/scope/deck`, `POST /api/scope/resolve`
-- [x] MCP: `bind_workspace`, `switch_bound_deck`, `get_session_binding`, `get_repo_deck_status`, `setup_repo_deck`, `get_bound_deck` (deprecated `get_active_deck` alias)
-- [x] Dashboard: editing deck selector, copy manifest snippet
-- [x] Docs: monorepo convention — [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md)
+- [x] Backend: `GET /api/scope/deck` (requires session deck id header)
+- [x] MCP: `bind_workspace`, `switch_bound_deck`, `get_session_binding`, `get_bound_deck` (deprecated `get_active_deck` alias)
+- [x] Dashboard: editing deck selector, copy deck id
+- [x] Docs: monorepo session binding — [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md)
+- [x] Removed: repo `.agent-deck/deck.yaml`, `setup_repo_deck`, `get_repo_deck_status`, `POST /api/scope/resolve`
 
 ---
 
@@ -155,7 +149,7 @@ Humans never pick env var names in the UI. Agents **discover** metadata via the 
 ### Deck scoping (strict enforcement)
 
 - **Vault (collection)** = all registered API keys. Dashboard only via `GET /api/credentials/vault` with header `x-agent-deck-client: dashboard`.
-- **Bound deck** = project boundary for agents. Agents only see credentials on the deck resolved from workspace manifest (or explicit deck id header).
+- **Bound deck** = project boundary for agents. Agents only see credentials on the session-bound deck (via `bind_workspace` / `x-agent-deck-deck-id`).
 - **Editing deck (dashboard)** = drag target for MCP and API key cards. Drag onto deck to link; drag out to unlink — keys stay in the vault.
 
 Client header `x-agent-deck-client`:
@@ -174,7 +168,7 @@ Client header `x-agent-deck-client`:
 
 | Tool | Purpose |
 |------|---------|
-| `bind_workspace` / `setup_repo_deck` | Bind session to repo; read `deck.yaml` |
+| `bind_workspace` / `switch_bound_deck` | Bind session to workspace + deck |
 | `get_bound_deck`, `get_decks`, `create_deck` | Deck read/create |
 | `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
 | `add_service_to_bound_deck` / `remove_service_from_bound_deck` | Link MCP cards on bound deck |
@@ -374,11 +368,11 @@ No MCP for Ashby — validates **API key + exec** path.
 
 ```
 ashby-triage/
-  .agent-deck/
-    deck.yaml
   roles/              # unchanged — user's domain logic
   .claude/skills/hiring/SKILL.md
 ```
+
+Agent binds via `bind_workspace({ workspaceRoot, deckId: "<hiring-deck-uuid>" })`.
 
 Register hiring playbooks as **cards** in Agent Deck (dashboard or `register_playbook` MCP tool). Sample content: [docs/examples/playbooks/](./examples/playbooks/).
 
@@ -392,7 +386,7 @@ agent-deck credential add cred_slack --env-name SLACK_BOT_TOKEN --scheme bearer
 
 # Run without .env
 cd ashby-triage
-agent-deck exec --deck <deck-id-from-yaml> --connections cred_ashby,cred_openai,cred_slack -- \
+agent-deck exec --deck <deck-id> --connections cred_ashby,cred_openai,cred_slack -- \
   uv run hiring inbox --dry-run
 ```
 
@@ -450,7 +444,7 @@ agent-deck exec --deck <deck-id-from-yaml> --connections cred_ashby,cred_openai,
 - [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md) — bound deck visibility in Cursor/Claude (proposed)
 - [README.md](./README.md) — documentation index and conventions
 - [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) — when to use playbooks vs Cursor skills
-- [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) — monorepo `deck.yaml` placement
+- [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) — monorepo session binding
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — components, secrets, data model
 - [DEVELOPMENT.md](./DEVELOPMENT.md) — contribute, test
 - [examples/playbooks/](./examples/playbooks/) — sample playbook markdown

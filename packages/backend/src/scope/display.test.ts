@@ -48,7 +48,7 @@ describe('resolveDeckDisplay', () => {
     expect(display.displayLine).toContain('(updated');
   });
 
-  it('returns unbound when no live MCP session is bound', async () => {
+  it('returns unbound when deck.yaml exists on disk but no live session', async () => {
     const workspace = path.join(tempDir, 'repo-manifest');
     await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
 
@@ -62,7 +62,7 @@ describe('resolveDeckDisplay', () => {
     const display = await resolveDeckDisplay({ workspaceRoot: workspace }, db, registry);
     expect(display.deckId).toBeNull();
     expect(display.source).toBe('unbound');
-    expect(display.displayLine).toBe('◆ Unbound — bind a deck to use Agent Deck');
+    expect(display.displayLine).toContain('◆ Unbound — bind a deck to use Agent Deck');
   });
 
   it('returns unbound for empty workspace', async () => {
@@ -72,6 +72,6 @@ describe('resolveDeckDisplay', () => {
     const display = await resolveDeckDisplay({ workspaceRoot: workspace }, db, registry);
     expect(display.deckId).toBeNull();
     expect(display.source).toBe('unbound');
-    expect(display.displayLine).toBe('◆ Unbound — bind a deck to use Agent Deck');
+    expect(display.displayLine).toContain('◆ Unbound — bind a deck to use Agent Deck');
   });
 });

@@ -28,7 +28,7 @@
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Clone, test, contribute |
 | [AGENT_HARNESS.md](./AGENT_HARNESS.md) | What `agent-deck setup` installs |
 | [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) | Playbooks vs Cursor skills |
-| [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | `deck.yaml` in monorepos |
+| [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | Session binding in monorepos |
 | [PUBLISHING.md](./PUBLISHING.md) | npm release, distribution |
 
 ## Proposed features

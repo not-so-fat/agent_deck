@@ -13,16 +13,17 @@ import {
   type SetupScope,
 } from './mcp-config';
 import { installStatusline, type StatuslineClient } from './statusline-setup';
-import { ensureRepoDeckManifest } from './repo-deck-init';
+import { isDarwinPlatform, setupMenubar } from './menubar-setup';
 import { CLI_DEFAULT_MCP_PORT, parseCliMcpPort } from './defaults';
 
 export interface SetupOptions {
-  client: McpClient;
+  client: McpClient | null;
   scope?: SetupScope;
   host?: string;
   mcpPort?: number;
   start?: boolean;
   statusline: boolean;
+  menubar: boolean;
 }
 
 function parseClient(value: string | undefined): McpClient | null {
@@ -49,6 +50,7 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
   let mcpPort = parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   let start = false;
   let statusline: boolean | undefined;
+  let menubar: boolean | undefined;
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -71,6 +73,10 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
       statusline = true;
     } else if (arg === '--no-statusline') {
       statusline = false;
+    } else if (arg === '--menubar') {
+      menubar = true;
+    } else if (arg === '--no-menubar') {
+      menubar = false;
     } else if (arg === '--help' || arg === '-h') {
       return { error: 'help' };
     } else {
@@ -79,6 +85,9 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
   }
 
   if (!client) {
+    if (menubar === true) {
+      return { client: null, scope, host, mcpPort, start, statusline: false, menubar: true };
+    }
     return { error: '--client is required (cursor, claude, or claude-desktop)' };
   }
 
@@ -97,7 +106,19 @@ function parseSetupArgs(args: string[]): SetupOptions | { error: string } {
     mcpPort,
     start,
     statusline: resolveSetupStatusline(client, statusline),
+    menubar: resolveSetupMenubar(client, menubar),
   };
+}
+
+/** Menu bar plugin on by default on macOS (SwiftBar); opt out with --no-menubar. */
+export function resolveSetupMenubar(client: McpClient, explicit?: boolean): boolean {
+  if (explicit === false) {
+    return false;
+  }
+  if (explicit === true) {
+    return true;
+  }
+  return isDarwinPlatform();
 }
 
 /** Status line is on by default for Claude Code and Cursor CLI; optional for Claude Desktop. */
@@ -146,18 +167,26 @@ async function tryClaudeCliAdd(endpoint: McpEndpoint): Promise<{ ok: boolean; er
 
 export function printSetupUsage(): void {
   console.log(`Usage:
-  agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--mcp-port PORT] [--start] [--no-statusline]
+  agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--mcp-port PORT] [--start]
+  agent-deck setup --menubar
+
+Recommended (macOS, both terminal agents + menu bar):
+  agent-deck setup --client cursor --start
+  agent-deck setup --client claude
 
 Options:
-  --client          MCP client to configure (required)
+  --client          MCP client to configure (required unless --menubar alone)
   --scope           global (default) or project — project only for cursor/claude
   --host            MCP host (default 127.0.0.1 or AGENT_DECK_HOST)
   --mcp-port        MCP port (default ${CLI_DEFAULT_MCP_PORT} or AGENT_DECK_MCP_PORT)
   --start           Start Agent Deck after writing config
   --no-statusline   Skip prompt status line (default: on for cursor and claude)
   --statusline      Same as default for cursor/claude (kept for compatibility)
+  --no-menubar      Skip SwiftBar menu bar plugin (default: on for macOS)
+  --menubar         Force menu bar plugin (also works alone, without --client)
 
-Setup installs MCP config, agent harness, and deck status line (Claude Code / Cursor CLI).`);
+Setup installs MCP config, agent harness, terminal status line, and on macOS: SwiftBar plugin
+(+ Homebrew SwiftBar install when run interactively in a terminal).`);
 }
 
 async function finishSetup(
@@ -166,6 +195,7 @@ async function finishSetup(
   endpoint: McpEndpoint,
   shouldStart: boolean,
   withStatusline: boolean,
+  withMenubar: boolean,
 ): Promise<number> {
   const harness = installAgentHarness(client, scope);
   console.log(harness.message);
@@ -173,13 +203,6 @@ async function finishSetup(
     console.log('  See docs/AGENT_HARNESS.md if you also use Claude Code or Cursor.');
   }
 
-  if (scope === 'project' && (client === 'cursor' || client === 'claude')) {
-    const deck = await ensureRepoDeckManifest(process.cwd(), { host: endpoint.host });
-    console.log(deck.message);
-    if (deck.action === 'skipped' && !deck.path) {
-      console.log('  Or in Claude: ask the agent to call MCP setup_repo_deck for this workspace.');
-    }
-  }
 
   if (withStatusline) {
     if (client === 'cursor' || client === 'claude') {
@@ -195,7 +218,15 @@ async function finishSetup(
     }
   }
 
-  printNextSteps(endpoint, shouldStart, client, withStatusline);
+  if (withMenubar) {
+    const plugin = setupMenubar();
+    console.log(plugin.message);
+    for (const hint of plugin.hints) {
+      console.log(`  ${hint}`);
+    }
+  }
+
+  printNextSteps(endpoint, shouldStart, client, withStatusline, withMenubar);
   return shouldStart ? 2 : 0;
 }
 
@@ -211,34 +242,44 @@ export async function runSetup(args: string[]): Promise<number> {
     return 1;
   }
 
+  if (parsed.menubar && !parsed.client) {
+    const plugin = setupMenubar();
+    console.log(plugin.message);
+    for (const hint of plugin.hints) {
+      console.log(`  ${hint}`);
+    }
+    return 0;
+  }
+
+  const client = parsed.client!;
   const endpoint: McpEndpoint = {
     host: parsed.host ?? '127.0.0.1',
     mcpPort: parsed.mcpPort ?? CLI_DEFAULT_MCP_PORT,
   };
   const scope = parsed.scope ?? 'global';
 
-  if (parsed.client === 'claude') {
+  if (client === 'claude') {
     const added = await tryClaudeCliAdd(endpoint);
     if (added.ok) {
       console.log('Configured Claude Code via `claude mcp add` → ~/.claude.json');
       console.log('Verify: claude mcp list');
-      return await finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
+      return await finishSetup(client, scope, endpoint, parsed.start === true, parsed.statusline, parsed.menubar);
     }
     console.warn(`Claude CLI failed (${added.error ?? 'unknown error'}) — writing ~/.claude.json instead`);
   }
 
-  const configPath = resolveConfigPath(parsed.client, scope);
-  const entry = buildAgentDeckEntry(parsed.client, endpoint);
+  const configPath = resolveConfigPath(client, scope);
+  const entry = buildAgentDeckEntry(client, endpoint);
   const merged = mergeMcpServerConfig(readJsonFile(configPath), entry);
   writeJsonFile(configPath, merged);
 
   console.log(`Wrote agent-deck MCP config → ${configPath}`);
-  if (parsed.client === 'claude-desktop') {
+  if (client === 'claude-desktop') {
     console.log('Claude Desktop uses a stdio bridge (supergateway) because JSON config is stdio-only.');
     console.log('Start Agent Deck before opening Claude Desktop.');
   }
 
-  return await finishSetup(parsed.client, scope, endpoint, parsed.start === true, parsed.statusline);
+  return await finishSetup(client, scope, endpoint, parsed.start === true, parsed.statusline, parsed.menubar);
 }
 
 function printNextSteps(
@@ -246,21 +287,38 @@ function printNextSteps(
   shouldStart: boolean,
   client: McpClient,
   withStatusline = false,
+  withMenubar = false,
 ): void {
   console.log('');
   console.log('Next steps:');
+  let step = 1;
   if (shouldStart) {
-    console.log('  1. Agent Deck will start now (same as `agent-deck start`)');
+    console.log(`  ${step}. Agent Deck will start now (same as \`agent-deck start\`)`);
   } else {
-    console.log('  1. npx @agent-deck/cli@latest start  (or `agent-deck stop` first if ports are busy)');
+    console.log(`  ${step}. agent-deck start  (or \`agent-deck stop\` first if ports are busy)`);
   }
-  console.log(`  2. MCP endpoint → ${buildMcpUrl(endpoint)}`);
-  console.log('  3. Restart Claude Code / Cursor so MCP + harness rules load');
+  step += 1;
+  console.log(`  ${step}. MCP endpoint → ${buildMcpUrl(endpoint)}`);
+  step += 1;
+  console.log(`  ${step}. Restart Claude Code / Cursor so MCP + harness rules load`);
+  step += 1;
   if (client === 'claude') {
-    console.log('  4. Claude Code: `claude mcp list` — agent-deck should show Connected when step 1 is running');
+    console.log(`  ${step}. Claude Code: \`claude mcp list\` — agent-deck should show Connected when the backend is running`);
+    step += 1;
+  }
+  if (client === 'cursor' || client === 'claude') {
+    console.log(`  ${step}. Set up the other terminal agent: agent-deck setup --client ${client === 'cursor' ? 'claude' : 'cursor'}`);
+    step += 1;
   }
   if (withStatusline && (client === 'cursor' || client === 'claude')) {
-    console.log('  5. Prompt footer should show "deck | N MCP | ..." after bind_workspace (debug: agent-deck statusline --workspace <path>)');
+    console.log(
+      `  ${step}. Terminal footer shows deck after bind_workspace (debug: agent-deck statusline --workspace <path>)`,
+    );
+    step += 1;
+  }
+  if (withMenubar && isDarwinPlatform()) {
+    console.log(`  ${step}. Menu bar shows ⌘badges after bind_workspace (matches chat opener + dashboard)`);
+    step += 1;
   }
   console.log('');
   console.log('Optional: AGENT_DECK_AUTO_UPGRADE=1 agent-deck start  (check npm for updates on start)');

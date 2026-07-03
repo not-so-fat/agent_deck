@@ -4,7 +4,7 @@
 
 **Connect first:** Ensure Agent Deck MCP is connected before using deck tools (`agent-deck setup --client cursor|claude --start`, then restart the host). Claude Code: `claude mcp list` should show agent-deck as Connected when the backend is running.
 
-**Session opener (first turn only):** When Agent Deck MCP is connected and this is a new conversation in a workspace, call `bind_workspace` with the project root (use `get_repo_deck_status` first if `.agent-deck/deck.yaml` may be missing), then `get_session_binding`, and tell the user **exactly one line** using `display_summary` (e.g. `◆ dev · 2 MCP · 0 keys · 1 playbooks`). This is the deck-status line for IDE Agent chat — there is no host footer there. Do **not** repeat it every turn unless the user asks or the bind changes (`switch_bound_deck`, new repo).
+**Session opener (first turn only):** When Agent Deck MCP is connected and this is a new conversation in a workspace, call `get_decks`, then `bind_workspace` with the project root and a `deckId`, then `get_session_binding`, and tell the user **exactly one line** using `display_summary` (e.g. `◆ dev · 2 MCP · 0 keys · 1 playbooks`). This is the deck-status line for IDE Agent chat — there is no host footer there. Do **not** repeat it every turn unless the user asks or the bind changes (`switch_bound_deck`, new repo).
 
 **Later turns:** Call `bind_workspace` before the first deck-scoped tool if not already bound. Terminal hosts may also show the deck in the prompt footer via `statusLine`; do not duplicate unless the user asks.
 

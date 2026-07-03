@@ -38,7 +38,7 @@ describe('LiveDisplayRegistry', () => {
       workspaceRoot: workspace,
       deckId: '11111111-1111-4111-8111-111111111111',
       deckName: 'Root Deck',
-      source: 'repo_manifest',
+      source: 'session_override',
       cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
       updatedAt: '2026-07-02T15:33:00.000Z',
     });
@@ -57,12 +57,86 @@ describe('LiveDisplayRegistry', () => {
       workspaceRoot: workspace,
       deckId: '11111111-1111-4111-8111-111111111111',
       deckName: 'Root Deck',
-      source: 'repo_manifest',
+      source: 'session_override',
       cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
       updatedAt: '2026-07-02T15:33:00.000Z',
     });
     registry.remove('session-1');
 
     expect(registry.findForWorkspace(workspace)).toBeNull();
+  });
+
+  it('assigns distinct badges and preserves a session badge across re-upsert', () => {
+    const registry = new LiveDisplayRegistry();
+    const base = {
+      workspaceRoot: path.resolve('/repo'),
+      deckId: '11111111-1111-4111-8111-111111111111',
+      deckName: 'Deck A',
+      source: 'session_override' as const,
+      cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+      updatedAt: '2026-07-03T00:00:00.000Z',
+    };
+
+    const first = registry.upsert({ ...base, mcpSessionId: 'one' });
+    const second = registry.upsert({ ...base, mcpSessionId: 'two' });
+    expect(first.badge).not.toBe(second.badge);
+
+    const switched = registry.upsert({
+      ...base,
+      mcpSessionId: 'one',
+      deckName: 'Deck B',
+      updatedAt: '2026-07-03T00:01:00.000Z',
+    });
+    expect(switched.badge).toBe(first.badge);
+    expect(switched.deckName).toBe('Deck B');
+  });
+
+  it('touch bumps lastActivityAt monotonically and ignores unknown sessions', () => {
+    const registry = new LiveDisplayRegistry();
+    const entry = registry.upsert({
+      mcpSessionId: 'one',
+      workspaceRoot: path.resolve('/repo'),
+      deckId: '11111111-1111-4111-8111-111111111111',
+      deckName: 'Deck A',
+      source: 'session_override',
+      cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+      updatedAt: '2026-07-03T00:00:00.000Z',
+    });
+    expect(entry.lastActivityAt).toBe('2026-07-03T00:00:00.000Z');
+
+    registry.touch('one', '2026-07-03T00:05:00.000Z');
+    registry.touch('one', '2026-07-03T00:01:00.000Z');
+    registry.touch('ghost', '2026-07-03T00:05:00.000Z');
+    expect(registry.list()[0].lastActivityAt).toBe('2026-07-03T00:05:00.000Z');
+  });
+
+  it('list sorts by lastActivityAt descending', () => {
+    const registry = new LiveDisplayRegistry();
+    const base = {
+      workspaceRoot: path.resolve('/repo'),
+      deckId: '11111111-1111-4111-8111-111111111111',
+      deckName: 'Deck',
+      source: 'session_override' as const,
+      cardCounts: { mcp: 0, credentials: 0, playbooks: 0 },
+    };
+    registry.upsert({ ...base, mcpSessionId: 'old', updatedAt: '2026-07-03T00:00:00.000Z' });
+    registry.upsert({ ...base, mcpSessionId: 'new', updatedAt: '2026-07-03T01:00:00.000Z' });
+    expect(registry.list().map((e) => e.mcpSessionId)).toEqual(['new', 'old']);
+  });
+
+  it('remove frees the badge for new sessions', () => {
+    const registry = new LiveDisplayRegistry();
+    const base = {
+      workspaceRoot: path.resolve('/repo'),
+      deckId: '11111111-1111-4111-8111-111111111111',
+      deckName: 'Deck',
+      source: 'session_override' as const,
+      cardCounts: { mcp: 0, credentials: 0, playbooks: 0 },
+      updatedAt: '2026-07-03T00:00:00.000Z',
+    };
+    const first = registry.upsert({ ...base, mcpSessionId: 'one' });
+    registry.remove('one');
+    const next = registry.upsert({ ...base, mcpSessionId: 'two' });
+    expect(next.badge).toBe(first.badge);
   });
 });
