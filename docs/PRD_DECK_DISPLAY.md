@@ -14,7 +14,7 @@ playbooks: pb_ai_codegen_prd, pb_product_principle
 
 Agent Deck scopes MCP tools via a **bound deck** (session override, env, or repo `.agent-deck/deck.yaml`). The [agent harness](./AGENT_HARNESS.md) teaches agents to call `bind_workspace` but exposes **no human-visible indicator** of which deck is active. Users report uncertainty after `switch_bound_deck` or when multiple decks share similar MCP sets.
 
-This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI** integrated with Cursor/Claude status lines, a display API, and minimal MCP/harness additions. Session binding remains in-memory (`McpSessionBindingStore`); the sidecar bridges MCP events to host UI.
+This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` CLI** integrated with Cursor/Claude status lines, a display API, and minimal MCP/harness additions. Session binding remains in-memory (`McpSessionBindingStore`); the backend registry bridges live MCP binds to the terminal footer.
 
 **Success criteria (time-boxed):**
 
@@ -51,7 +51,7 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 **Acceptance:**
 
 - [ ] After successful `bind_workspace`, status line within 300 ms (next host refresh) shows `◆ <deckName> · <counts>`
-- [ ] Sidecar file updated at `~/.agent-deck/bindings.json` (or dev path)
+- [ ] Live display registry updated on backend (in-memory, per MCP session)
 - [ ] No deck name written to `agent-deck.mdc` / CLAUDE.md
 
 *v1 · Phase 5a*
@@ -67,16 +67,16 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 
 *v1 · Phase 5a*
 
-### US-3 — Manifest-only workspace
+### US-3 — Unbound before bind
 
-**As a** user with `.agent-deck/deck.yaml` but no explicit bind **I want** the status line to resolve the manifest deck **so that** I see scope before the agent calls MCP.
+**As a** user at session launch **I want** the status line to show unbound **so that** I am not misled by stale manifest or sidecar data.
 
 **Acceptance:**
 
-- [ ] `agent-deck statusline` with `cwd` in repo resolves via `POST /api/scope/resolve` when sidecar absent
-- [ ] Shows deck name from manifest `deck_id`
+- [ ] `agent-deck statusline` with `cwd` in repo shows `◆ Unbound — bind a deck to use Agent Deck` until `bind_workspace`
+- [ ] `deck.yaml` alone does not populate the footer
 
-*v1 · Phase 5a*
+*v1 · Phase 5a (reality-only model)*
 
 ### US-4 — Agent Deck offline
 
@@ -115,29 +115,29 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 
 ## 4. Features & requirements
 
-### Pillar A — Binding sidecar
+### Pillar A — Live MCP display registry
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F1.1 | On `bind_workspace` / `switch_bound_deck` success, upsert sidecar entry keyed by **`workspaceRoot`** | File matches `BindingsFile` schema (§7.1) |
-| F1.2 | Sidecar path under `resolveAgentDeckHome()` | `bindings.json` |
+| F1.1 | On `bind_workspace` / `switch_bound_deck` success, MCP POSTs to `POST /api/scope/live-display` | Agent client header required |
+| F1.2 | Registry keyed by MCP session id; lookup by workspace walks up monorepo parents | In-memory on backend |
 | F1.3 | Entry includes `deckId`, `deckName`, `source`, `updatedAt`, `cardCounts` | No secrets |
-| F1.4 | **Terminal status line** keys by workspace path (Claude `session_id` ≠ MCP session id); MCP tools remain per-session in memory | Last bind/switch per workspace wins for footer |
+| F1.4 | MCP session close DELETEs registry row | Footer clears on disconnect |
 
 ### Pillar B — Display resolution
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F2.1 | Precedence: **workspace** sidecar → env (`AGENT_DECK_*`) → repo manifest → unbound | Matches Module 1 bind order |
-| F2.2 | `GET /api/scope/display?workspaceRoot=` returns `DeckDisplay` (§7.2) | Used by statusline; `sessionId` ignored for lookup |
-| F2.3 | Monorepo walk-up for manifest | Same rules as `loadRepoDeckManifest` |
-| F2.4 | Unbound returns `deckName: null`; status line shows `—` or hides | US-4 |
+| F2.1 | Precedence: **live MCP bind for workspace** → unbound | No sidecar, env, or manifest guessing |
+| F2.2 | `GET /api/scope/display?workspaceRoot=` returns `DeckDisplay` (§7.2) | Used by statusline |
+| F2.3 | Monorepo walk-up for live registry lookup | Same walk-up as former sidecar |
+| F2.4 | Unbound returns `deckName: null`; status line shows `◆ Unbound — bind a deck to use Agent Deck` | US-4 |
 
 ### Pillar C — Status line CLI
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F3.1 | `agent-deck statusline` reads JSON stdin (`StatusLinePayload`) | Uses `cwd` / `workspace.project_dir` for sidecar lookup |
+| F3.1 | `agent-deck statusline` reads JSON stdin (`StatusLinePayload`) | Uses `cwd` / `workspace.project_dir` for workspace lookup |
 | F3.2 | `agent-deck statusline --workspace <path>` for debug | No stdin required |
 | F3.3 | Output format: `◆ {name} · {counts} (updated YYYY-MM-DD HH:mm)` when bound | Max 120 chars; truncate name |
 | F3.4 | Respects `AGENT_DECK_PORT` / CLI defaults for API URL | Works in dev and prod |
@@ -183,35 +183,9 @@ This PRD specifies a **binding sidecar file**, a **`agent-deck statusline` CLI**
 
 JSON Schema Draft 2020-12. Implementation: `packages/shared/src/schemas/deck-display.ts`.
 
-### 7.1 Bindings file (`bindings.json`)
+### 7.1 Live display registration (`POST /api/scope/live-display`)
 
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-deck.dev/schemas/bindings-file/v1.json",
-  "type": "object",
-  "additionalProperties": {
-    "type": "object",
-    "required": ["deckId", "deckName", "source", "updatedAt", "cardCounts"],
-    "properties": {
-      "deckId": { "type": "string", "format": "uuid" },
-      "deckName": { "type": "string" },
-      "source": { "enum": ["session_override", "repo_manifest", "env"] },
-      "updatedAt": { "type": "string", "format": "date-time" },
-      "cardCounts": {
-        "type": "object",
-        "properties": {
-          "mcp": { "type": "integer", "minimum": 0 },
-          "credentials": { "type": "integer", "minimum": 0 },
-          "playbooks": { "type": "integer", "minimum": 0 }
-        }
-      },
-      "oauthWarningCount": { "type": "integer", "minimum": 0 }
-    }
-  },
-  "description": "Keys are absolute workspace root paths"
-}
-```
+Agent client only. Body fields: `mcpSessionId`, `workspaceRoot`, `deckId`, `deckName`, `source`, `cardCounts`, `updatedAt`. Removed on MCP session close via `DELETE /api/scope/live-display/:mcpSessionId`.
 
 ### 7.2 Deck display API (`DeckDisplay`)
 
@@ -238,6 +212,8 @@ JSON Schema Draft 2020-12. Implementation: `packages/shared/src/schemas/deck-dis
     },
     "oauthWarningCount": { "type": "integer" },
     "agentDeckOnline": { "type": "boolean" },
+    "mcpOnline": { "type": "boolean" },
+    "updatedAt": { "type": "string", "format": "date-time" },
     "displayLine": {
       "type": "string",
       "description": "Pre-rendered status line per F3.3"
@@ -250,14 +226,14 @@ JSON Schema Draft 2020-12. Implementation: `packages/shared/src/schemas/deck-dis
 
 | Field | Type | Required | Use |
 |-------|------|----------|-----|
-| `cwd` | string | yes | Resolve workspace for sidecar + manifest |
+| `cwd` | string | yes | Resolve workspace for live registry lookup |
 | `workspace.current_dir` | string | no | Fallback if `cwd` absent |
 | `workspace.project_dir` | string | no | Preferred workspace root when set |
-| `session_id` | string | no | Ignored for sidecar lookup (Claude Code id ≠ MCP session id) |
+| `session_id` | string | no | Ignored (host id ≠ MCP session id) |
 
 Agent Deck ignores model, tokens, and other payload fields.
 
-**Status line contract:** `bindings.json` is keyed by **workspace root**. Both `bind_workspace` and `switch_bound_deck` update that key. MCP session binding stays in-memory per MCP connection.
+**Status line contract:** Footer shows **live MCP bind only**. `bind_workspace` / `switch_bound_deck` register on the backend; unbound until bind. No `bindings.json` sidecar.
 
 ---
 

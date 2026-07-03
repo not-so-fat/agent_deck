@@ -1,11 +1,6 @@
-import fs from 'node:fs';
 import {
-  BindingsFileSchema,
   DeckDisplay,
   formatDisplayLine,
-  listBindingsFileCandidates,
-  resolveBindingEntry,
-  resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
   StatusLinePayloadSchema,
 } from '@agent-deck/shared';
@@ -76,13 +71,9 @@ function parseArgs(args: string[]): { workspace?: string } {
 async function fetchDisplay(
   backendUrl: string,
   workspaceRoot: string,
-  sessionId: string | undefined,
   timeoutMs: number,
 ): Promise<DeckDisplay | null> {
   const params = new URLSearchParams({ workspaceRoot });
-  if (sessionId) {
-    params.set('sessionId', sessionId);
-  }
   const url = `${backendUrl}/api/scope/display?${params.toString()}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -99,35 +90,6 @@ async function fetchDisplay(
     clearTimeout(timer);
   }
 }
-
-function readSidecarEntry(sessionId: string | undefined, workspaceRoot: string) {
-  for (const filePath of listBindingsFileCandidates()) {
-    try {
-      const raw = fs.readFileSync(filePath, 'utf8');
-      const parsed = BindingsFileSchema.safeParse(JSON.parse(raw));
-      if (!parsed.success) {
-        continue;
-      }
-      const entry = resolveBindingEntry(parsed.data, { sessionId, workspaceRoot });
-      if (entry) {
-        return entry;
-      }
-    } catch {
-      // try next candidate
-    }
-  }
-
-  return null;
-}
-
-function readSidecarLine(sessionId: string | undefined, workspaceRoot: string): string | null {
-  const entry = readSidecarEntry(sessionId, workspaceRoot);
-  if (!entry) {
-    return null;
-  }
-  return formatDisplayLine(entry.deckName, entry.cardCounts, { updatedAt: entry.updatedAt });
-}
-
 
 function resolveBackendPorts(): number[] {
   if (process.env.AGENT_DECK_PORT?.trim()) {
@@ -166,26 +128,10 @@ export function resolveStatuslineWorkspace(args: string[], stdin: string): strin
   return process.cwd();
 }
 
-export function resolveStatuslineSessionId(args: string[], stdin: string): string | undefined {
-  if (stdin.trim()) {
-    try {
-      const payload = StatusLinePayloadSchema.safeParse(JSON.parse(stdin));
-      if (payload.success) {
-        return resolveStatusLineSessionId(payload.data);
-      }
-    } catch {
-      // ignore malformed stdin
-    }
-  }
-
-  return undefined;
-}
-
 export async function runStatusline(args: string[]): Promise<number> {
   const { workspace: workspaceArg } = parseArgs(args);
   const stdin = workspaceArg?.trim() ? '' : await readStdin();
   const workspaceRoot = resolveStatuslineWorkspace(args, stdin);
-  const sessionId = resolveStatuslineSessionId(args, stdin);
 
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
   const backendPorts = resolveBackendPorts();
@@ -194,29 +140,15 @@ export async function runStatusline(args: string[]): Promise<number> {
 
   for (const backendPort of backendPorts) {
     const backendUrl = `http://${host}:${backendPort}`;
-    const display = await fetchDisplay(backendUrl, workspaceRoot, sessionId, timeoutMs);
+    const display = await fetchDisplay(backendUrl, workspaceRoot, timeoutMs);
     if (display?.displayLine) {
       printStatusLine(display.displayLine);
       return 0;
     }
   }
 
-  const sidecarLine = readSidecarLine(sessionId, workspaceRoot);
-  if (sidecarLine) {
-    printStatusLine(sidecarLine);
-    return 0;
-  }
-
-  const offlineEntry = readSidecarEntry(sessionId, workspaceRoot);
   printStatusLine(
-    formatDisplayLine(
-      offlineEntry?.deckName ?? null,
-      offlineEntry?.cardCounts ?? { mcp: 0, credentials: 0, playbooks: 0 },
-      {
-        offline: true,
-        updatedAt: offlineEntry?.updatedAt,
-      },
-    ),
+    formatDisplayLine(null, { mcp: 0, credentials: 0, playbooks: 0 }, { offline: true }),
   );
   return 0;
 }

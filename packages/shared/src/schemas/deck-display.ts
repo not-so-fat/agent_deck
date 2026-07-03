@@ -14,29 +14,15 @@ export const DeckCardCountsSchema = z.object({
   playbooks: z.number().int().min(0),
 });
 
-export const BindingEntrySchema = z.object({
-  deckId: z.string().uuid(),
-  deckName: z.string(),
-  source: z.enum(['session_override', 'repo_manifest', 'env']),
-  updatedAt: z.string().datetime(),
-  cardCounts: DeckCardCountsSchema,
-  oauthWarningCount: z.number().int().min(0).optional(),
-  /** Workspace at bind time (metadata only; display is keyed by session). */
-  workspaceRoot: z.string().optional(),
-});
-
-/** Keys are workspace roots (status line) plus legacy MCP session UUIDs pruned on write. */
-export const BindingsFileSchema = z.record(z.string(), BindingEntrySchema);
-
 export const DeckDisplaySchema = z.object({
   workspaceRoot: z.string(),
-  sessionId: z.string().nullable().optional(),
   deckId: z.string().uuid().nullable(),
   deckName: z.string().nullable(),
   source: DeckDisplaySourceSchema,
   cardCounts: DeckCardCountsSchema,
   oauthWarningCount: z.number().int().min(0).optional(),
   agentDeckOnline: z.boolean(),
+  mcpOnline: z.boolean().optional(),
   updatedAt: z.string().datetime().optional(),
   displayLine: z.string(),
 });
@@ -54,8 +40,6 @@ export const StatusLinePayloadSchema = z.object({
 
 export type DeckDisplaySource = z.infer<typeof DeckDisplaySourceSchema>;
 export type DeckCardCounts = z.infer<typeof DeckCardCountsSchema>;
-export type BindingEntry = z.infer<typeof BindingEntrySchema>;
-export type BindingsFile = z.infer<typeof BindingsFileSchema>;
 export type DeckDisplay = z.infer<typeof DeckDisplaySchema>;
 export type StatusLinePayload = z.infer<typeof StatusLinePayloadSchema>;
 
@@ -86,7 +70,7 @@ export function formatDisplayUpdatedSuffix(updatedAt: string): string {
 export function formatDisplayLine(
   deckName: string | null,
   counts: DeckCardCounts,
-  options?: { offline?: boolean; updatedAt?: string },
+  options?: { offline?: boolean; mcpOffline?: boolean; updatedAt?: string },
 ): string {
   const prefix = '◆ ';
   const updatedSuffix = options?.updatedAt ? formatDisplayUpdatedSuffix(options.updatedAt) : '';
@@ -99,70 +83,35 @@ export function formatDisplayLine(
   }
 
   if (!deckName) {
-    return `${prefix}—`;
+    const unboundLine = `${prefix}Unbound — bind a deck to use Agent Deck`;
+    const withMcp = options?.mcpOffline ? `${unboundLine} · MCP offline` : unboundLine;
+    return withMcp.length > DISPLAY_LINE_MAX_LENGTH
+      ? withMcp.slice(0, DISPLAY_LINE_MAX_LENGTH)
+      : withMcp;
   }
 
   const countsPart = `${counts.mcp} MCP · ${counts.credentials} keys · ${counts.playbooks} playbooks`;
   const separator = ' · ';
-  const suffixLength = updatedSuffix.length;
+  const mcpSuffix = options?.mcpOffline ? ' · MCP offline' : '';
+  const suffixLength = updatedSuffix.length + mcpSuffix.length;
   const fixedLength = prefix.length + separator.length + countsPart.length + suffixLength;
   const maxNameLength = DISPLAY_LINE_MAX_LENGTH - fixedLength;
 
   let name = deckName;
   if (maxNameLength < 1) {
-    const line = `${prefix}${countsPart}${updatedSuffix}`;
+    const line = `${prefix}${countsPart}${mcpSuffix}${updatedSuffix}`;
     return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
   }
   if (name.length > maxNameLength) {
     name = `${name.slice(0, Math.max(1, maxNameLength - 1))}…`;
   }
 
-  const line = `${prefix}${name}${separator}${countsPart}${updatedSuffix}`;
+  const line = `${prefix}${name}${separator}${countsPart}${mcpSuffix}${updatedSuffix}`;
   return line.length > DISPLAY_LINE_MAX_LENGTH ? line.slice(0, DISPLAY_LINE_MAX_LENGTH) : line;
 }
 
 export function normalizeWorkspaceRoot(workspaceRoot: string): string {
   return path.resolve(workspaceRoot.trim());
-}
-
-const BINDING_SESSION_KEY_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Legacy MCP-session keys in bindings.json (not Claude Code session_id). */
-export function isBindingSidecarSessionKey(key: string): boolean {
-  return BINDING_SESSION_KEY_RE.test(key.trim());
-}
-
-/** Walk up from workspaceRoot to find the nearest bindings sidecar entry. */
-export function lookupWorkspaceBinding(
-  bindings: BindingsFile,
-  workspaceRoot: string,
-): BindingEntry | null {
-  let current = normalizeWorkspaceRoot(workspaceRoot);
-  while (true) {
-    const entry = bindings[current];
-    if (entry) {
-      return entry;
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      break;
-    }
-    current = parent;
-  }
-  return null;
-}
-
-/** Workspace-root sidecar for terminal status line (Claude session_id ≠ MCP session id). */
-export function resolveBindingEntry(
-  bindings: BindingsFile,
-  options: { sessionId?: string; workspaceRoot?: string },
-): BindingEntry | null {
-  if (options.workspaceRoot?.trim()) {
-    return lookupWorkspaceBinding(bindings, options.workspaceRoot);
-  }
-
-  return null;
 }
 
 export function resolveStatusLineSessionId(payload: StatusLinePayload): string | undefined {

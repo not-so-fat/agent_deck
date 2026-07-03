@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-### Deck display — status line stale fix
+### Deck display — live MCP reality only
 
-- **Workspace-keyed sidecar** — `bind_workspace` and `switch_bound_deck` write `bindings.json[workspaceRoot]` (Claude Code `session_id` ≠ MCP session id)
-- **Lookup** — statusline and display API resolve by workspace path only; host `session_id` ignored
-- **Cleanup** — prune orphaned MCP-session UUID keys from `bindings.json` on each write
+- **Live registry** — `bind_workspace` / `switch_bound_deck` register display state on the backend; status line shows only active MCP session binds
+- **Unbound at launch** — no sidecar, manifest, or env guessing before `bind_workspace`
+- **Removed** — `bindings.json` sidecar writes/reads, workspace/session sidecar lookup, CLI sidecar fallback
+- **Unbound copy** — `◆ Unbound — bind a deck to use Agent Deck`; optional `· MCP offline` when backend is up but MCP is down
 
 ## 1.2.8 — 2026-07-02
 

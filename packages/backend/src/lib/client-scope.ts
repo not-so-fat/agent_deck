@@ -1,5 +1,6 @@
 import { FastifyRequest } from 'fastify';
 import {
+  AGENT_DECK_AGENT_CLIENT,
   AGENT_DECK_CLIENT_HEADER,
   AGENT_DECK_DASHBOARD_CLIENT,
   Deck,
@@ -55,6 +56,20 @@ export function isDashboardClient(request: FastifyRequest): boolean {
 export function requireDashboardClient(request: FastifyRequest): void {
   if (!isDashboardClient(request)) {
     throw new DashboardOnlyError();
+  }
+}
+
+export function requireAgentClient(request: FastifyRequest): void {
+  const value = request.headers[AGENT_DECK_CLIENT_HEADER];
+  if (typeof value !== 'string' || value.toLowerCase() !== AGENT_DECK_AGENT_CLIENT) {
+    throw new AgentClientOnlyError();
+  }
+}
+
+export class AgentClientOnlyError extends Error {
+  constructor(message = 'This operation requires an Agent Deck agent client') {
+    super(message);
+    this.name = 'AgentClientOnlyError';
   }
 }
 

@@ -25,6 +25,7 @@ import { registerCollectionRoutes } from '../routes/collection';
 import { PlaybookManager } from '../playbooks/playbook-manager';
 import { getAgentDeckVersion } from '../lib/version';
 import { seedDefaultServicesIfEmpty } from '../data/seed-default-services';
+import { LiveDisplayRegistry } from '../scope/live-display-registry';
 
 export async function createServer() {
   const fastify = Fastify({
@@ -65,6 +66,7 @@ export async function createServer() {
   void serviceManager.backfillMissingIcons();
   const playbookManager = new PlaybookManager(db);
   const collectionWarningService = new CollectionWarningService();
+  const liveDisplayRegistry = new LiveDisplayRegistry();
 
   // Register routes
   await fastify.register(registerWebSocketRoutes, { prefix: '/api/ws' });
@@ -120,6 +122,7 @@ export async function createServer() {
   fastify.decorate('credentialManager', credentialManager);
   fastify.decorate('playbookManager', playbookManager);
   fastify.decorate('collectionWarningService', collectionWarningService);
+  fastify.decorate('liveDisplayRegistry', liveDisplayRegistry);
 
   // Add broadcast decorators for WebSocket functionality
   fastify.decorate('broadcastServiceUpdate', (update: ServiceStatusUpdate) => {
@@ -152,6 +155,7 @@ declare module 'fastify' {
     credentialManager: CredentialManager;
     playbookManager: PlaybookManager;
     collectionWarningService: CollectionWarningService;
+    liveDisplayRegistry: LiveDisplayRegistry;
     broadcastServiceUpdate: (update: ServiceStatusUpdate) => void;
     broadcastDeckUpdate: (update: DeckUpdate) => void;
     broadcastToAll: (message: WebSocketMessage) => void;

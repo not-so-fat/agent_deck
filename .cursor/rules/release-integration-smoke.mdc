@@ -33,7 +33,7 @@ CHANGELOG (shipped) → dist/tarball contains code → setup wires it → artifa
 | `setup --client claude` | `~/.agent-deck/bin/statusline.sh`, `~/.claude/settings.json` → `statusLine` |
 | `setup --client cursor` | same script, `~/.cursor/cli-config.json` → `statusLine` |
 | Status line stdout | Exactly **one** line, starts with `◆`, no `npm warn`, no ANSI |
-| Prod vs dev data | Merge prod + dev `bindings.json`; API unbound must not block sidecar |
+| Live display | `POST/DELETE /api/scope/live-display` on bind/switch/close |
 | Host matrix | Terminal footer only — see [user-surface-feasibility.mdc](./user-surface-feasibility.mdc) |
 
 ## Adding a new user path

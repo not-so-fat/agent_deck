@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
-import { readStdin, resolveStatuslineSessionId, resolveStatuslineWorkspace, runStatusline } from './statusline';
+import { readStdin, resolveStatuslineWorkspace, runStatusline } from './statusline';
 
 describe('statusline', () => {
   it('prefers --workspace over stdin cwd', () => {
@@ -10,14 +10,6 @@ describe('statusline', () => {
       JSON.stringify({ cwd: '/stdin' }),
     );
     expect(workspace).toBe('/explicit');
-  });
-
-  it('reads session_id from stdin payload', () => {
-    const sessionId = resolveStatuslineSessionId(
-      [],
-      JSON.stringify({ session_id: '123e4567-e89b-12d3-a456-426614174000', cwd: '/repo' }),
-    );
-    expect(sessionId).toBe('123e4567-e89b-12d3-a456-426614174000');
   });
 
   it('reads cwd from stdin payload', () => {

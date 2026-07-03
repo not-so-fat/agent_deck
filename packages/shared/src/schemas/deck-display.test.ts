@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import {
-  BindingsFileSchema,
   DISPLAY_LINE_MAX_LENGTH,
   DeckDisplaySchema,
   countDeckCards,
   formatDisplayLine,
   formatDisplayUpdatedSuffix,
-  isBindingSidecarSessionKey,
-  lookupWorkspaceBinding,
-  resolveBindingEntry,
   resolveStatusLineSessionId,
   resolveStatusLineWorkspace,
 } from './deck-display';
@@ -36,13 +32,21 @@ describe('deck-display', () => {
       );
     });
 
-    it('renders unbound placeholder', () => {
-      expect(formatDisplayLine(null, counts)).toBe('◆ —');
+    it('renders unbound message', () => {
+      expect(formatDisplayLine(null, counts)).toBe(
+        '◆ Unbound — bind a deck to use Agent Deck',
+      );
     });
 
     it('renders offline message', () => {
       expect(formatDisplayLine('Dev Deck', counts, { offline: true })).toBe(
         '◆ Agent Deck offline',
+      );
+    });
+
+    it('appends MCP offline suffix when backend is up', () => {
+      expect(formatDisplayLine(null, counts, { mcpOffline: true })).toBe(
+        '◆ Unbound — bind a deck to use Agent Deck · MCP offline',
       );
     });
 
@@ -97,89 +101,16 @@ describe('deck-display', () => {
     });
   });
 
-  describe('resolveBindingEntry', () => {
-    const bindings = {
-      '123e4567-e89b-12d3-a456-426614174000': {
-        deckId: '223e4567-e89b-12d3-a456-426614174001',
-        deckName: 'MCP Session Deck',
-        source: 'session_override' as const,
-        updatedAt: '2026-01-01T00:00:00.000Z',
-        cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
-      },
-      [path.resolve('/repo')]: {
-        deckId: '323e4567-e89b-12d3-a456-426614174002',
-        deckName: 'Workspace Deck',
-        source: 'session_override' as const,
-        updatedAt: '2026-07-02T15:33:00.000Z',
-        cardCounts: { mcp: 4, credentials: 0, playbooks: 4 },
-      },
-    };
-
-    it('prefers workspace key over MCP session UUID keys', () => {
-      expect(
-        resolveBindingEntry(bindings, {
-          sessionId: '123e4567-e89b-12d3-a456-426614174000',
-          workspaceRoot: '/repo',
-        })?.deckName,
-      ).toBe('Workspace Deck');
-    });
-
-    it('ignores host session_id when workspace sidecar is absent', () => {
-      expect(
-        resolveBindingEntry(bindings, {
-          sessionId: '123e4567-e89b-12d3-a456-426614174000',
-          workspaceRoot: '/other',
-        }),
-      ).toBeNull();
-    });
-  });
-
-  describe('isBindingSidecarSessionKey', () => {
-    it('detects UUID session keys', () => {
-      expect(isBindingSidecarSessionKey('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
-      expect(isBindingSidecarSessionKey('/Users/me/repo')).toBe(false);
-    });
-  });
-
-  describe('lookupWorkspaceBinding', () => {
-    it('walks up to parent workspace keys', () => {
-      const bindings = {
-        [path.resolve('/repo')]: {
-          deckId: '123e4567-e89b-12d3-a456-426614174000',
-          deckName: 'Dev',
-          source: 'session_override' as const,
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
-        },
-      };
-      expect(lookupWorkspaceBinding(bindings, '/repo/packages/app')).toEqual(
-        bindings[path.resolve('/repo')],
-      );
-    });
-  });
-
   describe('schemas', () => {
-    it('validates bindings file entries', () => {
-      const result = BindingsFileSchema.safeParse({
-        '123e4567-e89b-12d3-a456-426614174000': {
-          deckId: '223e4567-e89b-12d3-a456-426614174001',
-          deckName: 'Dev',
-          source: 'session_override',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-          cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
-        },
-      });
-      expect(result.success).toBe(true);
-    });
-
     it('validates deck display payload', () => {
       const result = DeckDisplaySchema.safeParse({
         workspaceRoot: '/Users/me/repo',
         deckId: '123e4567-e89b-12d3-a456-426614174000',
         deckName: 'Dev',
-        source: 'repo_manifest',
+        source: 'session_override',
         cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
         agentDeckOnline: true,
+        mcpOnline: true,
         displayLine: '◆ Dev · 1 MCP · 0 keys · 0 playbooks',
       });
       expect(result.success).toBe(true);

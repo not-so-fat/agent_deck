@@ -1,9 +1,20 @@
 import { FastifyInstance } from 'fastify';
-import { ApiResponse } from '@agent-deck/shared';
+import { z } from 'zod';
+import { ApiResponse, DeckCardCountsSchema, DeckDisplaySourceSchema } from '@agent-deck/shared';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
-import { isDashboardClient, requireDashboardClient } from '../lib/client-scope';
+import { isDashboardClient, requireAgentClient, requireDashboardClient } from '../lib/client-scope';
 import { formatRepoDeckManifest, loadRepoDeckManifest, RepoDeckManifestError } from '../scope/repo-deck';
 import { resolveDeckDisplay } from '../scope/display';
+
+const LiveDisplayBodySchema = z.object({
+  mcpSessionId: z.string().min(1),
+  workspaceRoot: z.string().min(1),
+  deckId: z.string().uuid(),
+  deckName: z.string().min(1),
+  source: DeckDisplaySourceSchema.exclude(['unbound']),
+  cardCounts: DeckCardCountsSchema,
+  updatedAt: z.string().datetime(),
+});
 
 export async function registerScopeRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { workspaceRoot: string } }>('/resolve', async (request, reply) => {
@@ -86,7 +97,7 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get<{ Querystring: { workspaceRoot?: string; sessionId?: string } }>('/display', async (request, reply) => {
+  fastify.get<{ Querystring: { workspaceRoot?: string } }>('/display', async (request, reply) => {
     try {
       const workspaceRoot = request.query.workspaceRoot?.trim();
       if (!workspaceRoot) {
@@ -96,8 +107,11 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
         } satisfies ApiResponse);
       }
 
-      const sessionId = request.query.sessionId?.trim() || undefined;
-      const display = await resolveDeckDisplay({ sessionId, workspaceRoot }, fastify.db);
+      const display = await resolveDeckDisplay(
+        { workspaceRoot },
+        fastify.db,
+        fastify.liveDisplayRegistry,
+      );
       return reply.send({
         success: true,
         data: display,
@@ -109,6 +123,51 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
       } satisfies ApiResponse);
     }
   });
+
+  fastify.post('/live-display', async (request, reply) => {
+    try {
+      requireAgentClient(request);
+      const parsed = LiveDisplayBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          success: false,
+          error: parsed.error.issues.map((issue) => issue.message).join('; '),
+        } satisfies ApiResponse);
+      }
+
+      fastify.liveDisplayRegistry.upsert(parsed.data);
+      return reply.send({ success: true } satisfies ApiResponse);
+    } catch (error) {
+      return reply.status(403).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Forbidden',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.delete<{ Params: { mcpSessionId: string } }>(
+    '/live-display/:mcpSessionId',
+    async (request, reply) => {
+      try {
+        requireAgentClient(request);
+        const mcpSessionId = request.params.mcpSessionId?.trim();
+        if (!mcpSessionId) {
+          return reply.status(400).send({
+            success: false,
+            error: 'mcpSessionId is required',
+          } satisfies ApiResponse);
+        }
+
+        fastify.liveDisplayRegistry.remove(mcpSessionId);
+        return reply.send({ success: true } satisfies ApiResponse);
+      } catch (error) {
+        return reply.status(403).send({
+          success: false,
+          error: error instanceof Error ? error.message : 'Forbidden',
+        } satisfies ApiResponse);
+      }
+    },
+  );
 
   fastify.get<{ Querystring: { deckId?: string; name?: string } }>(
     '/manifest-template',

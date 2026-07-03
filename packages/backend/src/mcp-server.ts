@@ -23,7 +23,6 @@ import {
   McpSessionBindingStore,
   resolveDeckBindingSource,
 } from './mcp-session-binding';
-import { upsertWorkspaceDisplayBinding } from './scope/bindings-sidecar';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -117,7 +116,7 @@ export class AgentDeckMCPServer {
     };
   }
 
-  private async writeBindingSidecar(sessionId: string, manifestDeckId?: string): Promise<void> {
+  private async registerLiveDisplay(sessionId: string, manifestDeckId?: string): Promise<void> {
     const snapshot = this.sessionBinding.getBinding(sessionId);
     if (!snapshot.workspaceRoot) {
       return;
@@ -128,14 +127,29 @@ export class AgentDeckMCPServer {
       return;
     }
 
-    await upsertWorkspaceDisplayBinding(snapshot.workspaceRoot, {
-      deckId: deck.id as string,
-      deckName: deck.name as string,
-      source: resolveDeckBindingSource(snapshot, manifestDeckId),
-      updatedAt: new Date().toISOString(),
-      cardCounts: countDeckCards(deck),
-      workspaceRoot: snapshot.workspaceRoot,
+    await this.callBackendAPI('/api/scope/live-display', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mcpSessionId: sessionId,
+        workspaceRoot: snapshot.workspaceRoot,
+        deckId: deck.id,
+        deckName: deck.name,
+        source: resolveDeckBindingSource(snapshot, manifestDeckId),
+        cardCounts: countDeckCards(deck),
+        updatedAt: new Date().toISOString(),
+      }),
     });
+  }
+
+  private async unregisterLiveDisplay(sessionId: string): Promise<void> {
+    try {
+      await this.callBackendAPI(`/api/scope/live-display/${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // Best effort when MCP session closes.
+    }
   }
 
   private async callBackendAPI(endpoint: string, init: RequestInit = {}): Promise<any> {
@@ -225,7 +239,7 @@ export class AgentDeckMCPServer {
           const deck = await this.fetchDeck(deckId);
           this.sessionBinding.setDeckId(sessionId, deckId);
           const payload = await this.buildBindingPayload(sessionId);
-          await this.writeBindingSidecar(sessionId);
+          await this.registerLiveDisplay(sessionId);
           return {
             content: [{
               type: "text",
@@ -264,7 +278,7 @@ export class AgentDeckMCPServer {
 
         const { data } = body;
         const payload = await this.buildBindingPayload(sessionId, data.manifest.deck_id);
-        await this.writeBindingSidecar(sessionId, data.manifest.deck_id);
+        await this.registerLiveDisplay(sessionId, data.manifest.deck_id);
 
         return {
           content: [{
@@ -298,7 +312,7 @@ export class AgentDeckMCPServer {
         const deck = await this.fetchDeck(deckId);
         this.sessionBinding.setDeckId(sessionId, deckId);
         const payload = await this.buildBindingPayload(sessionId);
-        await this.writeBindingSidecar(sessionId);
+        await this.registerLiveDisplay(sessionId);
         return {
           content: [{
             type: "text",
@@ -1377,6 +1391,7 @@ export class AgentDeckMCPServer {
       if (sessionId) {
         this.sessions.delete(sessionId);
         this.sessionBinding.clearSession(sessionId);
+        void this.unregisterLiveDisplay(sessionId);
       }
     };
 
