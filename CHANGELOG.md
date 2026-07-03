@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.9 — 2026-07-03
 
 ### Deck display — live MCP reality only
 
@@ -8,6 +8,19 @@
 - **Unbound at launch** — no sidecar, manifest, or env guessing before `bind_workspace`
 - **Removed** — `bindings.json` sidecar writes/reads, workspace/session sidecar lookup, CLI sidecar fallback
 - **Unbound copy** — `◆ Unbound — bind a deck to use Agent Deck`; optional `· MCP offline` when backend is up but MCP is down
+- **MCP health** — backend receives `AGENT_DECK_MCP_PORT` from `agent-deck start`; dev `dev:all` exports `:3001`; skip false offline when a live bind exists
+
+### Upgrade from 1.2.8
+
+1. **Install globally** (avoids slow `npx` on every statusline refresh): `npm i -g @agent-deck/cli@1.2.9`
+2. **Restart backend:** `agent-deck stop && agent-deck start` (or `setup --client claude --start`)
+3. **Re-run setup:** `agent-deck setup --client claude` — refreshes `statusline.sh`
+4. **Re-bind once per MCP session:** ask the agent to `bind_workspace` (footer is unbound until bind)
+5. **Monorepo dev:** set `AGENT_DECK_PORT=8000` for Claude statusline; restart `npm run dev:all` after pull
+
+Optional: delete stale `~/.agent-deck/bindings.json` (ignored in 1.2.9).
+
+If the footer still shows a deck before bind, statusline is hitting the wrong API (`:11111` prod vs `:8000` dev) — set `AGENT_DECK_PORT` to match your MCP backend.
 
 ## 1.2.8 — 2026-07-02
 

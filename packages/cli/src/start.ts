@@ -171,6 +171,7 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
     HOST: host,
     NODE_ENV: 'production',
     AGENT_DECK_DEV: '0',
+    AGENT_DECK_MCP_PORT: String(mcpPort),
     ...(uiDist ? { AGENT_DECK_UI_DIST: uiDist } : {}),
   });
 

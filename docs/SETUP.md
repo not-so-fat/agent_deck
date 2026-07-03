@@ -195,7 +195,7 @@ If `claude mcp list` shows agent-deck as **Connected** but the agent cannot call
 
 **Workaround:** Call the MCP JSON-RPC endpoint directly (`initialize` → `tools/call`) or use `curl` against `http://127.0.0.1:11112/mcp` (port may differ — check `claude mcp list`).
 
-The terminal status line can still show a bound deck from cached sidecar data while tools are unavailable; it does not prove the harness can reach agent-deck.
+The terminal status line reflects the live MCP bind on the backend API; it stays **unbound** until `bind_workspace` and does not prove the harness can reach agent-deck when MCP is disconnected.
 
 ### Slack distribution requires HTTPS
 

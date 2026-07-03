@@ -5,6 +5,7 @@ set -euo pipefail
 # Dev data (DB, credentials metadata, secrets) → ~/.agent-deck/dev — not production ~/.agent-deck.
 
 export AGENT_DECK_DEV=1
+export AGENT_DECK_MCP_PORT=3001
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/logs"

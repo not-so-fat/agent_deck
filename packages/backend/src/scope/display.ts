@@ -83,9 +83,8 @@ export async function resolveDeckDisplay(
   registry: LiveDisplayRegistry,
 ): Promise<DeckDisplay> {
   const normalizedRoot = input.workspaceRoot.trim();
-  const mcpOnline = await isMcpServerUp();
-
   const live = registry.findForWorkspace(normalizedRoot);
+  const mcpOnline = live ? true : await isMcpServerUp();
   if (live) {
     const deck = await db.getDeck(live.deckId);
     return buildDisplay({ workspaceRoot: normalizedRoot }, live.source, deck, {
