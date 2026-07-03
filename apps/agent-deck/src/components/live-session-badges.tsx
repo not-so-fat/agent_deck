@@ -9,6 +9,7 @@ import {
   truncateDeckName,
   workspaceBasename,
 } from '@/lib/live-bindings';
+import { MCP_CARD_COLOR } from '@/lib/card-colors';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 3_000;
@@ -63,7 +64,7 @@ export default function LiveSessionBadges({ highlightDeckId }: LiveSessionBadges
           data-testid="live-session-badges-trigger"
           title="Live MCP session binds — click for badges"
         >
-          <Radio className="mr-1 h-3 w-3 text-emerald-400" aria-hidden />
+          <Radio className="mr-1 h-3 w-3" style={{ color: MCP_CARD_COLOR }} aria-hidden />
           <span className="font-mono">⌘{bindings.length}</span>
           {onThisDeck > 0 && onThisDeck < bindings.length ? (
             <span className="ml-1 text-gray-400">({onThisDeck} here)</span>
@@ -76,7 +77,9 @@ export default function LiveSessionBadges({ highlightDeckId }: LiveSessionBadges
         data-testid="live-session-badges-panel"
       >
         <div className="border-b border-white/10 px-3 py-2">
-          <p className="text-sm font-semibold text-emerald-300">Live sessions</p>
+          <p className="text-sm font-semibold" style={{ color: MCP_CARD_COLOR }}>
+            Live sessions
+          </p>
           <p className="text-xs text-gray-400">
             Match <span className="font-mono">⌘badge</span> to the chat opener
           </p>
@@ -99,7 +102,7 @@ export default function LiveSessionBadges({ highlightDeckId }: LiveSessionBadges
                       className={cn(
                         'rounded-md px-2 py-1.5 font-mono text-xs',
                         highlighted
-                          ? 'bg-emerald-950/60 ring-1 ring-emerald-500/40'
+                          ? 'bg-[#92E4DD]/10 ring-1 ring-[#92E4DD]/40'
                           : 'bg-white/5',
                       )}
                       data-testid={`live-session-row-${row.badge}`}
@@ -107,7 +110,7 @@ export default function LiveSessionBadges({ highlightDeckId }: LiveSessionBadges
                       <span className="text-gray-100">
                         {truncateDeckName(row.deckName)}
                       </span>{' '}
-                      <span className="text-emerald-300">⌘{row.badge}</span>
+                      <span style={{ color: MCP_CARD_COLOR }}>⌘{row.badge}</span>
                       <span className="mt-0.5 block font-sans text-[10px] text-gray-400">
                         {meta}
                       </span>

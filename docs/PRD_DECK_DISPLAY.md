@@ -108,7 +108,7 @@ This PRD specifies a **live MCP display registry**, a **`agent-deck statusline` 
 **Acceptance:**
 
 - [x] `GET /api/scope/bindings` lists live session rows (badge, deck, workspace, activity)
-- [x] Deck panel header shows live session **count** (`⌘N`); click opens all badges grouped by workspace
+- [x] Page header (top-right) shows live session **count** (`⌘N`); click opens all badges grouped by workspace
 - [ ] Full dedicated sessions sidebar (optional P1 — out of initial badge chip scope)
 
 *Shipped · Phase 5c (badge chip on Deck panel)*

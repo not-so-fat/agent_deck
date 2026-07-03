@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.10 — 2026-07-03
+
+### Session-only binding (repo deck removed)
+
+- **`bind_workspace` requires `deckId`** — `get_decks` then `bind_workspace({ workspaceRoot, deckId })`; no `.agent-deck/deck.yaml`
+- **Removed** — `setup_repo_deck`, `get_repo_deck_status`, `POST /api/scope/resolve`, `GET /api/scope/manifest-template`, `repo-deck-init` on project setup
+- **Harness** — session opener uses `get_decks` + `deckId`; re-run `agent-deck setup` to refresh global Cursor/Claude rules
+- **Dashboard** — copy deck id (not yaml snippet) from My Decks
+
+### Menu bar & session badges
+
+- **SwiftBar menubar** — `agent-deck menubar`; default on macOS `setup` (`--no-menubar` to skip); brew + plugin folder auto-config
+- **Session badges** — `⌘word` per MCP session in menubar, statusline `display_summary`, and `GET /api/scope/bindings`
+- **Dashboard** — live session chip in page header; My Decks shows `N cards, M sessions` per deck
+
+### Upgrade from 1.2.9
+
+1. **Install globally:** `npm i -g @agent-deck/cli@1.2.10`
+2. **Restart:** `agent-deck stop && agent-deck start`
+3. **Re-run setup:** `agent-deck setup --client cursor` (or `claude`) — refreshes harness + menubar plugin
+4. **Bind with deck id:** agent calls `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`
+5. **Optional:** delete leftover `.agent-deck/deck.yaml` files (ignored)
+
 ## 1.2.9 — 2026-07-03
 
 ### Deck display — live MCP reality only

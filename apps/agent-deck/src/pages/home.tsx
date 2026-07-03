@@ -9,6 +9,7 @@ import CardComponent from "@/components/card-component";
 import CredentialCardComponent from "@/components/credential-card-component";
 import PlaybookCardComponent from "@/components/playbook-card-component";
 import DeckBuilder from "@/components/deck-builder";
+import LiveSessionBadges from "@/components/live-session-badges";
 import ServiceRegistrationModal from "@/components/service-registration-modal";
 import DeckManagementPanel from "@/components/deck-management-panel";
 import CredentialRegistrationModal from "@/components/credential-registration-modal";
@@ -278,28 +279,8 @@ export default function Home() {
                 </button>
               </div>
               
-              {/* Active Deck Indicator */}
-              {editingDeck && (
-                <div className="px-4 py-2 rounded-lg border" style={{
-                  backgroundColor: 'rgba(196, 182, 67, 0.2)',
-                  borderColor: 'rgba(196, 182, 67, 0.4)'
-                }}>
-                  <div className="flex items-center space-x-2">
-                    <i className="fas fa-star" style={{color: '#C4B643'}}></i>
-                    <span className="text-sm font-medium" data-testid="editing-deck-name" style={{color: '#92E4DD'}}>
-                      {editingDeck.name}
-                    </span>
-                    <span className="text-xs" style={{color: '#92E4DD', opacity: 0.7}} data-testid="editing-deck-count">
-                      {(editingDeck.services?.length ?? 0) +
-                        (editingDeck.credentials?.length ?? 0) +
-                        (editingDeck.playbooks?.length ?? 0)}{" "}
-                      cards
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-
+              {/* Live MCP sessions (replaces editing-deck name/cards chip) */}
+              <LiveSessionBadges highlightDeckId={editingDeckId ?? undefined} />
             </div>
           </div>
         </div>
