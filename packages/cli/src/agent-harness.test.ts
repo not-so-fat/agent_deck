@@ -19,7 +19,7 @@ describe('agent-harness templates', () => {
 
   it('global cursor file includes self-improvement playbook rules', () => {
     const file = buildCursorHarnessFile('global');
-    expect(file).toContain('list_playbooks');
+    expect(file).toContain('get_bound_deck');
     expect(file).toContain('update_playbook');
     expect(file).toContain('get_playbook');
     expect(file).toContain('display_summary');
@@ -31,6 +31,23 @@ describe('agent-harness templates', () => {
     expect(file).toContain('Generalize');
     expect(file).toContain('audit drift');
     expect(file).not.toContain('weekly priority');
+  });
+
+  it('harness never names removed MCP tools (1.3.0 catalog)', () => {
+    const cursor = buildCursorHarnessFile('project');
+    const claude = buildClaudeHarnessBlock('project');
+    for (const text of [cursor, claude]) {
+      expect(text).toContain('get_bound_deck');
+      expect(text).toContain('call_service_tool');
+      expect(text).not.toContain('list_playbooks');
+      expect(text).not.toContain('list_bound_deck_services');
+      expect(text).not.toContain('list_bound_deck_credentials');
+      expect(text).not.toContain('add_service_to_bound_deck');
+      expect(text).not.toContain('add_playbook_to_bound_deck');
+      expect(text).not.toContain('delete_service');
+      expect(text).not.toContain('delete_playbook');
+      expect(text).not.toContain('setup_repo_deck');
+    }
   });
 
   it('project cursor file adds repo bind line', () => {

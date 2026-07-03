@@ -1,5 +1,73 @@
 # Changelog
 
+## 1.3.0 — 2026-07-03
+
+### MCP tool surface (breaking for agents & playbooks)
+
+Default MCP catalog is **~16 tools** (was ~31). Hot path: `bind_workspace` → `get_bound_deck` → `call_service_tool` / `get_playbook`.
+
+| New / primary | Replaces (removed from default) |
+|---------------|----------------------------------|
+| `get_bound_deck` (includes services, credentials, playbook summaries, `display_summary`) | `list_playbooks`, `list_bound_deck_services`, `list_bound_deck_credentials`, `list_active_deck_*`, `get_active_deck` |
+| `manage_deck_card` (`action`: link \| unlink \| reorder, `card_type`, `card_id`) | `add_*_to_bound_deck`, `remove_*_from_bound_deck` (×3 card types) |
+| `list_collection` (optional `card_type`) | `list_collection_services`, `list_collection_credentials`, `list_collection_playbooks` |
+| `create_deck` | (unchanged; always on default profile) |
+
+**Removed from MCP (use CLI / dashboard):** `delete_service`, `delete_playbook`.
+
+```bash
+agent-deck service list|delete <id>
+agent-deck playbook list|delete <id>
+agent-deck deck list|delete <id>
+```
+
+**Still on MCP:** `register_playbook`, `update_playbook`, `get_playbook`, `register_service`, `update_service`, `call_service_tool`, bind/session tools.
+
+Optional: `AGENT_DECK_MCP_TOOL_PROFILE=legacy` restores old tool names for one release while you migrate playbooks. Dynamic mid-session tool loading is **not** supported (Cursor/Claude ignore `list_changed`).
+
+### Playbooks — update required
+
+Any playbook body (or skill/rule) that names old MCP tools will fail after upgrade. Search deck playbooks for the left column and rewrite:
+
+| Old (broken on default MCP) | New |
+|-----------------------------|-----|
+| `list_playbooks` | `get_bound_deck` → read `playbooks` (id, title, triggers) |
+| `list_bound_deck_services` / `list_bound_deck_credentials` | `get_bound_deck` |
+| `add_service_to_bound_deck` / `add_credential_to_bound_deck` / `add_playbook_to_bound_deck` | `manage_deck_card` with `action: "link"`, matching `card_type` + `card_id` |
+| `remove_*_from_bound_deck` | `manage_deck_card` with `action: "unlink"` |
+| `list_collection_*` | `list_collection` |
+| `delete_service` / `delete_playbook` | CLI: `agent-deck service delete` / `agent-deck playbook delete` |
+
+`get_playbook` and `update_playbook` are unchanged.
+
+### Harness (Cursor / Claude instructions)
+
+Templates now use `get_bound_deck` (not `list_playbooks` / `list_bound_deck_services`). **Re-run setup** or agents keep calling removed tools:
+
+```bash
+agent-deck setup --client cursor   # refreshes ~/.cursor/rules/agent-deck.mdc
+agent-deck setup --client claude   # refreshes harness block in CLAUDE.md
+```
+
+Then **restart Cursor / Claude Code** so MCP tool cache matches the new catalog.
+
+### Upgrade from 1.2.x
+
+1. **Install globally:** `npm i -g @agent-deck/cli@1.3.0`
+2. **Restart:** `agent-deck stop && agent-deck start` (and `npm run dev:all` if you use `:3001` dev MCP)
+3. **Restart Cursor / Claude Code** — clears stale MCP tool cache
+4. **Re-run setup:** `agent-deck setup --client cursor` (or `claude`) — refreshes harness
+5. **Update playbooks** — replace old tool names per table above (or temporarily `AGENT_DECK_MCP_TOOL_PROFILE=legacy`)
+
+### Tests
+
+- **MCP golden paths (CI)** — `golden-path.http.test.ts`: bind, `get_bound_deck`, `manage_deck_card` link/unlink, playbook get/update, `call_service_tool`, `create_deck`, catalog snapshot
+- **Harness** — templates must not name removed tools (`list_playbooks`, `add_*_to_bound_deck`, …)
+- **CLI rare ops** — `cli-runtime` delete + dependency block; collection-admin arg wiring
+- **Release smoke** — after `setup --client cursor`, harness contains `get_bound_deck` and no removed tool names
+- **FE (Vitest)** — dashboard drag link/unlink for service, credential, playbook (`useDragAndDrop.deck-link.test.tsx`)
+- **Statusline / menubar (CI)** — bound + offline paths against HTTP stub (`display-surfaces.http.test.ts`); release-smoke installs menubar plugin script contract
+
 ## 1.2.10 — 2026-07-03
 
 ### Session-only binding (repo deck removed)

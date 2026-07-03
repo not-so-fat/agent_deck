@@ -1,0 +1,177 @@
+# Testing map (FE / BE / MCP / CLI)
+
+**Status:** Living map — fill **Integration scenarios** with product owner input  
+**Related:** [DEVELOPMENT.md](./DEVELOPMENT.md), [MCP_TOOL_OPTIMIZATION.md](./MCP_TOOL_OPTIMIZATION.md), playbook [user-path-integration-smoke.md](./examples/playbooks/user-path-integration-smoke.md)
+
+How we test Agent Deck today, what is missing after the 1.3.0 MCP tool surface change, and how we should grow tests without over-building.
+
+---
+
+## Layers (what each proves)
+
+```
+Unit (fast, no ports)
+  shared schemas, pure helpers, DB managers, tool profile math
+
+Component / route (in-process)
+  React hooks, Fastify routes with temp DB, CLI setup writers
+
+Protocol / HTTP (real ports, stub peers)
+  MCP streamable HTTP: initialize → tools/list → tools/call
+  Backend health + scoped routes
+
+Release / user path (packaged artifact)
+  npm pack + setup + statusline stdout contract
+```
+
+| Layer | Runner | When it runs |
+|-------|--------|--------------|
+| Unit + component | `npm test` (Vitest via Turbo) | Every PR / local |
+| Launch smoke | `npm run smoke:dev` | After BE/MCP changes (manual / agent rule) |
+| Release smoke | `npm run release:smoke` (inside `build:release`) | Before publish |
+
+---
+
+## As-built inventory
+
+### Shared (`packages/shared`)
+
+| Area | Files (examples) | Coverage |
+|------|------------------|----------|
+| Schemas / validation | `schemas/*.test.ts`, `utils/validation.test.ts` | Strong |
+| Playbook deps, credentials, OAuth session | `utils/playbook-dependencies.test.ts`, etc. | Strong |
+
+### Backend (`packages/backend`)
+
+| Area | Files (examples) | Coverage |
+|------|------------------|----------|
+| SQLite / decks / credentials | `models/database*.test.ts` | Strong |
+| Vault / OAuth | `vault/*.test.ts` | Strong |
+| Playbooks | `playbooks/playbook-manager.test.ts` | Strong |
+| Service manager / MCP client | `services/*.test.ts` | Medium (mocked peers) |
+| Scope / live display / badges | `scope/*.test.ts`, `routes/scope.bindings.test.ts` | Strong |
+| **MCP tools (logic)** | `mcp-tools/profile.test.ts`, `deck-card-ops.test.ts` | **New — unit only** |
+| **MCP protocol (HTTP)** | `mcp-server.http.test.ts` | **Partial** — session, health, `tools/list` names, bind badge |
+| CLI admin (delete) | `cli-runtime.test.ts` | New — unit against temp DB |
+
+**MCP HTTP tests today assert:**
+
+- Multi-session initialize
+- GET `/mcp` SSE for Claude
+- Reject calls without session
+- Default profile tool names (`manage_deck_card`, `create_deck`; no `list_playbooks` / `delete_*`)
+- `bind_workspace` → live-display badge (stub backend)
+
+**MCP HTTP tests do not yet assert:**
+
+- Full agent flows: bind → `get_bound_deck` → `manage_deck_card` → `get_playbook` / `update_playbook`
+- `list_collection` / `register_*` against real API
+- Profile matrix (`runtime` / `legacy`) end-to-end
+- Error shapes (`NOT_BOUND`, playbook dependency on delete via CLI)
+- Proxy `call_service_tool` (needs fake upstream MCP)
+
+### CLI (`packages/cli`)
+
+| Area | Files | Coverage |
+|------|-------|----------|
+| Setup / harness / statusline / menubar | `*.test.ts` | Strong for install contracts |
+| Release user path | `release-integration.test.ts` + `scripts/release-smoke.sh` | Strong for statusline |
+| Collection admin (`service|playbook|deck delete`) | — | **Missing** (logic in backend `cli-runtime.test.ts` only) |
+
+### Frontend (`apps/agent-deck`)
+
+| Area | Files | Coverage |
+|------|-------|----------|
+| Hooks (WebSocket, drag-drop) | `test/hooks/*.test.tsx` | Medium |
+| Deck fan layout math | `components/deck-fan.test.ts` | Strong for layout |
+| Live bindings display helpers | `lib/live-bindings.test.ts` | Strong for formatting |
+| Pages / modals | — | Thin (no full-page render suite) |
+| **Deck link/unlink (S11)** | `test/hooks/useDragAndDrop.deck-link.test.tsx` | **Auto** — Vitest + Testing Library + jsdom |
+
+**Framework:** Vitest + React Testing Library + jsdom (already in `apps/agent-deck`). No Playwright — same runner as BE/CLI, included in `npm test` / Turbo CI.
+
+---
+
+## MCP testing — best practice (what works here)
+
+Hosts (Cursor / Claude) are **not** in CI. Treat MCP as a **protocol server** we own:
+
+| Practice | How |
+|----------|-----|
+| **1. Unit the handlers** | Pure functions (`executeManageDeckCard`, profile lists) — no ports |
+| **2. Contract-test the wire** | Real `AgentDeckMCPServer` on ephemeral port; JSON-RPC `initialize` → `tools/list` → `tools/call` |
+| **3. Stub the backend** | Tiny `http.createServer` (already in `mcp-server.http.test.ts`) — assert paths/bodies, not full SQLite unless needed |
+| **4. Snapshot the catalog** | `tools/list` names must match profile (guards accidental tool sprawl / renames) |
+| **5. One golden agent path** | Bind → get_bound_deck → (optional manage_deck_card) → get_playbook — against stub or temp DB |
+| **6. Do not wait on host `list_changed`** | Dynamic tools are host-blocked; do not invent flaky host tests |
+
+**Anti-patterns:** only unit-testing registration without `tools/list`; only manual Cursor clicks; testing OAuth browser flows in MCP suite.
+
+---
+
+## Gaps after 1.3.0 (priority)
+
+| Priority | Gap | Suggested home |
+|----------|-----|----------------|
+| P0 | Golden MCP path: bind + `get_bound_deck` + `manage_deck_card` link/unlink | `mcp-server.http.test.ts` + richer stub |
+| P0 | Catalog snapshot per profile (`runtime` / `standard` / `legacy`) | `profile.test.ts` (done) + HTTP list for `standard` (partial) |
+| P1 | CLI `service|playbook|deck delete` command wiring | `packages/cli` thin tests or extend `cli-runtime` |
+| P1 | Harness template never mentions removed tools | `agent-harness.test.ts` (partial — checks `get_bound_deck`) |
+| P2 | FE: deck editor link/unlink still works with API (not MCP) | Component or route tests; optional later Playwright |
+| P2 | Release smoke: harness file contains `get_bound_deck` after setup | `release-smoke.sh` |
+
+---
+
+## Integration scenarios (fill with product owner)
+
+Use this table to decide what we automate next. Mark **Auto** (CI), **Smoke** (release script), or **Manual**.
+
+| ID | Scenario | Actor | Surface | Expected | Auto / Smoke / Manual |
+|----|----------|-------|---------|----------|------------------------|
+| S1 | Fresh install → setup cursor → harness names new tools | User | CLI | `get_bound_deck` in rule file; no `list_playbooks` | **Smoke** (`release-smoke.sh`) + **Auto** (`agent-harness.test.ts`) |
+| S2 | Agent bind workspace + deck | Agent | MCP | `display_summary` + live-display | **Auto** (`golden-path.http.test.ts`) |
+| S3 | Capability rescue | Agent | MCP | link service; `get_bound_deck`; `call_service_tool` | **Auto** |
+| S4 | Playbook discover + follow | Agent | MCP | triggers on `get_bound_deck`; `get_playbook` body | **Auto** |
+| S5 | Playbook self-improve | Agent | MCP | `update_playbook` persists | **Auto** |
+| S6 | Link existing card to deck | Agent | MCP | `manage_deck_card` link | **Auto** |
+| S7 | Unlink card | Agent | MCP | unlink; still in `list_collection` | **Auto** |
+| S8 | Create deck then bind | Agent | MCP | `create_deck` + bind known deck | **Auto** |
+| S9 | Delete service blocked by playbook dep | User | CLI | delete fails with message | **Auto** (`cli-runtime.test.ts`) |
+| S10 | Delete playbook | User | CLI | delete succeeds | **Auto** (`cli-runtime.test.ts`) |
+| S11 | Dashboard drag card onto deck | User | FE + API | link/unlink service, credential, playbook via REST | **Auto** (`useDragAndDrop.deck-link.test.tsx`) |
+| S12 | Old playbook still says `list_playbooks` | Agent | MCP | tool missing — migration doc / legacy profile | Manual / CHANGELOG |
+| S13 | Stale host tool cache after upgrade | User | Host | restart Cursor/Claude required | Manual / CHANGELOG |
+| S14 | Statusline bound line (badge + deck name) | Host | CLI | `runStatusline` prints `displayLine` from `/api/scope/display` | **Auto** (`display-surfaces.http.test.ts`) |
+| S15 | Statusline offline when API down | Host | CLI | `◆ Agent Deck offline` | **Auto** |
+| S16 | Menubar live sessions | Host | CLI | `runMenubar` renders `/api/scope/bindings` | **Auto** |
+| S17 | Menubar offline | Host | CLI | `◆ off` title, no badge | **Auto** |
+| S18 | Menubar plugin script | User | CLI | install writes executable `agent-deck.3s.sh` calling `menubar` | **Smoke** + **Auto** (`menubar-setup.test.ts`) |
+
+### Test files (1.3.0)
+
+| File | Scenarios |
+|------|-----------|
+| `packages/backend/src/mcp-tools/test-harness.ts` | Shared MCP HTTP helpers |
+| `packages/backend/src/mcp-tools/golden-path.http.test.ts` | S2–S8 + catalog snapshot |
+| `packages/backend/src/mcp-tools/profile.test.ts` | Profile tool lists |
+| `packages/backend/src/mcp-tools/deck-card-ops.test.ts` | Link/unlink/reorder unit |
+| `packages/backend/src/cli-runtime.test.ts` | S9–S10 |
+| `packages/cli/src/agent-harness.test.ts` | S1 template names |
+| `packages/cli/src/collection-admin.test.ts` | CLI arg wiring |
+| `apps/agent-deck/src/test/hooks/useDragAndDrop.deck-link.test.tsx` | S11 FE link/unlink |
+| `packages/cli/src/display-surfaces.http.test.ts` | Bound statusline + menubar vs HTTP stub |
+| `packages/cli/src/statusline*.test.ts`, `menubar*.test.ts` | Unit render, setup, host stdin contract |
+| `scripts/release-smoke.sh` | S1 harness + statusline stdout + menubar plugin script |
+
+---
+
+## Commands cheat sheet
+
+```bash
+npm test                                    # all packages
+npm test --workspace packages/backend       # includes MCP HTTP + mcp-tools
+npm test --workspace packages/cli
+npm test --workspace apps/agent-deck
+npm run smoke:dev                           # live ports health
+npm run release:smoke                       # pack + setup user path
+```

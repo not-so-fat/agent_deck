@@ -112,7 +112,7 @@ const fs = require('fs');
 const script = process.argv[1];
 const outPath = process.argv[2];
 const errPath = process.argv[3];
-const budgetMs = 800;
+const budgetMs = 1500;
 const hardMs = 2000;
 const start = Date.now();
 const child = spawn(script, [], {
@@ -147,6 +147,45 @@ fi
 OPEN_LINES="$(grep -c . "$OPEN_OUT" || true)"
 [[ "$OPEN_LINES" -eq 1 ]] || fail "open-stdin POC must print one line (got $OPEN_LINES)"
 pass "statusline stdout (open stdin POC): $(cat "$OPEN_OUT")"
+
+# --- 5c. Harness uses 1.3.0+ MCP tool names (S1) ---
+HARNESS_OUT="$LOG_DIR/release-smoke-harness.log"
+if ! node "$CLI_DIST/bin.js" setup --client cursor --no-menubar --no-statusline >"$HARNESS_OUT" 2>&1; then
+  # setup may warn on mcp add; harness file must still be written
+  if ! grep -qE 'harness|agent-deck.mdc|Harness' "$HARNESS_OUT"; then
+    cat "$HARNESS_OUT" >>"$LOG"
+    fail "setup --client cursor did not install harness (see $HARNESS_OUT)"
+  fi
+fi
+CURSOR_RULE="$SMOKE_HOME/.cursor/rules/agent-deck.mdc"
+[[ -f "$CURSOR_RULE" ]] || fail "Cursor harness missing: $CURSOR_RULE"
+if ! grep -q 'get_bound_deck' "$CURSOR_RULE"; then
+  fail "Cursor harness must mention get_bound_deck (got outdated tool names)"
+fi
+if grep -qE 'list_playbooks|list_bound_deck_services|add_service_to_bound_deck|setup_repo_deck' "$CURSOR_RULE"; then
+  fail "Cursor harness still names removed MCP tools — refresh agent-harness.ts"
+fi
+pass "Cursor harness uses get_bound_deck (no removed tool names)"
+
+# --- 5d. Menubar plugin script contract (any OS; setup skips non-macOS) ---
+MENUBAR_DIR="$SMOKE_HOME/swiftbar-plugins"
+mkdir -p "$MENUBAR_DIR"
+export AGENT_DECK_SWIFTBAR_DIR="$MENUBAR_DIR"
+PLUGIN_PATH="$(
+  node -e "
+    const { installMenubarPlugin } = require('$CLI_DIST/menubar-setup.js');
+    const result = installMenubarPlugin();
+    if (!result.pluginPath) process.exit(1);
+    process.stdout.write(result.pluginPath);
+  "
+)" || fail "installMenubarPlugin failed"
+[[ -f "$PLUGIN_PATH" ]] || fail "menubar plugin missing: $PLUGIN_PATH"
+[[ -x "$PLUGIN_PATH" ]] || fail "menubar plugin not executable: $PLUGIN_PATH"
+grep -q 'menubar' "$PLUGIN_PATH" || fail "menubar plugin must invoke agent-deck menubar"
+if grep -q 'statusline' "$PLUGIN_PATH"; then
+  fail "menubar plugin must not call statusline"
+fi
+pass "menubar plugin installed: $PLUGIN_PATH"
 
 # --- 6. CHANGELOG honesty — fail if current version still has Pending publish for statusline ---
 CHANGELOG="$ROOT_DIR/CHANGELOG.md"

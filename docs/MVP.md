@@ -169,18 +169,19 @@ Client header `x-agent-deck-client`:
 | Tool | Purpose |
 |------|---------|
 | `bind_workspace` / `switch_bound_deck` | Bind session to workspace + deck |
-| `get_bound_deck`, `get_decks`, `create_deck` | Deck read/create |
-| `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
-| `add_service_to_bound_deck` / `remove_service_from_bound_deck` | Link MCP cards on bound deck |
-| `update_service_tool_settings` | Enable/disable tools (service must be on bound deck) |
-| `list_collection_credentials` | API key metadata (no secrets) for linking |
-| `add_credential_to_bound_deck` / `remove_credential_from_bound_deck` | Link API key cards (secret stored in dashboard/CLI) |
-| `list_playbooks` / `list_collection_playbooks` / `register_playbook` / `update_playbook` / `delete_playbook` | Playbooks |
-| `add_playbook_to_bound_deck` / `remove_playbook_from_bound_deck` | Link playbook cards |
-| `list_bound_deck_*` | Bound deck services/credentials |
+| `get_session_binding` | Workspace, effective deck, `display_summary` |
+| `get_decks`, `get_bound_deck`, `create_deck` | Deck read/create (`get_bound_deck` includes services, credentials, playbook summaries) |
+| `manage_deck_card` | Link, unlink, or reorder cards on bound deck (`card_type`: service \| credential \| playbook) |
+| `list_collection` | Collection metadata (optional `card_type` filter) |
+| `register_service` / `update_service` | MCP collection create/update (delete via dashboard/CLI) |
+| `update_service_tool_settings` | Enable/disable proxied tools |
+| `register_playbook` / `update_playbook` | Playbooks (delete via dashboard/CLI) |
+| `get_playbook` | Full playbook body + dependencies |
 | `list_service_tools` / `call_service_tool` | Proxy to services on bound deck |
 
-Deprecated aliases: `get_active_deck`, `list_active_deck_*`. Agents use `GET /api/credentials/collection` (metadata) — not `/api/credentials/vault`.
+**Not MCP:** secrets, OAuth consent, delete card, import/export — dashboard/CLI (`agent-deck service|playbook|deck list|delete`). Optional profile: `AGENT_DECK_MCP_TOOL_PROFILE=runtime|standard|legacy` (default `standard`). See [MCP_TOOL_OPTIMIZATION.md](./MCP_TOOL_OPTIMIZATION.md).
+
+Deprecated (removed from `standard`; available in `legacy` profile only): `get_active_deck`, `list_active_deck_*`, `list_bound_deck_*`, `list_playbooks`, `list_collection_*`, `add_*_to_bound_deck`, `remove_*_from_bound_deck`.
 
 ### Dashboard UI (Module 2)
 
@@ -275,7 +276,7 @@ Playbooks are **first-class cards** in My Collection — same lifecycle as MCP a
 
 - Register in dashboard → appears in **My Collection** (white `#FFFFFF`, label **PB**)
 - Drag onto a **deck** to scope for agents
-- Agent retrieves via `list_playbooks` / `get_playbook` (bound deck only)
+- Agent retrieves via `get_bound_deck` (summaries) / `get_playbook` (bound deck only)
 
 Stored in SQLite (`playbooks` + `deck_playbooks`). Body is markdown; metadata includes triggers, optional exec/skill hints, and **dependencies** on other cards.
 
@@ -322,10 +323,11 @@ DELETE /api/decks/:deckId/playbooks   { playbookId }
 
 | Tool | Args | Returns |
 |------|------|---------|
-| `list_playbooks` | — | Playbook summaries on bound deck |
+| `get_bound_deck` | — | Deck snapshot including playbook summaries (id, title, triggers) |
 | `get_playbook` | `playbook_id` | Full body + dependencies |
 | `register_playbook` | `title`, `body`, optional `triggers`, `playbook_id`, `exec`, `skill`, dependency overrides, `add_to_bound_deck`, `auto_detect_dependencies` | Created playbook + resolved dependencies |
 | `update_playbook` | `playbook_id`, optional fields above | Updated playbook + resolved dependencies |
+| `manage_deck_card` | `action`, `card_type`, `card_id` | Link/unlink playbook (or other card) on bound deck |
 
 No `run_playbook` executor — agent reads content and follows steps.
 
@@ -344,7 +346,7 @@ Template content for registration: [docs/examples/playbooks/](./examples/playboo
 - [x] Playbook card schema + SQLite storage
 - [x] CRUD API + deck linking
 - [x] Dependency warnings on delete / deck removal
-- [x] MCP tools `list_playbooks`, `get_playbook`, `register_playbook`, `update_playbook`
+- [x] MCP tools `get_bound_deck` (playbook summaries), `get_playbook`, `register_playbook`, `update_playbook`
 - [x] Dashboard: collection cards + registration + details modal
 - [x] Example markdown in `docs/examples/`
 

@@ -26,6 +26,7 @@
 | [SETUP.md](./SETUP.md) | Install, ports, data dirs, **dashboard** tour |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Components, SQLite, secret storage |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Clone, test, contribute |
+| [TESTING.md](./TESTING.md) | FE / BE / MCP / CLI test map + integration scenarios |
 | [AGENT_HARNESS.md](./AGENT_HARNESS.md) | What `agent-deck setup` installs |
 | [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) | Playbooks vs Cursor skills |
 | [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | Session binding in monorepos |
@@ -46,6 +47,7 @@
 | [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md) | Redirect URIs, local vs hosted |
 | [OAUTH_REQUIREMENTS.md](./OAUTH_REQUIREMENTS.md) | Product OAuth requirements |
 | [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md) | Tiers, deferred work |
+| [MCP_TOOL_OPTIMIZATION.md](./MCP_TOOL_OPTIMIZATION.md) | Proposed MCP tool surface reduction (link/unlink design) |
 | [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) | Maintainer Slack app |
 | [SLACK_READ_WORKAROUND.md](./SLACK_READ_WORKAROUND.md) | Slack read without official MCP |
 | [GOOGLE_DRIVE_WORKAROUND.md](./GOOGLE_DRIVE_WORKAROUND.md) | Local Google Drive MCP |

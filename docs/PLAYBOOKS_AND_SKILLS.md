@@ -14,7 +14,7 @@ Agent Deck **playbooks** and Cursor **skills** overlap in surface area (both can
 |---|------------------|-------------------------|
 | **Question it answers** | *How should the agent behave in this repo?* | *What procedure should run on this deck, with which connections?* |
 | **Primary home** | Repo file (e.g. `.cursor/skills/…/SKILL.md`) | SQLite card in My Collection (`pb_*`) |
-| **Discovery** | Cursor skill system (when relevant) | MCP on bound deck (`list_playbooks`, `get_playbook`) + **[agent harness](./AGENT_HARNESS.md)** (CLAUDE.md / Cursor rules) |
+| **Discovery** | Cursor skill system (when relevant) | MCP on bound deck (`get_bound_deck` playbook summaries, `get_playbook`) + **[agent harness](./AGENT_HARNESS.md)** (CLAUDE.md / Cursor rules) |
 | **Scoped to a deck** | No | Yes — card linked via dashboard |
 | **Tied to creds / MCPs** | No dependency graph | Yes — `dependsOnCredentialIds`, `dependsOnServiceIds`, auto-detect |
 
@@ -64,14 +64,17 @@ Playbooks are **first-class cards** in My Collection — same lifecycle as MCP a
 
 | Tool | Purpose |
 |------|---------|
-| `list_playbooks` | Summaries (id, title, triggers) |
+| `get_bound_deck` | Playbook summaries on the deck (id, title, triggers) plus services/credentials |
 | `get_playbook` | Full body + resolved dependencies |
 | `register_playbook` | Create card; auto-detect deps; add to bound deck by default |
 | `update_playbook` | Update card on bound deck; re-detect deps |
+| `manage_deck_card` | Link/unlink an existing playbook (or other card) on the bound deck |
+
+Delete playbooks via CLI (`agent-deck playbook delete`) or dashboard — not MCP.
 
 **Dashboard:** Register playbook form also auto-detects dependencies on save. Prefer MCP tools from the agent when iterating after a run.
 
-**Discoverability:** Cursor auto-surfaces skills; playbooks need a nudge. `agent-deck setup` installs a compact [agent harness](./AGENT_HARNESS.md) rule so the agent calls `list_playbooks` and avoids mirroring into `.cursor/skills/`.
+**Discoverability:** Cursor auto-surfaces skills; playbooks need a nudge. `agent-deck setup` installs a compact [agent harness](./AGENT_HARNESS.md) rule so the agent calls `get_bound_deck` / `get_playbook` and avoids mirroring into `.cursor/skills/`.
 
 ---
 

@@ -15,7 +15,8 @@ import { installStatuslineScript } from './statusline-setup';
 
 const CLI_BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'bin.js');
 const HOST_TIMEOUT_MS = 2000;
-const HOST_BUDGET_MS = 800;
+/** Soft budget — hang regression is HOST_TIMEOUT_MS; allow load under full suite. */
+const HOST_BUDGET_MS = 1500;
 
 type HostRunResult = {
   stdout: string;

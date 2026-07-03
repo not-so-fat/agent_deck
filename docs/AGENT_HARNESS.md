@@ -78,8 +78,8 @@ Add your own notes above/below the harness markers in `agent-deck.mdc`, or anywh
 Three behaviors in one rule block (templates stay generic — no project-specific examples):
 
 0. **Connect MCP first** — `agent-deck setup --client … --start`, restart host; verify `claude mcp list` (Claude) or MCP panel (Cursor). Call `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` at the start of each workspace session.
-1. **Capability rescue** — use agent-deck before declining tool requests (`bind_workspace`, `list_bound_deck_services`, `call_service_tool`).
-2. **Playbooks as source of truth** — `list_playbooks` / `get_playbook` (match `triggers`); don’t mirror into `.cursor/skills/`.
+1. **Capability rescue** — use agent-deck before declining tool requests (`bind_workspace`, `get_bound_deck`, `call_service_tool`).
+2. **Playbooks as source of truth** — `get_bound_deck` playbook `triggers`, then `get_playbook`; don’t mirror into `.cursor/skills/`.
 3. **Self-improvement loop** — applies when the user gives feedback on output you produced **after** `get_playbook` + following that playbook this session (identify from session trace, not title or artifact type). Default actions:
    1. Fix the current output.
    2. `update_playbook` on that playbook so the next run avoids the same mistake.
@@ -89,9 +89,9 @@ Three behaviors in one rule block (templates stay generic — no project-specifi
    - Restructure the playbook if the structure can’t absorb the lesson cleanly
    - Surface what changed so the user can audit drift
 
-**Project scope** adds: `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` for this repo’s root; `list_playbooks` + match `triggers` before improvising.
+**Project scope** adds: `get_decks`, then `bind_workspace({ workspaceRoot, deckId })` for this repo’s root; match playbook `triggers` on `get_bound_deck` before improvising.
 
-**After upgrading** (especially when repo-deck tools were removed): re-run `setup` so the marked harness block in `~/.cursor/rules/agent-deck.mdc` or `CLAUDE.md` picks up the new session-only bind wording. Editing the repo’s `packages/cli/src/agent-harness.ts` alone does not change already-installed global rules until `setup` runs again.
+**After upgrading** (repo-deck removal, MCP tool rename): re-run `setup` so the marked harness block in `~/.cursor/rules/agent-deck.mdc` or `CLAUDE.md` picks up current tool names (`get_bound_deck`, not `list_playbooks` / `list_bound_deck_services`). Editing the repo’s `packages/cli/src/agent-harness.ts` alone does not change already-installed global rules until `setup` runs again. Also **restart the host** so MCP tool cache drops removed names. Update any **deck playbooks** that still mention old tools — see [CHANGELOG](../CHANGELOG.md) migration table.
 
 Templates: [cursor-agent-deck.mdc](./examples/agent-harness/cursor-agent-deck.mdc), [claude-harness.md](./examples/agent-harness/claude-harness.md).
 

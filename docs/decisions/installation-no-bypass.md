@@ -10,7 +10,7 @@
 
 1. User asked for PRDs; agent had **user-agent-deck** MCP enabled.
 2. `bind_workspace` **failed** — no `.agent-deck/deck.yaml` in `agent_deck` repo.
-3. `list_playbooks` on MCP returned **empty** — Cursor MCP hit **dev** backend (`:3001` → `~/.agent-deck/dev/`), while PRD playbooks live on **production** deck `dev` (`~/.agent-deck/`, 2 playbooks).
+3. Playbook list on MCP returned **empty** (then `list_playbooks`; now `get_bound_deck`) — Cursor MCP hit **dev** backend (`:3001` → `~/.agent-deck/dev/`), while PRD playbooks live on **production** deck `dev` (`~/.agent-deck/`, 2 playbooks).
 4. Agent **fallback**: direct SQLite read of production DB — full bypass of MCP, binding, and audit trail.
 
 ---
@@ -23,7 +23,7 @@
 | **Setup = MCP URL + harness only** | No `deck.yaml`, no playbook seed, no bind, no port profile for monorepo dev. |
 | **Harness is soft** | Says playbooks exist; does not **require** `get_playbook` before matching tasks or forbid filesystem/DB bypass. |
 | **Dogfooding gap** | `agent_deck` repo has no committed `.agent-deck/deck.yaml`, no project `.cursor/mcp.json` for dev ports. |
-| **Playbook discoverability** | Skills auto-load; playbooks need `list_playbooks` after successful bind — extra steps with failure modes. |
+| **Playbook discoverability** | Skills auto-load; playbooks need `get_bound_deck` / `get_playbook` after successful bind — extra steps with failure modes. |
 | **No “doctor” for agent path** | `agent-deck doctor` does not verify bind → playbooks reachable for cwd. |
 
 ---
@@ -68,7 +68,7 @@ On `setup --scope project` (or `--profile dev`):
 2. Write `.agent-deck/deck.yaml` with `deck_id` + `name`.
 3. Harness **project** block upgraded to:
 
-   > On task start: `bind_workspace` with repo root. For PRD, spec, or “playbook” tasks: `list_playbooks` then `get_playbook` by trigger — **do not** read `~/.agent-deck/*.db` or vault files directly.
+   > On task start: `bind_workspace` with repo root. For PRD, spec, or “playbook” tasks: `get_bound_deck` then `get_playbook` by trigger — **do not** read `~/.agent-deck/*.db` or vault files directly.
 
 4. Optional: `setup_repo_deck` MCP call from CLI after write (validates round-trip).
 
@@ -94,7 +94,7 @@ Extend `agent-deck doctor` (or `doctor --agent-path`):
 ```
 [ ] MCP reachable at configured URL
 [ ] bind_workspace(cwd) succeeds
-[ ] list_playbooks returns ≥1 card when dev deck seeded
+[ ] get_bound_deck playbooks returns ≥1 card when dev deck seeded
 [ ] get_playbook(pb_ai_codegen_prd) returns body
 [ ] WARN if ~/.agent-deck/dev and ~/.agent-deck both have deck named "dev" with different IDs
 ```
@@ -108,7 +108,7 @@ Fail with actionable fix commands.
 Add to `GLOBAL_BODY` in `packages/cli/src/agent-harness.ts`:
 
 1. **Mandatory bind** — first agent-deck call per session: `bind_workspace` (or `get_session_binding` if already bound).
-2. **Playbook gate** — when user mentions PRD, spec, playbook, or task matches triggers: `list_playbooks` → `get_playbook`; never read SQLite/Keychain.
+2. **Playbook gate** — when user mentions PRD, spec, playbook, or task matches triggers: `get_bound_deck` → `get_playbook`; never read SQLite/Keychain.
 3. **Failure mode** — if bind fails, call `get_decks` and retry `bind_workspace({ workspaceRoot, deckId })`; do not read `.agent-deck/deck.yaml`.
 
 Keep harness short; link `docs/AGENT_HARNESS.md` for detail.

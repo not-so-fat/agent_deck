@@ -73,19 +73,16 @@ Most setup and runtime work goes through the agent. **Dashboard-only (human-in-t
 | Tool | Purpose |
 |------|---------|
 | `bind_workspace` / `switch_bound_deck` / `get_session_binding` | Bind workspace + deck; switch deck; inspect binding |
-| `get_decks` / `get_bound_deck` / `create_deck` | List, read, or create decks |
-| `list_bound_deck_services` / `list_bound_deck_credentials` | Cards on the bound deck |
-| `list_collection_services` / `register_service` / `update_service` / `delete_service` | MCP collection CRUD |
-| `add_service_to_bound_deck` / `remove_service_from_bound_deck` | Link or unlink MCP cards on bound deck |
+| `get_decks` / `get_bound_deck` / `create_deck` | List, read, or create decks (`get_bound_deck` includes all bound cards + `display_summary`) |
+| `manage_deck_card` | Link, unlink, or reorder cards on the bound deck |
+| `list_collection` | Collection metadata (optional `card_type` filter) |
+| `register_service` / `update_service` | MCP collection create/update |
 | `update_service_tool_settings` | Enable/disable individual MCP tools (bound deck) |
-| `list_collection_credentials` | API key metadata (no secrets) — use ids to link keys |
-| `add_credential_to_bound_deck` / `remove_credential_from_bound_deck` | Link or unlink API key cards |
-| `list_playbooks` / `list_collection_playbooks` / `get_playbook` | Read playbook cards |
-| `register_playbook` / `update_playbook` / `delete_playbook` | Create, update, or delete playbooks |
-| `add_playbook_to_bound_deck` / `remove_playbook_from_bound_deck` | Link or unlink playbook cards |
+| `register_playbook` / `update_playbook` | Create or update playbooks |
+| `get_playbook` | Full playbook body + dependencies |
 | `list_service_tools` / `call_service_tool` | Discover and call tools on bound-deck MCPs |
 
-Legacy aliases (`get_active_deck`, `list_active_deck_*`, …) remain for v1 compatibility. Full spec: [MVP](docs/MVP.md).
+**Not MCP:** secrets, OAuth, delete card — dashboard/CLI (`agent-deck service|playbook|deck list|delete`). Import/export planned on CLI. Details: [MCP_TOOL_OPTIMIZATION](docs/MCP_TOOL_OPTIMIZATION.md). Full spec: [MVP](docs/MVP.md).
 
 ### Connect MCP in Cursor
 

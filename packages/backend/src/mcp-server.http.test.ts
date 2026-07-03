@@ -152,6 +152,15 @@ describe('AgentDeckMCPServer streamable HTTP', () => {
     expect(bindWorkspace?.inputSchema?.required).toEqual(
       expect.arrayContaining(['workspaceRoot', 'deckId']),
     );
+
+    expect(names).toContain('manage_deck_card');
+    expect(names).toContain('list_collection');
+    expect(names).toContain('get_bound_deck');
+    expect(names).toContain('create_deck');
+    expect(names).not.toContain('delete_service');
+    expect(names).not.toContain('delete_playbook');
+    expect(names).not.toContain('add_service_to_bound_deck');
+    expect(names).not.toContain('list_playbooks');
   });
 });
 

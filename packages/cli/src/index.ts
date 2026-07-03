@@ -5,6 +5,11 @@ import {
   runCommand,
 } from './lib/runtime';
 
+import {
+  runDeckCommand,
+  runPlaybookCommand,
+  runServiceCommand,
+} from './collection-admin';
 import { runDebugMcp } from './debug-mcp';
 import { runDoctor, runStart } from './start';
 import { runSetup, shouldStartAfterSetup } from './setup';
@@ -44,6 +49,9 @@ function printUsage() {
   agent-deck credential add <id> --env-name ENV_NAME --scheme bearer|header|http_basic_user [--label LABEL] [--header-name NAME] [--tags tag1,tag2]
   agent-deck credential list
   agent-deck credential rotate <id>
+  agent-deck service list|delete <id>
+  agent-deck playbook list|delete <id>
+  agent-deck deck list|delete <id>
   agent-deck exec [--deck DECK_ID] [--connections cred_a,cred_b] [--dry-run] -- <command...>`);
 }
 
@@ -291,6 +299,12 @@ export async function runCli(argv: string[]): Promise<number> {
       return runDebugMcp();
     case 'credential':
       return runCredentialCommand(rest);
+    case 'service':
+      return runServiceCommand(rest);
+    case 'playbook':
+      return runPlaybookCommand(rest);
+    case 'deck':
+      return runDeckCommand(rest);
     case 'exec':
       return runExec(rest);
     default:

@@ -18,9 +18,9 @@ const GLOBAL_BODY = `**Connect first:** Ensure Agent Deck MCP is connected befor
 
 **Later turns:** Call \`bind_workspace\` before the first deck-scoped tool if not already bound. Terminal hosts may also show the deck in the prompt footer via \`statusLine\`; do not duplicate unless the user asks.
 
-Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck MCP: \`bind_workspace\`, \`list_bound_deck_services\`, \`call_service_tool\`. Don't hardcode deck IDs.
+Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck MCP: \`bind_workspace\`, \`get_bound_deck\`, \`call_service_tool\`. Don't hardcode deck IDs.
 
-Deck playbooks are task recipes — \`list_playbooks\` / \`get_playbook\` (match \`triggers\`). Don't mirror into \`.cursor/skills/\` — one source of truth on the deck.
+Deck playbooks are task recipes — check \`triggers\` on \`get_bound_deck\` playbooks, then \`get_playbook\` for the body. Don't mirror into \`.cursor/skills/\` — one source of truth on the deck.
 
 ### Playbooks — refine from outcomes (self-improvement)
 
@@ -37,7 +37,7 @@ Deck playbooks are task recipes — \`list_playbooks\` / \`get_playbook\` (match
 - **Surface the change** in your response so the user can audit drift`;
 
 const PROJECT_BODY_EXTRA =
-  'In this repo: \`get_decks\`, then \`bind_workspace\` with the workspace root and \`deckId\`. When a task matches deck playbooks (check \`triggers\` via \`list_playbooks\`), \`get_playbook\` before improvising.';
+  'In this repo: \`get_decks\`, then \`bind_workspace\` with the workspace root and \`deckId\`. When a task matches deck playbooks (check \`triggers\` on \`get_bound_deck\`), \`get_playbook\` before improvising.';
 
 export function buildClaudeHarnessBlock(scope: SetupScope): string {
   const lines = ['## Agent Deck', '', GLOBAL_BODY];

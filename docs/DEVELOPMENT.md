@@ -51,7 +51,8 @@ npm run test --workspace packages/backend
 npm run smoke:dev                  # lightweight launch smoke
 ```
 
-- Framework: **Vitest**
+- Framework: **Vitest** (FE: Vitest + React Testing Library + jsdom — no separate E2E runner)
+- Map: [TESTING.md](./TESTING.md) (FE / BE / MCP / CLI scenarios)
 - Native module: `better-sqlite3` — if Node major changes, `npm install` / `scripts/rebuild-native.mjs`
 - After backend/MCP changes: run `npm run dev:all` or `smoke:dev` per [verify-service-launch](../.cursor/rules/verify-service-launch.mdc)
 
