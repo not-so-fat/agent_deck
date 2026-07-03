@@ -7,6 +7,7 @@ import {
   countDeckCards,
   formatDisplayLine,
   formatDisplayUpdatedSuffix,
+  isBindingSidecarSessionKey,
   lookupWorkspaceBinding,
   resolveBindingEntry,
   resolveStatusLineSessionId,
@@ -100,36 +101,43 @@ describe('deck-display', () => {
     const bindings = {
       '123e4567-e89b-12d3-a456-426614174000': {
         deckId: '223e4567-e89b-12d3-a456-426614174001',
-        deckName: 'Session Deck',
+        deckName: 'MCP Session Deck',
         source: 'session_override' as const,
         updatedAt: '2026-01-01T00:00:00.000Z',
         cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
       },
       [path.resolve('/repo')]: {
         deckId: '323e4567-e89b-12d3-a456-426614174002',
-        deckName: 'Legacy Deck',
-        source: 'repo_manifest' as const,
-        updatedAt: '2026-01-01T00:00:00.000Z',
-        cardCounts: { mcp: 2, credentials: 0, playbooks: 0 },
+        deckName: 'Workspace Deck',
+        source: 'session_override' as const,
+        updatedAt: '2026-07-02T15:33:00.000Z',
+        cardCounts: { mcp: 4, credentials: 0, playbooks: 4 },
       },
     };
 
-    it('prefers session key over legacy workspace key', () => {
+    it('prefers workspace key over MCP session UUID keys', () => {
       expect(
         resolveBindingEntry(bindings, {
           sessionId: '123e4567-e89b-12d3-a456-426614174000',
           workspaceRoot: '/repo',
         })?.deckName,
-      ).toBe('Session Deck');
+      ).toBe('Workspace Deck');
     });
 
-    it('falls back to legacy workspace key when session is missing', () => {
+    it('ignores host session_id when workspace sidecar is absent', () => {
       expect(
         resolveBindingEntry(bindings, {
-          sessionId: 'missing-session',
-          workspaceRoot: '/repo/packages/app',
-        })?.deckName,
-      ).toBe('Legacy Deck');
+          sessionId: '123e4567-e89b-12d3-a456-426614174000',
+          workspaceRoot: '/other',
+        }),
+      ).toBeNull();
+    });
+  });
+
+  describe('isBindingSidecarSessionKey', () => {
+    it('detects UUID session keys', () => {
+      expect(isBindingSidecarSessionKey('123e4567-e89b-12d3-a456-426614174000')).toBe(true);
+      expect(isBindingSidecarSessionKey('/Users/me/repo')).toBe(false);
     });
   });
 

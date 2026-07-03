@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DatabaseManager } from '../models/database';
-import { upsertBindingForSession } from './bindings-sidecar';
+import { upsertWorkspaceDisplayBinding } from './bindings-sidecar';
 import { resolveDeckDisplay } from './display';
 
 describe('resolveDeckDisplay', () => {
@@ -26,15 +26,44 @@ describe('resolveDeckDisplay', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it('falls back to legacy workspace sidecar when session is absent', async () => {
+  it('uses workspace sidecar regardless of host session_id', async () => {
     const workspace = path.join(tempDir, 'repo');
     const manifestDeck = await db.createDeck({ name: 'Manifest Deck', description: '' });
-    const legacyDeck = await db.createDeck({ name: 'Legacy Deck', description: '' });
+    const boundDeck = await db.createDeck({ name: 'Task Management', description: '' });
 
     await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
     await fs.writeFile(
       path.join(workspace, '.agent-deck', 'deck.yaml'),
       `deck_id: ${manifestDeck.id}\n`,
+      'utf8',
+    );
+
+    await upsertWorkspaceDisplayBinding(workspace, {
+      deckId: boundDeck.id,
+      deckName: boundDeck.name,
+      source: 'session_override',
+      updatedAt: '2026-07-02T15:33:00.000Z',
+      cardCounts: { mcp: 4, credentials: 0, playbooks: 4 },
+      workspaceRoot: workspace,
+    });
+
+    const display = await resolveDeckDisplay(
+      { sessionId: 'claude-code-session-unrelated', workspaceRoot: workspace },
+      db,
+    );
+    expect(display.deckId).toBe(boundDeck.id);
+    expect(display.displayLine).toContain('Task Management');
+    expect(display.displayLine).toContain('(updated');
+  });
+
+  it('ignores stale MCP session UUID keys when workspace sidecar is absent', async () => {
+    const workspace = path.join(tempDir, 'repo-manifest');
+    await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
+
+    const deck = await db.createDeck({ name: 'Manifest Deck', description: '' });
+    await fs.writeFile(
+      path.join(workspace, '.agent-deck', 'deck.yaml'),
+      `deck_id: ${deck.id}\n`,
       'utf8',
     );
 
@@ -42,56 +71,26 @@ describe('resolveDeckDisplay', () => {
     await fs.writeFile(
       bindingsPath,
       JSON.stringify({
-        [workspace]: {
-          deckId: legacyDeck.id,
-          deckName: legacyDeck.name,
+        '123e4567-e89b-12d3-a456-426614174000': {
+          deckId: '223e4567-e89b-12d3-a456-426614174001',
+          deckName: 'Stale MCP Session Deck',
           source: 'session_override',
-          updatedAt: '2026-07-02T07:20:00.000Z',
-          cardCounts: { mcp: 0, credentials: 0, playbooks: 0 },
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
         },
       }),
       'utf8',
     );
 
     const display = await resolveDeckDisplay(
-      { sessionId: 'unknown-session', workspaceRoot: workspace },
+      { sessionId: '123e4567-e89b-12d3-a456-426614174000', workspaceRoot: workspace },
       db,
     );
-    expect(display.deckId).toBe(legacyDeck.id);
-    expect(display.displayLine).toContain('Legacy Deck');
+    expect(display.deckId).toBe(deck.id);
+    expect(display.source).toBe('repo_manifest');
   });
 
-  it('prefers session sidecar over repo manifest', async () => {
-    const workspace = path.join(tempDir, 'repo');
-    const sessionId = '123e4567-e89b-12d3-a456-426614174000';
-    await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
-
-    const manifestDeck = await db.createDeck({ name: 'Manifest Deck', description: '' });
-    const sessionDeck = await db.createDeck({ name: 'Session Deck', description: '' });
-
-    await fs.writeFile(
-      path.join(workspace, '.agent-deck', 'deck.yaml'),
-      `deck_id: ${manifestDeck.id}\n`,
-      'utf8',
-    );
-
-    await upsertBindingForSession(sessionId, {
-      deckId: sessionDeck.id,
-      deckName: sessionDeck.name,
-      source: 'session_override',
-      updatedAt: '2026-07-02T07:20:00.000Z',
-      cardCounts: { mcp: 0, credentials: 0, playbooks: 0 },
-      workspaceRoot: workspace,
-    });
-
-    const display = await resolveDeckDisplay({ sessionId, workspaceRoot: workspace }, db);
-    expect(display.deckId).toBe(sessionDeck.id);
-    expect(display.source).toBe('session_override');
-    expect(display.displayLine).toContain('Session Deck');
-    expect(display.displayLine).toContain('(updated');
-  });
-
-  it('falls back to repo manifest when session sidecar is absent', async () => {
+  it('falls back to repo manifest when workspace sidecar is absent', async () => {
     const workspace = path.join(tempDir, 'repo-manifest');
     await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
 

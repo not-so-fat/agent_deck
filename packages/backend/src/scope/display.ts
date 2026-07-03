@@ -45,7 +45,7 @@ function buildDisplay(
   };
 }
 
-/** Resolve bound-deck display for a CLI/MCP session (session sidecar → env → manifest → unbound). */
+/** Resolve bound-deck display for terminal status line (workspace sidecar → env → manifest → unbound). */
 export async function resolveDeckDisplay(
   input: ResolveDeckDisplayInput,
   db: DatabaseManager,

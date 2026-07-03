@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Deck display — status line stale fix
+
+- **Workspace-keyed sidecar** — `bind_workspace` and `switch_bound_deck` write `bindings.json[workspaceRoot]` (Claude Code `session_id` ≠ MCP session id)
+- **Lookup** — statusline and display API resolve by workspace path only; host `session_id` ignored
+- **Cleanup** — prune orphaned MCP-session UUID keys from `bindings.json` on each write
+
 ## 1.2.8 — 2026-07-02
 
 ### Deck display — upgrade fix

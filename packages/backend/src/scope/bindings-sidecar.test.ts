@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readBindingForSession, upsertBindingForSession } from './bindings-sidecar';
+import { readBindingForWorkspace, upsertWorkspaceDisplayBinding } from './bindings-sidecar';
 
 describe('bindings-sidecar', () => {
   const originalHome = process.env.AGENT_DECK_HOME;
@@ -22,36 +22,50 @@ describe('bindings-sidecar', () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it('upserts and reads session bindings', async () => {
-    const sessionId = '123e4567-e89b-12d3-a456-426614174000';
-    await upsertBindingForSession(sessionId, {
+  it('upserts workspace-keyed bindings for status line', async () => {
+    const workspace = '/Users/me/repo';
+    await upsertWorkspaceDisplayBinding(workspace, {
       deckId: '223e4567-e89b-12d3-a456-426614174001',
       deckName: 'Dev Deck',
       source: 'session_override',
       updatedAt: '2026-01-01T00:00:00.000Z',
       cardCounts: { mcp: 2, credentials: 1, playbooks: 0 },
-      workspaceRoot: '/Users/me/repo',
+      workspaceRoot: workspace,
     });
 
-    const entry = await readBindingForSession(sessionId);
+    const entry = await readBindingForWorkspace(workspace);
     expect(entry?.deckName).toBe('Dev Deck');
     expect(entry?.source).toBe('session_override');
-    expect(entry?.workspaceRoot).toBe('/Users/me/repo');
   });
 
-  it('does not share bindings across sessions', async () => {
-    const sessionA = '123e4567-e89b-12d3-a456-426614174000';
-    const sessionB = '323e4567-e89b-12d3-a456-426614174002';
+  it('prunes legacy MCP session UUID keys on write', async () => {
+    const workspace = '/Users/me/repo';
+    const bindingsPath = path.join(tempDir, 'bindings.json');
+    await fs.writeFile(
+      bindingsPath,
+      JSON.stringify({
+        '123e4567-e89b-12d3-a456-426614174000': {
+          deckId: '223e4567-e89b-12d3-a456-426614174001',
+          deckName: 'Stale Session Deck',
+          source: 'session_override',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+        },
+      }),
+      'utf8',
+    );
 
-    await upsertBindingForSession(sessionA, {
-      deckId: '223e4567-e89b-12d3-a456-426614174001',
-      deckName: 'Deck A',
+    await upsertWorkspaceDisplayBinding(workspace, {
+      deckId: '323e4567-e89b-12d3-a456-426614174002',
+      deckName: 'Workspace Deck',
       source: 'session_override',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      cardCounts: { mcp: 1, credentials: 0, playbooks: 0 },
+      updatedAt: '2026-07-02T15:33:00.000Z',
+      cardCounts: { mcp: 4, credentials: 0, playbooks: 4 },
+      workspaceRoot: workspace,
     });
 
-    expect(await readBindingForSession(sessionB)).toBeNull();
-    expect((await readBindingForSession(sessionA))?.deckName).toBe('Deck A');
+    const raw = JSON.parse(await fs.readFile(bindingsPath, 'utf8')) as Record<string, unknown>;
+    expect(raw['123e4567-e89b-12d3-a456-426614174000']).toBeUndefined();
+    expect((raw[workspace] as { deckName: string }).deckName).toBe('Workspace Deck');
   });
 });

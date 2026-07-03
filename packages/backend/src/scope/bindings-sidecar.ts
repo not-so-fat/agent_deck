@@ -4,6 +4,7 @@ import {
   BindingEntry,
   BindingsFile,
   BindingsFileSchema,
+  isBindingSidecarSessionKey,
   listBindingsFileCandidates,
   lookupWorkspaceBinding,
   normalizeWorkspaceRoot,
@@ -37,9 +38,23 @@ async function writeBindingsFile(bindings: BindingsFile): Promise<void> {
   await fs.writeFile(filePath, `${JSON.stringify(bindings, null, 2)}\n`, 'utf8');
 }
 
-export async function readBindingForSession(sessionId: string): Promise<BindingEntry | null> {
+function pruneLegacySessionKeys(bindings: BindingsFile): void {
+  for (const key of Object.keys(bindings)) {
+    if (isBindingSidecarSessionKey(key)) {
+      delete bindings[key];
+    }
+  }
+}
+
+/** Write workspace-keyed binding for terminal status line; prune orphaned MCP session UUID keys. */
+export async function upsertWorkspaceDisplayBinding(
+  workspaceRoot: string,
+  entry: BindingEntry,
+): Promise<void> {
   const bindings = await readBindingsFile();
-  return bindings[sessionId.trim()] ?? null;
+  bindings[normalizeWorkspaceRoot(workspaceRoot)] = entry;
+  pruneLegacySessionKeys(bindings);
+  await writeBindingsFile(bindings);
 }
 
 export async function readBindingForDisplay(options: {
@@ -50,27 +65,7 @@ export async function readBindingForDisplay(options: {
   return resolveBindingEntry(bindings, options);
 }
 
-export async function upsertBindingForSession(
-  sessionId: string,
-  entry: BindingEntry,
-): Promise<void> {
-  const bindings = await readBindingsFile();
-  bindings[sessionId.trim()] = entry;
-  await writeBindingsFile(bindings);
-}
-
-/** @deprecated Legacy workspace-keyed sidecar; status display is session-scoped. */
 export async function readBindingForWorkspace(workspaceRoot: string): Promise<BindingEntry | null> {
   const bindings = await readBindingsFile();
   return lookupWorkspaceBinding(bindings, workspaceRoot);
-}
-
-/** @deprecated Legacy workspace-keyed sidecar; use upsertBindingForSession. */
-export async function upsertBindingForWorkspace(
-  workspaceRoot: string,
-  entry: BindingEntry,
-): Promise<void> {
-  const bindings = await readBindingsFile();
-  bindings[normalizeWorkspaceRoot(workspaceRoot)] = entry;
-  await writeBindingsFile(bindings);
 }

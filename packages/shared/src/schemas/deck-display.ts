@@ -25,7 +25,7 @@ export const BindingEntrySchema = z.object({
   workspaceRoot: z.string().optional(),
 });
 
-/** Keys are host/MCP session ids (see StatusLinePayload.session_id). */
+/** Keys are workspace roots (status line) plus legacy MCP session UUIDs pruned on write. */
 export const BindingsFileSchema = z.record(z.string(), BindingEntrySchema);
 
 export const DeckDisplaySchema = z.object({
@@ -125,6 +125,14 @@ export function normalizeWorkspaceRoot(workspaceRoot: string): string {
   return path.resolve(workspaceRoot.trim());
 }
 
+const BINDING_SESSION_KEY_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Legacy MCP-session keys in bindings.json (not Claude Code session_id). */
+export function isBindingSidecarSessionKey(key: string): boolean {
+  return BINDING_SESSION_KEY_RE.test(key.trim());
+}
+
 /** Walk up from workspaceRoot to find the nearest bindings sidecar entry. */
 export function lookupWorkspaceBinding(
   bindings: BindingsFile,
@@ -145,16 +153,11 @@ export function lookupWorkspaceBinding(
   return null;
 }
 
-/** Session sidecar first; legacy pre-1.2.7 workspace keys as fallback. */
+/** Workspace-root sidecar for terminal status line (Claude session_id ≠ MCP session id). */
 export function resolveBindingEntry(
   bindings: BindingsFile,
   options: { sessionId?: string; workspaceRoot?: string },
 ): BindingEntry | null {
-  const sessionId = options.sessionId?.trim();
-  if (sessionId && bindings[sessionId]) {
-    return bindings[sessionId];
-  }
-
   if (options.workspaceRoot?.trim()) {
     return lookupWorkspaceBinding(bindings, options.workspaceRoot);
   }
