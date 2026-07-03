@@ -42,6 +42,25 @@ async function postInitialize(port: number, id = 1) {
   });
 }
 
+async function listTools(port: number, sessionId: string, id: number) {
+  const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: MCP_ACCEPT,
+      'mcp-session-id': sessionId,
+    },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/list',
+      params: {},
+    }),
+  });
+  const body = await response.json();
+  return body.result.tools as Array<{ name: string; inputSchema?: { required?: string[] } }>;
+}
+
 describe('AgentDeckMCPServer streamable HTTP', () => {
   let port: number;
   let mcpServer: AgentDeckMCPServer;
@@ -117,6 +136,22 @@ describe('AgentDeckMCPServer streamable HTTP', () => {
       }),
     });
     expect(response.status).toBe(400);
+  });
+
+  it('does not expose removed repo-deck MCP tools', async () => {
+    const init = await postInitialize(port, 50);
+    const sessionId = init.headers.get('mcp-session-id');
+    expect(sessionId).toBeTruthy();
+
+    const tools = await listTools(port, sessionId!, 51);
+    const names = tools.map((tool) => tool.name);
+    expect(names).not.toContain('setup_repo_deck');
+    expect(names).not.toContain('get_repo_deck_status');
+
+    const bindWorkspace = tools.find((tool) => tool.name === 'bind_workspace');
+    expect(bindWorkspace?.inputSchema?.required).toEqual(
+      expect.arrayContaining(['workspaceRoot', 'deckId']),
+    );
   });
 });
 

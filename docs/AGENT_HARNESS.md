@@ -43,6 +43,8 @@ Prefer `agent-deck setup --client claude` (writes the script + merges JSON). Do 
 
 Re-running `setup` **updates** the harness in place (idempotent).
 
+**Stale MCP tool list in Cursor:** Cursor caches tool descriptors per MCP server name. After upgrading Agent Deck, restart Cursor (or toggle MCP off/on in Settings) so removed tools like `setup_repo_deck` disappear. If you use both `agent-deck` (`:11112`) and `agent-deck-dev` (`:3001`), refresh **both** — a stopped or old dev server can leave ghost tools visible.
+
 ### Safety — we do not replace your other rules or skills
 
 | What | Behavior |

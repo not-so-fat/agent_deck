@@ -13,15 +13,20 @@
 
 - **SwiftBar menubar** — `agent-deck menubar`; default on macOS `setup` (`--no-menubar` to skip); brew + plugin folder auto-config
 - **Session badges** — `⌘word` per MCP session in menubar, statusline `display_summary`, and `GET /api/scope/bindings`
-- **Dashboard** — live session chip in page header; My Decks shows `N cards, M sessions` per deck
+- **Dashboard** — live session chip in page header (replaces old editing-deck name/cards chip); My Decks shows `N cards, M sessions`; Deck panel keeps `{name} ({n} cards)`
 
 ### Upgrade from 1.2.9
 
 1. **Install globally:** `npm i -g @agent-deck/cli@1.2.10`
-2. **Restart:** `agent-deck stop && agent-deck start`
-3. **Re-run setup:** `agent-deck setup --client cursor` (or `claude`) — refreshes harness + menubar plugin
-4. **Bind with deck id:** agent calls `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`
-5. **Optional:** delete leftover `.agent-deck/deck.yaml` files (ignored)
+2. **Restart:** `agent-deck stop && agent-deck start` (and `npm run dev:all` if you use `:3001` dev MCP)
+3. **Restart Cursor** — clears stale MCP tool cache (`setup_repo_deck` ghosts when `agent-deck-dev` was cached)
+4. **Re-run setup:** `agent-deck setup --client cursor` (or `claude`) — refreshes harness + menubar plugin
+5. **Bind with deck id:** agent calls `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`
+6. **Delete leftover** `.agent-deck/deck.yaml` — ignored by the server; confuses agents if left in repo
+
+### Tests
+
+- **`tools/list` regression** — asserts `setup_repo_deck` / `get_repo_deck_status` are not registered and `bind_workspace` requires `deckId`
 
 ## 1.2.9 — 2026-07-03
 

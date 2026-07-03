@@ -109,7 +109,7 @@ Add to `GLOBAL_BODY` in `packages/cli/src/agent-harness.ts`:
 
 1. **Mandatory bind** — first agent-deck call per session: `bind_workspace` (or `get_session_binding` if already bound).
 2. **Playbook gate** — when user mentions PRD, spec, playbook, or task matches triggers: `list_playbooks` → `get_playbook`; never read SQLite/Keychain.
-3. **Failure mode** — if bind fails, call `get_repo_deck_status` / `setup_repo_deck`; do not improvise from filesystem.
+3. **Failure mode** — if bind fails, call `get_decks` and retry `bind_workspace({ workspaceRoot, deckId })`; do not read `.agent-deck/deck.yaml`.
 
 Keep harness short; link `docs/AGENT_HARNESS.md` for detail.
 
