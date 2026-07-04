@@ -4,7 +4,7 @@
 **Doc role:** Product / scope spec (PRD equivalent for this repo)  
 **Last aligned:** 2026-06-30  
 **Vision / future reference:** [Agent Deck v2](file:///Users/not_so_fat/workspace/Obsidian/lexicon-personal/Ideas/personal/Agent%20Deck%20v2.md) (Obsidian) — full card model, API profiles, workflow tiers.  
-**Proposed (separate PRDs):** [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) · [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md)
+**Related PRDs:** [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) (CLI + dashboard metadata export/import) · [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md)
 
 **Goal:** Ship **Modules 1–3** on top of v1 (MCP proxy + decks). Prove unconscious scoping, centralized API keys, and reusable playbooks.
 
@@ -151,6 +151,7 @@ Humans never pick env var names in the UI. Agents **discover** metadata via the 
 - **Vault (collection)** = all registered API keys. Dashboard only via `GET /api/credentials/vault` with header `x-agent-deck-client: dashboard`.
 - **Bound deck** = project boundary for agents. Agents only see credentials on the session-bound deck (via `bind_workspace` / `x-agent-deck-deck-id`).
 - **Editing deck (dashboard)** = drag target for MCP and API key cards. Drag onto deck to link; drag out to unlink — keys stay in the vault.
+- **Unique display names** — deck `name`, service `name`, playbook `title`, and credential `label` are UNIQUE (users/agents distinguish by name, not UUID).
 
 Client header `x-agent-deck-client`:
 
@@ -179,7 +180,7 @@ Client header `x-agent-deck-client`:
 | `get_playbook` | Full playbook body + dependencies |
 | `list_service_tools` / `call_service_tool` | Proxy to services on bound deck |
 
-**Not MCP:** secrets, OAuth consent, delete card, import/export — dashboard/CLI (`agent-deck service|playbook|deck list|delete`). Optional profile: `AGENT_DECK_MCP_TOOL_PROFILE=runtime|standard|legacy` (default `standard`). See [MCP_TOOL_OPTIMIZATION.md](./MCP_TOOL_OPTIMIZATION.md).
+**Not MCP:** secrets, OAuth consent, delete card, import/export — dashboard/CLI (`agent-deck service|playbook|deck list|delete`, `agent-deck export all|export deck|import`). Optional profile: `AGENT_DECK_MCP_TOOL_PROFILE=runtime|standard|legacy` (default `standard`). See [MCP_TOOL_OPTIMIZATION.md](./MCP_TOOL_OPTIMIZATION.md).
 
 Deprecated (removed from `standard`; available in `legacy` profile only): `get_active_deck`, `list_active_deck_*`, `list_bound_deck_*`, `list_playbooks`, `list_collection_*`, `add_*_to_bound_deck`, `remove_*_from_bound_deck`.
 
@@ -442,7 +443,7 @@ agent-deck exec --deck <deck-id> --connections cred_ashby,cred_openai,cred_slack
 
 ## Related docs
 
-- [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) — collection/deck migration (proposed)
+- [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) — collection/deck metadata export/import (CLI + dashboard; no credentials; skip on unique name)
 - [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md) — bound deck visibility in Cursor/Claude (proposed)
 - [README.md](./README.md) — documentation index and conventions
 - [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) — when to use playbooks vs Cursor skills

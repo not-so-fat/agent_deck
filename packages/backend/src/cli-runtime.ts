@@ -1,7 +1,17 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type { BundleV1, ExportRequest, ImportReport } from '@agent-deck/shared';
 import { DatabaseManager } from './models/database';
 import { resolveDatabasePath } from './lib/paths';
 import { createSecretStore, CredentialManager } from './vault';
 import { PlaybookDependencyError, PlaybookManager } from './playbooks/playbook-manager';
+import {
+  buildExportBundle,
+  ExportBundleError,
+  importBundle,
+  ImportBundleError,
+  parseBundleJson,
+} from './export-import';
 
 /** Shared credential manager for the agent-deck CLI (vault + exec). */
 export function createCliCredentialManager(): CredentialManager {
@@ -83,4 +93,58 @@ export function createCliCollectionAdmin() {
 
 export type CliCollectionAdmin = ReturnType<typeof createCliCollectionAdmin>;
 
-export { PlaybookDependencyError };
+/**
+ * Export / import layouts (MCP + playbooks + decks). No credentials or secrets.
+ */
+export function createCliExportImport() {
+  const db = new DatabaseManager(resolveDatabasePath());
+
+  return {
+    async exportToFile(
+      outputPath: string,
+      request: ExportRequest,
+    ): Promise<{ ok: true; bundle: BundleV1 } | { ok: false; error: string }> {
+      try {
+        const bundle = await buildExportBundle(db, request);
+        const resolved = path.resolve(outputPath);
+        await fs.mkdir(path.dirname(resolved), { recursive: true });
+        await fs.writeFile(resolved, `${JSON.stringify(bundle, null, 2)}\n`, 'utf8');
+        return { ok: true, bundle };
+      } catch (error) {
+        const message =
+          error instanceof ExportBundleError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : String(error);
+        return { ok: false, error: message };
+      }
+    },
+
+    async importFromFile(
+      inputPath: string,
+    ): Promise<{ ok: true; report: ImportReport } | { ok: false; error: string }> {
+      try {
+        const text = await fs.readFile(path.resolve(inputPath), 'utf8');
+        const raw = parseBundleJson(text);
+        const report = await importBundle(db, raw);
+        if (report.status === 'failed') {
+          return { ok: false, error: report.warnings.join('; ') || 'Import failed' };
+        }
+        return { ok: true, report };
+      } catch (error) {
+        const message =
+          error instanceof ImportBundleError
+            ? error.message
+            : error instanceof Error
+              ? error.message
+              : String(error);
+        return { ok: false, error: message };
+      }
+    },
+  };
+}
+
+export type CliExportImport = ReturnType<typeof createCliExportImport>;
+
+export { PlaybookDependencyError, ExportBundleError, ImportBundleError };

@@ -222,6 +222,50 @@ describe('DatabaseManager', () => {
       expect(deck.updatedAt).toBeDefined();
     });
 
+    it('rejects duplicate deck names', async () => {
+      await dbManager.createDeck({ name: 'dev' });
+      await expect(dbManager.createDeck({ name: 'dev' })).rejects.toThrow(
+        /deck with that name already exists/i,
+      );
+    });
+
+    it('migrates duplicate deck names before unique index', async () => {
+      const dbPath = path.join(os.tmpdir(), `agent-deck-dup-decks-${Date.now()}.db`);
+      const legacyDb = new Database(dbPath);
+      legacyDb.exec(`
+        CREATE TABLE decks (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          description TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `);
+      legacyDb
+        .prepare(
+          `INSERT INTO decks (id, name, description, is_active, created_at, updated_at)
+           VALUES (?, 'dev', '', 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+        )
+        .run('deck-1');
+      legacyDb
+        .prepare(
+          `INSERT INTO decks (id, name, description, is_active, created_at, updated_at)
+           VALUES (?, 'dev', '', 0, '2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z')`,
+        )
+        .run('deck-2');
+      legacyDb.close();
+
+      const migrated = new DatabaseManager(dbPath);
+      const decks = await migrated.getAllDecks();
+      expect(decks.map((deck) => deck.name).sort()).toEqual([
+        'dev',
+        'dev (imported)',
+      ]);
+      migrated.close();
+      fs.rmSync(dbPath, { force: true });
+    });
+
     it('should get a deck by ID', async () => {
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',

@@ -17,15 +17,17 @@ import PlaybookRegistrationModal from "@/components/playbook-registration-modal"
 import PlaybookDetailsModal from "@/components/playbook-details-modal";
 import CredentialDetailsModal from "@/components/credential-details-modal";
 import ServiceDetailsModal from "@/components/service-details-modal";
+import ImportBundleModal from "@/components/import-bundle-modal";
 import McpToolsPanel from "@/components/mcp-tools-panel";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useDragAndDrop } from "@/hooks/use-drag-and-drop";
 import { useEditingDeck } from "@/hooks/use-editing-deck";
 import { MCP_CARD_COLOR, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR, CARD_FACE_CLASS, cardAccentStyle } from "@/lib/card-colors";
+import { downloadBundleJson, exportBundle } from "@/lib/export-import";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid } from "lucide-react";
+import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid, Download, Upload } from "lucide-react";
 import AgentDeckLogo from "@/assets/AgentDeckLogo3.png";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,9 +44,31 @@ export default function Home() {
   const [playbookModalOpen, setPlaybookModalOpen] = useState(false);
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null);
   const [playbookDetailsOpen, setPlaybookDetailsOpen] = useState(false);
+  const [importBundleOpen, setImportBundleOpen] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   
   const { toast } = useToast();
+
+  const handleExportAll = async () => {
+    setExportingAll(true);
+    try {
+      const bundle = await exportBundle({ scope: "collection" });
+      downloadBundleJson(bundle, "backup.agent-deck.json");
+      toast({
+        title: "Exported collection",
+        description: `${bundle.services.length} services, ${bundle.playbooks.length} playbooks, ${bundle.decks.length} decks`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setExportingAll(false);
+    }
+  };
   
   // WebSocket connection for real-time updates
   const { connectionStatus } = useWebSocket();
@@ -221,7 +245,7 @@ export default function Home() {
 
   return (
     <div 
-      className="min-h-screen"
+      className="flex min-h-dvh flex-col overflow-x-hidden"
       onDrop={handleGlobalDrop}
       onDragOver={(e) => e.preventDefault()}
       style={{
@@ -232,24 +256,24 @@ export default function Home() {
       }}
     >
       {/* Header */}
-      <header className="relative z-20 bg-black/30 backdrop-blur-md border-b border-white/10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+      <header className="relative z-20 shrink-0 bg-black/30 backdrop-blur-md border-b border-white/10">
+        <div className="container mx-auto px-4 py-3 sm:py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <img
                 src={AgentDeckLogo}
                 alt="Agent Deck Logo"
-                className="h-16 w-16 object-contain"
+                className="h-12 w-12 shrink-0 object-contain sm:h-16 sm:w-16"
               />
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent" style={{background: 'linear-gradient(to right, #C4B643, #D4C760)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 bg-clip-text text-transparent sm:text-2xl" style={{background: 'linear-gradient(to right, #C4B643, #D4C760)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'}}>
                   AgentDeck
                 </h1>
-                <p className="text-sm" style={{color: '#92E4DD'}}>Build tool deck for your agent</p>
+                <p className="text-xs sm:text-sm" style={{color: '#92E4DD'}}>Build tool deck for your agent</p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-6">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-6">
               {/* Connection Status */}
               <div className={`flex items-center space-x-2 px-3 py-1 rounded-full border ${
                 connectionStatus === 'connected' 
@@ -296,13 +320,17 @@ export default function Home() {
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 h-screen min-w-0">
+      <main className="container mx-auto flex min-h-0 flex-1 flex-col px-4 py-4 sm:py-6">
+        {/*
+          Narrow / portrait: page scrolls (no h-screen trap).
+          xl+: fill remaining viewport height; collection scrolls inside its panel.
+        */}
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-4 xl:overflow-hidden">
           
           {/* Left Sidebar - 25% width */}
-          <div className="xl:col-span-1 space-y-6 min-w-0">
+          <div className="min-w-0 space-y-4 sm:space-y-6 xl:col-span-1 xl:min-h-0 xl:overflow-y-auto">
             {/* My Decks */}
-            <div className="panel-surface p-4 h-80 overflow-hidden min-w-0">
+            <div className="panel-surface h-64 overflow-hidden p-4 min-w-0 sm:h-72 xl:h-80">
               <DeckManagementPanel
                 decks={decksArray}
                 editingDeckId={editingDeckId}
@@ -356,9 +384,9 @@ export default function Home() {
           </div>
           
           {/* Main Content - 75% width */}
-          <div className="xl:col-span-3 flex h-full min-h-0 flex-col gap-6 min-w-0">
+          <div className="flex min-w-0 flex-col gap-4 sm:gap-6 xl:col-span-3 xl:h-full xl:min-h-0">
             {/* Deck editor */}
-            <div className="panel-surface h-80 shrink-0 overflow-hidden p-4 min-w-0">
+            <div className="panel-surface h-64 shrink-0 overflow-hidden p-4 min-w-0 sm:h-72 xl:h-80">
               {editingDeck ? (
                 <div className="h-full">
                   <DeckBuilder
@@ -423,7 +451,7 @@ export default function Home() {
 
             {/* My Collection */}
             <div
-              className="panel-surface flex min-h-0 flex-1 flex-col overflow-hidden p-4 min-w-0"
+              className="panel-surface flex min-h-[20rem] flex-col overflow-hidden p-4 min-w-0 sm:min-h-[24rem] xl:min-h-0 xl:flex-1"
               data-testid="collection-panel"
             >
               <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
@@ -436,7 +464,30 @@ export default function Home() {
                 </h2>
                 
                 {/* Search and Filter Controls */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2 text-xs border-white/20 text-white hover:bg-white/10"
+                    onClick={handleExportAll}
+                    disabled={exportingAll}
+                    title="Export all MCP, playbooks, and decks"
+                    data-testid="button-export-all"
+                  >
+                    <Download className="w-3 h-3 mr-1" />
+                    {exportingAll ? "Exporting…" : "Export all"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 px-2 text-xs border-white/20 text-white hover:bg-white/10"
+                    onClick={() => setImportBundleOpen(true)}
+                    title="Import a bundle file"
+                    data-testid="button-import-bundle"
+                  >
+                    <Upload className="w-3 h-3 mr-1" />
+                    Import
+                  </Button>
                   {/* Search Input */}
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -444,7 +495,7 @@ export default function Home() {
                       placeholder="Search..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-48 pl-8 h-8 text-sm bg-white/10 border-white/20 text-white placeholder-gray-400"
+                      className="h-8 w-36 pl-8 text-sm bg-white/10 border-white/20 text-white placeholder-gray-400 sm:w-48"
                       data-testid="input-search"
                     />
                   </div>
@@ -700,6 +751,11 @@ export default function Home() {
         playbookId={selectedPlaybookId}
         open={playbookDetailsOpen}
         onOpenChange={setPlaybookDetailsOpen}
+      />
+
+      <ImportBundleModal
+        open={importBundleOpen}
+        onOpenChange={setImportBundleOpen}
       />
     </div>
   );

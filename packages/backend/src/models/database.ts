@@ -56,6 +56,71 @@ export class DatabaseManager {
     }
   }
 
+  private indexExists(indexName: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?")
+      .get(indexName);
+    return row !== undefined;
+  }
+
+  /**
+   * Rename duplicate display names so a UNIQUE index can be applied.
+   * Keeps the oldest row's name; suffixes later rows with " (imported N)".
+   */
+  private dedupeDisplayNames(
+    table: 'decks' | 'credentials',
+    column: 'name' | 'label',
+  ): void {
+    if (!this.tableExists(table)) {
+      return;
+    }
+
+    const rows = this.db
+      .prepare(
+        `SELECT id, ${column} AS display_name FROM ${table} ORDER BY created_at ASC, id ASC`,
+      )
+      .all() as Array<{ id: string; display_name: string }>;
+
+    const used = new Set<string>();
+    const update = this.db.prepare(
+      `UPDATE ${table} SET ${column} = @value WHERE id = @id`,
+    );
+
+    for (const row of rows) {
+      const base = row.display_name?.trim() || (table === 'decks' ? 'Deck' : 'Key');
+      if (!used.has(base)) {
+        used.add(base);
+        if (base !== row.display_name) {
+          update.run({ id: row.id, value: base });
+        }
+        continue;
+      }
+
+      let candidate = `${base} (imported)`;
+      let n = 2;
+      while (used.has(candidate)) {
+        candidate = `${base} (imported ${n})`;
+        n += 1;
+      }
+      used.add(candidate);
+      update.run({ id: row.id, value: candidate });
+    }
+  }
+
+  private ensureUniqueDisplayNameIndex(
+    table: 'decks' | 'credentials',
+    column: 'name' | 'label',
+    indexName: string,
+  ): void {
+    if (!this.tableExists(table) || this.indexExists(indexName)) {
+      return;
+    }
+    this.dedupeDisplayNames(table, column);
+    this.db.exec(
+      `CREATE UNIQUE INDEX ${indexName} ON ${table} (${column})`,
+    );
+  }
+
   private migrate(): void {
     this.addColumnIfMissing('services', 'is_connected', 'BOOLEAN NOT NULL DEFAULT 0');
     this.addColumnIfMissing('services', 'last_ping', 'TEXT');
@@ -80,6 +145,10 @@ export class DatabaseManager {
 
     this.addColumnIfMissing('credentials', 'docs_url', 'TEXT');
     this.addColumnIfMissing('credentials', 'icon_url', 'TEXT');
+
+    // Display names are how users/agents distinguish cards and decks (not UUIDs).
+    this.ensureUniqueDisplayNameIndex('decks', 'name', 'decks_name_unique');
+    this.ensureUniqueDisplayNameIndex('credentials', 'label', 'credentials_label_unique');
   }
 
   private createTables(): void {
@@ -119,7 +188,7 @@ export class DatabaseManager {
       )
     `);
 
-    // Decks table
+    // Decks table (name UNIQUE via decks_name_unique index — see migrate())
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS decks (
         id TEXT PRIMARY KEY,
@@ -143,7 +212,7 @@ export class DatabaseManager {
       )
     `);
 
-    // Credentials table (metadata only — secrets in Keychain)
+    // Credentials table (metadata only — secrets in Keychain; label UNIQUE via index)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS credentials (
         id TEXT PRIMARY KEY,
@@ -317,31 +386,35 @@ export class DatabaseManager {
       )
     `);
 
-    stmt.run({
-      id: service.id,
-      name: service.name,
-      type: service.type,
-      url: service.url,
-      health: service.health,
-      description: service.description,
-      card_color: service.cardColor,
-      is_connected: service.isConnected ? 1 : 0,
-      registered_at: service.registeredAt,
-      updated_at: service.updatedAt,
-      headers: service.headers ? JSON.stringify(service.headers) : null,
-      credential_id: service.credentialId ?? null,
-      icon_url: service.iconUrl ?? null,
-      oauth_client_id: service.oauthClientId,
-      oauth_client_secret: service.oauthClientSecret,
-      oauth_authorization_url: service.oauthAuthorizationUrl,
-      oauth_token_url: service.oauthTokenUrl,
-      oauth_redirect_uri: service.oauthRedirectUri,
-      oauth_scope: service.oauthScope,
-      local_command: service.localCommand,
-      local_args: service.localArgs ? JSON.stringify(service.localArgs) : null,
-      local_working_dir: service.localWorkingDir,
-      local_env: service.localEnv ? JSON.stringify(service.localEnv) : null,
-    });
+    try {
+      stmt.run({
+        id: service.id,
+        name: service.name,
+        type: service.type,
+        url: service.url,
+        health: service.health,
+        description: service.description,
+        card_color: service.cardColor,
+        is_connected: service.isConnected ? 1 : 0,
+        registered_at: service.registeredAt,
+        updated_at: service.updatedAt,
+        headers: service.headers ? JSON.stringify(service.headers) : null,
+        credential_id: service.credentialId ?? null,
+        icon_url: service.iconUrl ?? null,
+        oauth_client_id: service.oauthClientId,
+        oauth_client_secret: service.oauthClientSecret,
+        oauth_authorization_url: service.oauthAuthorizationUrl,
+        oauth_token_url: service.oauthTokenUrl,
+        oauth_redirect_uri: service.oauthRedirectUri,
+        oauth_scope: service.oauthScope,
+        local_command: service.localCommand,
+        local_args: service.localArgs ? JSON.stringify(service.localArgs) : null,
+        local_working_dir: service.localWorkingDir,
+        local_env: service.localEnv ? JSON.stringify(service.localEnv) : null,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, 'service', 'name');
+    }
 
     return service;
   }
@@ -532,6 +605,25 @@ export class DatabaseManager {
     stmt.run(params);
   }
 
+  private throwIfUniqueConstraint(
+    error: unknown,
+    entity: string,
+    field: string,
+  ): never {
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code: unknown }).code)
+        : '';
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      code.includes('CONSTRAINT') ||
+      message.includes('UNIQUE constraint failed')
+    ) {
+      throw new Error(`A ${entity} with that ${field} already exists`);
+    }
+    throw error;
+  }
+
   // Deck operations
   async createDeck(input: CreateDeckInput): Promise<Deck> {
     const now = new Date().toISOString();
@@ -552,14 +644,18 @@ export class DatabaseManager {
       VALUES (@id, @name, @description, @is_active, @created_at, @updated_at)
     `);
 
-    stmt.run({
-      id: deck.id,
-      name: deck.name,
-      description: deck.description,
-      is_active: deck.isActive ? 1 : 0,
-      created_at: deck.createdAt,
-      updated_at: deck.updatedAt,
-    });
+    try {
+      stmt.run({
+        id: deck.id,
+        name: deck.name,
+        description: deck.description,
+        is_active: deck.isActive ? 1 : 0,
+        created_at: deck.createdAt,
+        updated_at: deck.updatedAt,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, 'deck', 'name');
+    }
 
     return deck;
   }
@@ -679,13 +775,17 @@ export class DatabaseManager {
       WHERE id = @id
     `);
 
-    stmt.run({
-      id: updated.id,
-      name: updated.name,
-      description: updated.description,
-      is_active: updated.isActive ? 1 : 0,
-      updated_at: updated.updatedAt,
-    });
+    try {
+      stmt.run({
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        is_active: updated.isActive ? 1 : 0,
+        updated_at: updated.updatedAt,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, 'deck', 'name');
+    }
 
     return updated;
   }
@@ -798,19 +898,23 @@ export class DatabaseManager {
       )
     `);
 
-    stmt.run({
-      id: credential.id,
-      label: credential.label,
-      scheme: credential.scheme,
-      header_name: credential.headerName ?? null,
-      env_name: credential.envName,
-      keychain_account: credential.keychainAccount,
-      tags: JSON.stringify(credential.tags ?? []),
-      docs_url: credential.docsUrl ?? null,
-      icon_url: credential.iconUrl ?? null,
-      created_at: credential.createdAt,
-      updated_at: credential.updatedAt,
-    });
+    try {
+      stmt.run({
+        id: credential.id,
+        label: credential.label,
+        scheme: credential.scheme,
+        header_name: credential.headerName ?? null,
+        env_name: credential.envName,
+        keychain_account: credential.keychainAccount,
+        tags: JSON.stringify(credential.tags ?? []),
+        docs_url: credential.docsUrl ?? null,
+        icon_url: credential.iconUrl ?? null,
+        created_at: credential.createdAt,
+        updated_at: credential.updatedAt,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, 'credential', 'label or id');
+    }
 
     return credential;
   }
@@ -1031,18 +1135,22 @@ export class DatabaseManager {
       )
     `);
 
-    stmt.run({
-      id: playbook.id,
-      title: playbook.title,
-      body: playbook.body,
-      triggers: JSON.stringify(playbook.triggers),
-      depends_on_credentials: JSON.stringify(playbook.dependsOnCredentialIds),
-      depends_on_services: JSON.stringify(playbook.dependsOnServiceIds),
-      exec_command: playbook.exec ?? null,
-      skill_path: playbook.skill ?? null,
-      created_at: playbook.createdAt,
-      updated_at: playbook.updatedAt,
-    });
+    try {
+      stmt.run({
+        id: playbook.id,
+        title: playbook.title,
+        body: playbook.body,
+        triggers: JSON.stringify(playbook.triggers),
+        depends_on_credentials: JSON.stringify(playbook.dependsOnCredentialIds),
+        depends_on_services: JSON.stringify(playbook.dependsOnServiceIds),
+        exec_command: playbook.exec ?? null,
+        skill_path: playbook.skill ?? null,
+        created_at: playbook.createdAt,
+        updated_at: playbook.updatedAt,
+      });
+    } catch (error) {
+      this.throwIfUniqueConstraint(error, 'playbook', 'title or id');
+    }
 
     return playbook;
   }

@@ -22,6 +22,7 @@ import { createSecretStore, CredentialManager, OAuthClientSecretVault, OAuthToke
 import { resolveDatabasePath } from '../lib/paths';
 import { CollectionWarningService } from '../services/collection-warning-service';
 import { registerCollectionRoutes } from '../routes/collection';
+import { registerExportImportRoutes } from '../routes/export-import';
 import { PlaybookManager } from '../playbooks/playbook-manager';
 import { getAgentDeckVersion } from '../lib/version';
 import { seedDefaultServicesIfEmpty } from '../data/seed-default-services';
@@ -76,6 +77,7 @@ export async function createServer() {
   await fastify.register(registerScopeRoutes, { prefix: '/api/scope' });
   await fastify.register(registerPlaybookRoutes, { prefix: '/api/playbooks' });
   await fastify.register(registerCollectionRoutes, { prefix: '/api/collection' });
+  await fastify.register(registerExportImportRoutes, { prefix: '/api' });
   await fastify.register(registerOAuthRoutes, { prefix: '/api/oauth' });
   await fastify.register(mcpRoutes, { prefix: '/api/mcp' });
   await fastify.register(registerLocalMCPRoutes, { prefix: '/api/local-mcp' });

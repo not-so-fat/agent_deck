@@ -1,11 +1,16 @@
 import { Deck } from "@agent-deck/shared";
 import type { LiveBinding } from "@agent-deck/shared";
 import { Button } from "@/components/ui/button";
-import { Layers, Plus, Trash2, Copy } from "lucide-react";
+import { Layers, Plus, Trash2, Copy, Download } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useMemo, useState } from "react";
+import {
+  downloadBundleJson,
+  exportBundle,
+  safeFilename,
+} from "@/lib/export-import";
 import {
   countSessionsByDeckId,
   formatDeckListSubtitle,
@@ -76,6 +81,32 @@ export default function DeckManagementPanel({
       });
     },
   });
+
+  const exportDeckMutation = useMutation({
+    mutationFn: async (deck: Deck) => {
+      const bundle = await exportBundle({ scope: "deck", deckId: deck.id });
+      downloadBundleJson(bundle, `${safeFilename(deck.name)}.agent-deck.json`);
+      return bundle;
+    },
+    onSuccess: (bundle, deck) => {
+      toast({
+        title: "Deck exported",
+        description: `${deck.name}: ${bundle.services.length} services, ${bundle.playbooks.length} playbooks`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Export failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleExportDeck = (e: React.MouseEvent, deck: Deck) => {
+    e.stopPropagation();
+    exportDeckMutation.mutate(deck);
+  };
 
   const deleteDeckMutation = useMutation({
     mutationFn: async (deckId: string) => {
@@ -202,6 +233,16 @@ export default function DeckManagementPanel({
                       size="sm"
                       variant="secondary"
                       className="h-5 w-5 p-0"
+                      onClick={(e) => handleExportDeck(e, deck)}
+                      title="Export this deck"
+                      data-testid={`export-deck-${deck.id}`}
+                    >
+                      <Download className="w-2 h-2" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-5 w-5 p-0"
                       onClick={(e) => handleCopyDeckId(e, deck)}
                       title="Copy deck id for bind_workspace"
                     >
@@ -220,7 +261,7 @@ export default function DeckManagementPanel({
 
                   <div>
                     <h3
-                      className={`font-semibold text-sm pr-12 ${isEditing ? "text-yellow-300" : "text-white"}`}
+                      className={`font-semibold text-sm pr-16 ${isEditing ? "text-yellow-300" : "text-white"}`}
                     >
                       {deck.name}
                     </h3>

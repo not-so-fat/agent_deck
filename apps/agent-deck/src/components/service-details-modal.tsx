@@ -2,7 +2,7 @@ import { Service } from "@agent-deck/shared";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Database, Brain, ExternalLink, Wrench, User, Calendar, Activity, Bolt, Palette } from "lucide-react";
+import { Database, Brain, ExternalLink, Wrench, User, Calendar, Activity, Bolt } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -92,9 +92,6 @@ export default function ServiceDetailsModal({
   onClose 
 }: ServiceDetailsModalProps) {
   const [error, setError] = useState<string | null>(null);
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [selectedColor, setSelectedColor] = useState<string>('');
-  const [isUpdatingColor, setIsUpdatingColor] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editingName, setEditingName] = useState<string>('');
@@ -102,6 +99,7 @@ export default function ServiceDetailsModal({
   const [isUpdatingName, setIsUpdatingName] = useState(false);
   const [isUpdatingDescription, setIsUpdatingDescription] = useState(false);
   const [currentService, setCurrentService] = useState<Service | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -352,7 +350,6 @@ export default function ServiceDetailsModal({
     }
     if (service) {
       setCurrentService(service);
-      setSelectedColor(service.cardColor || '#92E4DD');
       setEditingName(service.name || '');
       setEditingDescription(service.description || '');
     }
@@ -405,23 +402,6 @@ export default function ServiceDetailsModal({
     void refreshAfterOAuth();
   }, [oauthStatusData?.authenticated, isOpen, apiService?.id]);
 
-  // Close color picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (showColorPicker && !target.closest('.color-picker-container')) {
-        setShowColorPicker(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showColorPicker]);
-
-
-
   const getServiceIcon = () => {
     return service?.type === 'mcp' ? <Database className="w-6 h-6" /> : <Brain className="w-6 h-6" />;
   };
@@ -444,82 +424,37 @@ export default function ServiceDetailsModal({
     });
   };
 
-  const handleColorUpdate = async (newColor: string) => {
-    if (!service) return;
-    
-    setIsUpdatingColor(true);
-    // Immediately update the local state for instant visual feedback
-    setSelectedColor(newColor);
-    
-    try {
-      const response = await apiRequest('PUT', `/api/services/${service.id}`, {
-        cardColor: newColor
-      });
-      
-      if (response.ok) {
-        // Invalidate queries to refresh the UI
-        queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        
-        toast({
-          title: "Color updated",
-          description: `Card color has been updated successfully.`,
-        });
-        
-        setShowColorPicker(false);
-      } else {
-        throw new Error('Failed to update color');
-      }
-    } catch (error) {
-      // Revert the local state if the update failed
-      setSelectedColor(service.cardColor || '#92E4DD');
-      toast({
-        title: "Update failed",
-        description: "Failed to update card color. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdatingColor(false);
+  useEffect(() => {
+    if (isEditingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
     }
-  };
+  }, [isEditingName]);
 
-  const handleNameUpdate = async () => {
-    if (!service || !editingName.trim()) return;
-    
+  const commitNameRename = async () => {
+    const currentName = activeService?.name || '';
+    const next = editingName.trim();
+    if (!activeService || !next || next === currentName) {
+      setEditingName(currentName);
+      setIsEditingName(false);
+      return;
+    }
+
     setIsUpdatingName(true);
     try {
-      const response = await apiRequest('PUT', `/api/services/${service.id}`, {
-        name: editingName.trim()
-      });
-      
-      if (response.ok) {
-        // Update the local service object immediately
-        if (currentService) {
-          const updatedService = { ...currentService, name: editingName.trim() };
-          setCurrentService(updatedService);
-        }
-        
-        queryClient.invalidateQueries({ queryKey: ['/api/services'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
-        
-        toast({
-          title: "Name updated",
-          description: `Service name has been updated successfully.`,
-        });
-        
-        setIsEditingName(false);
-      } else {
-        throw new Error('Failed to update name');
-      }
+      await apiRequest('PUT', `/api/services/${activeService.id}`, { name: next });
+      setCurrentService({ ...activeService, name: next });
+      queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/collection/warnings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
+      setIsEditingName(false);
     } catch (error) {
+      setEditingName(currentName);
+      setIsEditingName(false);
       toast({
-        title: "Update failed",
-        description: "Failed to update service name. Please try again.",
-        variant: "destructive",
+        title: 'Could not rename service',
+        description: error instanceof Error ? error.message : 'Failed to update name',
+        variant: 'destructive',
       });
     } finally {
       setIsUpdatingName(false);
@@ -567,76 +502,50 @@ export default function ServiceDetailsModal({
     }
   };
 
-  const availableColors = [
-    { value: '#92E4DD', label: 'Default' },
-    { value: '#F9386D', label: 'Red' },
-    { value: '#E0E0E0', label: 'Gray' },
-    { value: '#FF6B00', label: 'Orange' }
-  ];
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-6xl bg-gradient-to-br from-cosmic-900 to-cosmic-800 border border-white/20 text-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center">
             {getServiceIcon()}
-            <div className="ml-3 flex items-center">
+            <div className="ml-3 flex min-w-0 items-center">
               {isEditingName ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleNameUpdate();
-                      } else if (e.key === 'Escape') {
-                        setIsEditingName(false);
-                        setEditingName((activeService)?.name || '');
-                      }
-                    }}
-                    className="bg-black/30 border border-white/20 rounded px-2 py-1 text-white text-2xl font-bold focus:outline-none focus:border-white/40"
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleNameUpdate}
-                    disabled={isUpdatingName}
-                    className="h-6 px-2 text-xs"
-                  >
-                    {isUpdatingName ? 'Saving...' : 'Save'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={editingName}
+                  disabled={isUpdatingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onBlur={() => {
+                    void commitNameRename();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      void commitNameRename();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditingName(activeService?.name || '');
                       setIsEditingName(false);
-                      setEditingName((activeService)?.name || '');
-                    }}
-                    className="h-6 px-2 text-xs"
-                  >
-                    Cancel
-                  </Button>
-                </div>
+                    }
+                  }}
+                  className="max-w-[16rem] rounded border border-white/20 bg-white/10 px-2 py-1 text-2xl font-bold text-white focus:border-white/40 focus:outline-none sm:max-w-[20rem]"
+                  aria-label="Service name"
+                  data-testid="input-service-name"
+                />
               ) : (
-                <div className="flex items-center gap-2">
-                  <span 
-                    className="cursor-pointer hover:bg-white/10 px-2 py-1 rounded transition-colors"
-                    onClick={() => setIsEditingName(true)}
-                    title="Click to edit name"
-                  >
-                    {(activeService)?.name}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsEditingName(true)}
-                    className="h-6 w-6 p-0 opacity-0 hover:opacity-100 transition-opacity"
-                    title="Edit name"
-                  >
-                    <Wrench className="w-3 h-3" />
-                  </Button>
-                </div>
+                <button
+                  type="button"
+                  className="min-w-0 truncate text-left hover:underline"
+                  title="Click to rename"
+                  onClick={() => {
+                    setEditingName(activeService?.name || '');
+                    setIsEditingName(true);
+                  }}
+                  data-testid="button-rename-service"
+                >
+                  {activeService?.name}
+                </button>
               )}
             </div>
             <Badge className={`ml-3 ${getServiceTypeBg()} ${getServiceTypeColor()}`}>
@@ -649,55 +558,11 @@ export default function ServiceDetailsModal({
           <div className="space-y-6">
             {/* Service Overview Card */}
             <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3">
                 <h3 className="text-lg font-semibold flex items-center">
-                <Activity className="w-5 h-5 mr-2" />
-                Service Overview
-              </h3>
-                
-                {/* Color Picker */}
-                <div className="relative color-picker-container">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 w-8 p-0 border-white/20 hover:bg-white/10"
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    title="Change card color"
-                  >
-                    <div 
-                      className="w-4 h-4 rounded-full border border-white/20" 
-                      style={{ backgroundColor: selectedColor || service.cardColor || '#92E4DD' }}
-                    />
-                  </Button>
-                  
-                  {/* Color Picker Dropdown */}
-                  {showColorPicker && (
-                    <div className="absolute top-full right-0 mt-2 bg-black/90 border border-white/20 rounded-lg p-3 z-50 min-w-32">
-                      <div className="text-xs text-gray-300 mb-2">Choose Color:</div>
-                      <div className="grid grid-cols-1 gap-1">
-                        {availableColors.map((color) => (
-                          <button
-                            key={color.value}
-                            className={`flex items-center gap-2 px-2 py-1 rounded text-xs hover:bg-white/10 transition-colors ${
-                              (selectedColor || service.cardColor) === color.value ? 'bg-white/20' : ''
-                            }`}
-                            onClick={() => handleColorUpdate(color.value)}
-                            disabled={isUpdatingColor}
-                          >
-                            <div 
-                              className="w-3 h-3 rounded-full border border-white/20" 
-                              style={{ backgroundColor: color.value }}
-                            />
-                            <span className="text-white">{color.label}</span>
-                            {isUpdatingColor && service.cardColor === color.value && (
-                              <div className="ml-auto w-3 h-3 border border-white/20 border-t-transparent rounded-full animate-spin" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  <Activity className="w-5 h-5 mr-2" />
+                  Service Overview
+                </h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

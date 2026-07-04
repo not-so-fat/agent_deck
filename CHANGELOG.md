@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.1 — 2026-07-04
+
+### Export / import (metadata layouts)
+
+Port MCP, playbook, and deck layouts between machines or share deck templates. **No credentials or secrets** in the bundle.
+
+```bash
+agent-deck export all -o backup.agent-deck.json
+agent-deck export deck <uuid> -o my-deck.agent-deck.json
+agent-deck import backup.agent-deck.json
+```
+
+- **Dashboard:** My Collection **Export all** / **Import**; per-deck **Export** on My Decks
+- **REST:** `POST /api/export`, `POST /api/import` (dashboard client only)
+- **Import:** try create; **skip** when display name already exists (same name = same card/deck), link membership, report `created` / `reused` + warnings
+- **Unique names:** deck `name`, service `name`, playbook `title`, credential `label` enforced in SQLite
+
+### Dashboard UX
+
+- Narrow / portrait layout scrolls (Glass-friendly); wide layout unchanged
+- Inline rename for deck name (builder header) and service name (details modal)
+- Removed per-card color picker (colors fixed by type)
+
 ## 1.3.0 — 2026-07-03
 
 ### MCP tool surface (breaking for agents & playbooks)

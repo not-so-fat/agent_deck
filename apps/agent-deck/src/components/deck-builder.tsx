@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Deck, Service, Credential, Playbook } from "@agent-deck/shared";
 import { getServiceCardColor, API_KEY_CARD_COLOR, PLAYBOOK_CARD_COLOR } from "@/lib/card-colors";
 import { BookOpen, Plus } from "lucide-react";
@@ -6,6 +8,9 @@ import CardWarningBadge from "@/components/card-warning-badge";
 import CredentialCardIcon from "@/components/credential-card-icon";
 import DeckFan from "@/components/deck-fan";
 import type { CollectionWarningsView } from "@/lib/collection-warnings";
+import { Input } from "@/components/ui/input";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface DeckBuilderProps {
   deck: Deck;
@@ -39,6 +44,57 @@ export default function DeckBuilder({
   onPlaybookClick,
   onCredentialClick,
 }: DeckBuilderProps) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(deck.name);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setNameDraft(deck.name);
+    setEditingName(false);
+  }, [deck.id, deck.name]);
+
+  useEffect(() => {
+    if (editingName) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [editingName]);
+
+  const renameMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const response = await apiRequest("PUT", `/api/decks/${deck.id}`, { name });
+      return response.json() as Promise<{ success: boolean; data?: Deck; error?: string }>;
+    },
+    onSuccess: (body) => {
+      if (!body.success) {
+        throw new Error(body.error || "Rename failed");
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
+      setEditingName(false);
+    },
+    onError: (error: Error) => {
+      setNameDraft(deck.name);
+      setEditingName(false);
+      toast({
+        title: "Could not rename deck",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const commitRename = () => {
+    const next = nameDraft.trim();
+    if (!next || next === deck.name) {
+      setNameDraft(deck.name);
+      setEditingName(false);
+      return;
+    }
+    renameMutation.mutate(next);
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     onDrop(e);
@@ -52,11 +108,44 @@ export default function DeckBuilder({
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden">
-      <h3 className="mb-4 shrink-0 text-lg font-bold flex items-center min-w-0">
+      <h3 className="mb-4 flex min-w-0 shrink-0 items-center text-lg font-bold">
         <i className="fas fa-layer-group mr-2 text-blue-400"></i>
         Deck
-        <span className="ml-2 text-sm font-normal text-gray-400 truncate">{deck.name}</span>
-        <span className="ml-2 text-sm font-normal text-gray-400 shrink-0">({deckCards} cards)</span>
+        {editingName ? (
+          <Input
+            ref={nameInputRef}
+            value={nameDraft}
+            disabled={renameMutation.isPending}
+            onChange={(event) => setNameDraft(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitRename();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                setNameDraft(deck.name);
+                setEditingName(false);
+              }
+            }}
+            className="ml-2 h-7 max-w-[12rem] border-white/20 bg-white/10 px-2 text-sm font-normal text-white sm:max-w-[16rem]"
+            data-testid="input-deck-name"
+            aria-label="Deck name"
+          />
+        ) : (
+          <button
+            type="button"
+            className="ml-2 min-w-0 truncate text-left text-sm font-normal text-gray-400 hover:text-white hover:underline"
+            title="Click to rename"
+            onClick={() => setEditingName(true)}
+            data-testid="button-rename-deck"
+          >
+            {deck.name}
+          </button>
+        )}
+        <span className="ml-2 shrink-0 text-sm font-normal text-gray-400">
+          ({deckCards} cards)
+        </span>
       </h3>
 
       <div

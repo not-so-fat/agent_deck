@@ -246,6 +246,15 @@ Open the dashboard after [Quick start](#quick-start-npm--end-users) or `npm run 
 3. **Register playbook** — markdown body; deps auto-detected on save
 4. **OAuth** — Connect on MCP card; redirect URI shown in UI ([OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md))
 5. **Session bind** — agent calls `get_decks`, then `bind_workspace({ workspaceRoot, deckId })`
+6. **Export / import layouts** — dashboard **Export all** / **Import** on My Collection, or per-deck Export on My Decks; CLI:
+
+```bash
+agent-deck export all -o backup.agent-deck.json
+agent-deck export deck <uuid> -o my-deck.agent-deck.json
+agent-deck import backup.agent-deck.json
+```
+
+Credentials and secrets are never included. Import creates cards/decks when names are new; **skips** any display name that already exists (same name = same card/deck). See [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md).
 
 Card colors are fixed by type (MCP, API key, playbook). Service health and OAuth status update live via WebSocket.
 

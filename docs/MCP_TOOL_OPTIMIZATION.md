@@ -59,7 +59,7 @@ agent-deck playbook list|delete <id>
 agent-deck deck list|delete <id>
 ```
 
-Delete service blocks when playbooks depend on it (same as dashboard). Import/export remains planned CLI — [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md).
+Delete service blocks when playbooks depend on it (same as dashboard). Import/export is CLI + dashboard — [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md).
 
 If hosts later support dynamic tool loading, rare ops can also appear as on-demand MCP tools without an env profile.
 
@@ -266,7 +266,7 @@ flowchart TB
 | Operation | Surface |
 |-----------|---------|
 | Delete service / playbook / deck | Dashboard today; CLI when useful |
-| Import / export deck or cards | Planned CLI — [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) |
+| Import / export deck or cards | CLI + dashboard — [PRD_EXPORT_IMPORT.md](./PRD_EXPORT_IMPORT.md) |
 
 `create_deck` is **MCP standard** (Tier 2), not rare-tier.
 

@@ -4,26 +4,26 @@ playbooks: pb_ai_codegen_prd, pb_product_principle
 
 # Export / import — AI Codegen PRD
 
-**One-liner:** Users can move their full Agent Deck connection graph to another machine in one local bundle, with optional encrypted secrets and preserved deck UUIDs so repo manifests keep working.
+**One-liner:** Export a portable JSON snapshot of MCP + playbook cards and deck layouts (`export all` or one deck); import creates when names are new and skips unique display-name conflicts; users re-enter API keys and reconnect OAuth.
 
-**Status:** Proposed · **Codegen load path:** `docs/PRD_EXPORT_IMPORT.md` · **Contracts:** `packages/shared/src/schemas/export-bundle.ts` (Zod + exported JSON Schema)
+**Status:** Implemented (CLI + REST + dashboard) · **Codegen load path:** `docs/PRD_EXPORT_IMPORT.md` · **Contracts:** `packages/shared/src/schemas/export-bundle.ts`
 
 ---
 
 ## 1. Product overview
 
-Agent Deck stores MCP services, API keys, playbooks, and deck layouts in a local SQLite + Keychain graph (`~/.agent-deck/`). Today users can only copy a `.agent-deck/deck.yaml` snippet (`deck_id` + name) — that assumes the target machine already has the same database. Chi raised the need to **port the whole environment** when switching laptops.
+Agent Deck stores MCP services, playbooks, and deck layouts in local SQLite (`~/.agent-deck/`). Credentials and OAuth tokens live in Keychain and are **never** part of this feature. Users need to **port layouts** when switching machines or sharing a deck template.
 
-This PRD specifies a **local-only** `.agent-deck-bundle` format, CLI + REST export/import, and a phased dashboard UI. It replaces v1 **Import Deck** (removed in MVP) with a design aligned to the card/deck/collection model.
+This PRD specifies a **local-only** single-file `.agent-deck.json` bundle, CLI + dashboard export/import, and link-or-create import for cards (no `preserve_ids`, no secrets).
 
-**Success criteria (time-boxed):**
+**Success criteria:**
 
-| # | Criterion | Target window |
-|---|-----------|---------------|
-| SC-1 | Metadata-only round-trip restores equivalent dashboard layout on a second machine | Phase 4a ship |
-| SC-2 | Encrypted-secret round-trip: API keys work without re-entry | Phase 4b ship |
-| SC-3 | Repo `deck.yaml` with preserved `deck_id` binds on target after import | Phase 4a |
-| SC-4 | Metadata-only bundle + import report lists every reconnect / re-enter gap | Phase 4a |
+| # | Criterion | Target |
+|---|-----------|--------|
+| SC-1 | Round-trip restores equivalent layout (deck names, service/playbook membership order); IDs may differ | v1 ship |
+| SC-4 | Import report lists MCP cards that need OAuth reconnect (and rename / dep warnings) | v1 ship |
+
+**Dropped from earlier draft:** encrypted secrets (SC-2), credential migration (US-2), preserved IDs for repo manifests (US-3 / SC-3). Bind is session-only (`bind_workspace`); leftover `.agent-deck/deck.yaml` does not bind.
 
 ---
 
@@ -31,78 +31,43 @@ This PRD specifies a **local-only** `.agent-deck-bundle` format, CLI + REST expo
 
 | Persona | Goal | v1 surface |
 |---------|------|------------|
-| **Solo dev** (Chi) | New laptop; restore decks + keys | CLI `export` / `import`, encrypted secrets |
-| **Solo dev** | Pre-upgrade backup | CLI metadata export |
-| **Team lead** | Share deck layout without secrets | CLI `--deck` + `--no-secrets` |
-| **Agent (MCP)** | Assist migration after user confirms | `export_bundle` / `import_bundle` (P2) |
-| **Support / self** | Understand import gaps | Import report JSON |
+| **Solo dev** | New laptop; restore decks + MCP/playbook layouts | CLI / dashboard `export all` + `import` |
+| **Solo dev** | Pre-upgrade backup of layouts | CLI / dashboard export all |
+| **Team lead** | Share one deck layout without secrets | CLI `export deck` / deck row Export |
+| **Support / self** | Understand post-import gaps | Import report JSON |
 
-**Voice:** Objective, cold-reader — assume reader has never seen Agent Deck internals. Link [MVP.md](./MVP.md) for bound-deck terminology; do not re-teach Modules 1–3.
+**Voice:** Objective, cold-reader. Link [MVP.md](./MVP.md) for bound-deck terminology.
 
 ---
 
 ## 3. User stories (testable)
 
-### US-1 — Full laptop migration (metadata)
+### US-1 — Full collection migration (metadata)
 
 **As a** solo dev **I want** to export my collection and all decks **so that** I can import on a new machine without rebuilding layouts.
 
 **Acceptance:**
 
-- [ ] `agent-deck export --output backup.agent-deck-bundle` produces a zip the CLI accepts on another host
-- [ ] After `agent-deck import backup.agent-deck-bundle`, dashboard shows the same deck names and card membership order
-- [ ] Import report lists each `cred_*` missing a secret value
-- [ ] Import report lists each MCP card needing OAuth reconnect
+- [x] `agent-deck export all -o backup.agent-deck.json` produces a JSON file the CLI accepts on another host
+- [x] After `agent-deck import backup.agent-deck.json`, dashboard shows the same deck names and service/playbook membership order
+- [x] Create when names are new; skip unique display-name conflicts (`idMap` always present)
+- [x] Bundle contains zero credentials and zero secret bytes
+- [x] Import report lists each MCP card needing OAuth reconnect
 
-*v1 · Phase 4a*
-
-### US-2 — Full laptop migration (secrets)
-
-**As a** solo dev **I want** to include encrypted API keys and OAuth tokens in the bundle **so that** scripts and MCP connections work immediately after import.
-
-**Acceptance:**
-
-- [ ] `agent-deck export --secrets --passphrase` never writes plaintext secrets to disk outside Keychain
-- [ ] Import with matching passphrase writes secrets to target Keychain / dev file store
-- [ ] `agent-deck exec --connections cred_x` succeeds for imported creds without re-entry
-
-*v1 · Phase 4b*
-
-### US-3 — Repo manifest compatibility
-
-**As a** dev with repos containing `.agent-deck/deck.yaml` **I want** imported decks to keep the same UUID **so that** I do not edit every repo.
-
-**Acceptance:**
-
-- [ ] Default export sets `preserve_ids: true`
-- [ ] Import upserts entities with original `deck_id`, `cred_*`, `pb_*`, service UUIDs
-- [ ] `bind_workspace` on target resolves manifest `deck_id` to the imported deck
-
-*v1 · Phase 4a*
+*v1*
 
 ### US-4 — Shareable deck template
 
-**As a** team lead **I want** to export one deck without secrets **so that** teammates get the layout and reconnect their own keys.
+**As a** team lead **I want** to export one deck **so that** teammates get the layout and reconnect their own auth.
 
 **Acceptance:**
 
-- [ ] `agent-deck export --deck <uuid> --no-secrets` includes dependency closure (linked MCPs, cred metadata, playbooks)
-- [ ] Bundle contains zero secret bytes
-- [ ] Importer sees checklist only — no false “authenticated” OAuth state
+- [x] `agent-deck export deck <uuid> -o deck.agent-deck.json` includes only that deck and its linked services/playbooks
+- [x] Bundle contains zero credentials and zero secret bytes
+- [x] Second deck import skips same-named MCP/playbooks; new playbooks remap `dependsOnServiceIds`
+- [x] Importer sees OAuth reconnect checklist — no false “authenticated” OAuth state
 
-*v1 · Phase 4d*
-
-### US-5 — Dashboard import wizard
-
-**As a** non-CLI user **I want** drag-drop import with a preview **so that** I understand what will change.
-
-**Acceptance:**
-
-- [ ] Import modal shows created / updated / skipped counts before apply
-- [ ] Passphrase field appears when bundle contains encrypted secrets blob
-- [ ] Post-import modal matches CLI report schema
-
-*Deferred · Phase 4c*
+*v1*
 
 ---
 
@@ -112,39 +77,30 @@ This PRD specifies a **local-only** `.agent-deck-bundle` format, CLI + REST expo
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F1.1 | Bundle is a zip with `manifest.yaml` + JSON payload files | Validator rejects missing `format: agent-deck-bundle` |
-| F1.2 | Support scopes `full`, `collection`, `deck` | `deck` scope includes dependency closure per US-4 |
-| F1.3 | `preserve_ids` defaults true | Manifest documents flag; import honors it |
-| F1.4 | Exclude `exec_runs`, session binding, harness files | Not present in bundle |
-| F1.5 | Icon cache excluded; re-fetch on import | No `icons/` directory in bundle |
+| F1.1 | Bundle is a single JSON file | Validator rejects missing `format: agent-deck-bundle` or unknown `version` |
+| F1.2 | Support scopes `collection` and `deck` | `deck` includes only the named deck + linked services/playbooks |
+| F1.3 | Bundle ids are within-file refs only; decks always new; services/playbooks link-or-create | Report `idMap` + `created`/`reused` counts |
+| F1.4 | Exclude credentials, `exec_runs`, session binding, harness files, icon cache | Not present in bundle |
+| F1.5 | Services are create-safe config only | No OAuth tokens, client secrets, `localEnv`, `credentialId`, or `Authorization` headers |
 
-### Pillar B — Secrets
-
-| Req ID | Requirement | Acceptance |
-|--------|-------------|------------|
-| F2.1 | Metadata-only export is default | CLI flag `--no-secrets` implicit |
-| F2.2 | Encrypted export uses AES-256-GCM + user passphrase | `secrets.enc` blob in bundle; no plaintext |
-| F2.3 | Import without secrets sets `has_secret: false`, `oauth_has_token: false` | Dashboard shows enter-key / reconnect |
-| F2.4 | Never write unencrypted secrets to bundle | Unit test fails if plaintext key detected in zip |
-
-### Pillar C — Import strategies
+### Pillar B — Import (link-or-create cards)
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F3.1 | Merge (default): upsert by id, warn on conflict | Report `skipped` with reason |
-| F3.2 | Replace deck: recreate one deck membership from bundle | `--replace-deck <uuid>` |
-| F3.3 | Fresh import: only when target empty or `--force` | Confirmation prompt |
-| F3.4 | Post-import report matches `ImportReport` schema (§7.2) | CLI and API return same shape |
+| F2.1 | Display names UNIQUE (deck `name`, service `name`, playbook `title`, credential `label`) | SQLite enforces; create APIs return clear errors |
+| F2.2 | Import: try create; on UNIQUE reject, skip and map to existing row | Report `created` / `reused` (skipped); no rename suffixes |
+| F2.3 | Skipped playbooks/services/decks are not overwritten | Existing body/deps unchanged |
+| F2.4 | **New** playbooks only: remap `dependsOnServiceIds` via `idMap` | Skipped playbooks untouched |
+| F2.5 | Post-import report matches `ImportReport` (§7.2) | CLI stdout + dashboard modal; warnings list skips |
 
-### Pillar D — Surfaces
+### Pillar C — Surfaces
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F4.1 | CLI `export` and `import` subcommands | `packages/cli/src/index.ts` |
-| F4.2 | `POST /api/export` streams zip | Dashboard header `x-agent-deck-client: dashboard` |
-| F4.3 | `POST /api/import` multipart + report JSON | Secrets never logged |
-| F4.4 | Dashboard export/import entry points | My Collection + My Decks row menu |
-| F4.5 | MCP `export_bundle` / `import_bundle` | Metadata-only default; import requires dashboard confirm if secrets |
+| F3.1 | CLI `export all`, `export deck <uuid>`, `import` | `packages/cli` |
+| F3.2 | Backend library used by CLI | `packages/backend/src/export-import/` via `cli-runtime` |
+| F3.3 | `POST /api/export`, `POST /api/import` (dashboard client only) | Agent clients get 403 |
+| F3.4 | Dashboard: Export all + Import on My Collection; Export on deck row | Download / report modal |
 
 ---
 
@@ -158,115 +114,102 @@ This PRD specifies a **local-only** `.agent-deck-bundle` format, CLI + REST expo
 
 | Principle | Load-bearing requirement |
 |-----------|-------------------------|
-| Local-only | No upload to Agent Deck servers (F2.4, security review) |
-| ID stability | `preserve_ids` default true (F1.3, US-3) |
-| Honest gaps | Import report is the product for partial migration (F3.4) |
-| Replace v1 Import Deck | Do not restore old dashboard Import Deck UI |
+| Local-only | No upload to Agent Deck servers |
+| No secrets | Credentials and secret material never enter the bundle (F1.4, F1.5) |
+| Always create | New IDs on import; no upsert / preserve_ids (F1.3, F2.1) |
+| Honest gaps | Import report lists OAuth reconnect and renames (F2.4, SC-4) |
 
 ---
 
 ## 7. Cross-cutting contracts
 
-All schemas: **JSON Schema Draft 2020-12**. Implementation: Zod in `packages/shared/src/schemas/export-bundle.ts` with `zod-to-json-schema` export for docs/tests.
+Implementation: Zod in `packages/shared/src/schemas/export-bundle.ts`.
 
-### 7.1 Bundle manifest (`manifest.yaml`)
+### 7.1 Bundle (`BundleV1`)
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-deck.dev/schemas/bundle-manifest/v1.json",
-  "type": "object",
-  "required": ["format", "version", "exported_at", "exported_from", "options", "preserve_ids"],
-  "properties": {
-    "format": { "const": "agent-deck-bundle" },
-    "version": { "const": 1 },
-    "exported_at": { "type": "string", "format": "date-time" },
-    "exported_from": {
-      "type": "object",
-      "required": ["agent_deck_version", "home"],
-      "properties": {
-        "agent_deck_version": { "type": "string" },
-        "home": { "type": "string" }
-      }
-    },
-    "options": {
-      "type": "object",
-      "required": ["include_secrets", "scope"],
-      "properties": {
-        "include_secrets": { "type": "boolean" },
-        "scope": { "enum": ["full", "collection", "deck"] },
-        "deck_ids": { "type": "array", "items": { "type": "string", "format": "uuid" } }
-      }
-    },
-    "preserve_ids": { "type": "boolean" }
-  }
+  "format": "agent-deck-bundle",
+  "version": 1,
+  "exportedAt": "2026-07-03T00:00:00.000Z",
+  "exportedFrom": { "agentDeckVersion": "1.3.0" },
+  "scope": "collection",
+  "services": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "name": "Linear",
+      "type": "mcp",
+      "url": "https://mcp.linear.app/mcp",
+      "description": "optional",
+      "cardColor": "#92E4DD",
+      "disabledToolNames": [],
+      "oauthClientId": "optional-public",
+      "oauthAuthorizationUrl": "https://example.com/oauth/authorize",
+      "oauthTokenUrl": "https://example.com/oauth/token",
+      "oauthRedirectUri": "https://example.com/callback",
+      "oauthScope": "read",
+      "localCommand": "optional",
+      "localArgs": [],
+      "localWorkingDir": "optional",
+      "headers": { "X-Custom": "ok" }
+    }
+  ],
+  "playbooks": [
+    {
+      "id": "pb_example",
+      "title": "Example",
+      "body": "…",
+      "triggers": ["example"],
+      "dependsOnServiceIds": ["11111111-1111-4111-8111-111111111111"],
+      "exec": "optional",
+      "skill": "optional"
+    }
+  ],
+  "decks": [
+    {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "name": "dev",
+      "description": "optional",
+      "serviceIds": ["11111111-1111-4111-8111-111111111111"],
+      "playbookIds": ["pb_example"]
+    }
+  ]
 }
 ```
+
+Bundle ids are **opaque within-file refs only** (membership + playbook deps). Import tries create; UNIQUE display-name conflicts **skip** and map to the existing row. `idMap` always maps bundle id → target id.
+
+**Never present:** `credentials`, `credentialId`, `dependsOnCredentialIds` (export forces `[]`), OAuth tokens/state, `oauthClientSecret`, `localEnv`, `Authorization` headers, runtime fields (`health`, `isConnected`, `lastPing`, `isActive`).
 
 ### 7.2 Import report (`ImportReport`)
 
 ```json
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-deck.dev/schemas/import-report/v1.json",
-  "type": "object",
-  "required": ["status", "counts", "credentials_needing_secret", "services_needing_oauth", "warnings"],
-  "properties": {
-    "status": { "enum": ["completed", "failed", "partial"] },
-    "counts": {
-      "type": "object",
-      "properties": {
-        "created": { "type": "integer" },
-        "updated": { "type": "integer" },
-        "skipped": { "type": "integer" }
-      }
-    },
-    "credentials_needing_secret": { "type": "array", "items": { "type": "string" } },
-    "services_needing_oauth": { "type": "array", "items": { "type": "string" } },
-    "broken_playbook_deps": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "playbook_id": { "type": "string" },
-          "missing_ref": { "type": "string" }
-        }
-      }
-    },
-    "warnings": { "type": "array", "items": { "type": "string" } },
-    "id_map": {
-      "type": "object",
-      "additionalProperties": { "type": "string" },
-      "description": "Present only when preserve_ids false"
-    }
+  "status": "completed",
+  "counts": {
+    "services": { "created": 0, "reused": 1 },
+    "playbooks": { "created": 1, "reused": 0 },
+    "decks": { "created": 0, "reused": 1 }
+  },
+  "servicesNeedingOauth": ["Linear"],
+  "warnings": ["Skipped service \"Linear\" (already exists)", "Skipped deck \"dev\" (already exists)"],
+  "idMap": {
+    "11111111-1111-4111-8111-111111111111": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "pb_example": "pb_example_imported",
+    "22222222-2222-4222-8222-222222222222": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
   }
 }
 ```
 
-### 7.3 Export API request (`ExportRequest`)
+`status`: `completed` | `failed` | `partial`. `idMap` is always present. New playbooks store remapped `dependsOnServiceIds` (never bundle-local service ids).
 
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agent-deck.dev/schemas/export-request/v1.json",
-  "type": "object",
-  "required": ["scope"],
-  "properties": {
-    "scope": { "enum": ["full", "collection", "deck"] },
-    "deckIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
-    "includeSecrets": { "type": "boolean", "default": false },
-    "passphrase": { "type": "string", "minLength": 8, "description": "Required when includeSecrets true" }
-  }
-}
-```
-
-### 7.4 MCP `export_bundle` input
+### 7.3 Export request (CLI / library)
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
-| `scope` | `full` \| `collection` \| `deck` | yes | |
-| `deck_id` | uuid | when scope=deck | |
-| `include_secrets` | boolean | no | default false; agent cannot set true without user passphrase flow |
+| `scope` | `collection` \| `deck` | no | default `collection` |
+| `deckId` | uuid | when scope=`deck` | |
+| `output` | path | yes (CLI) | write path for JSON |
 
 ---
 
@@ -274,21 +217,22 @@ All schemas: **JSON Schema Draft 2020-12**. Implementation: Zod in `packages/sha
 
 | Constraint | Detail |
 |------------|--------|
-| **Stack** | TypeScript monorepo; Fastify API; `packages/cli`; Zod validation |
+| **Stack** | TypeScript monorepo; Zod; CLI via `@agent-deck/backend/cli-runtime` |
 | **Data home** | `resolveAgentDeckHome()` — prod `~/.agent-deck/`, dev `~/.agent-deck/dev/` |
-| **Secrets** | macOS Keychain + dev file store (`packages/backend/src/vault/secret-store.ts`) |
-| **SQLite tables** | `services`, `decks`, `deck_*`, `credentials`, `playbooks` |
-| **As-built gap** | Manifest copy only: `deck-management-panel.tsx` `handleCopyManifest` |
-| **Codegen entry** | Implement from this PRD; tests in `packages/backend/src/export-import/` |
+| **SQLite** | `services`, `decks`, `deck_services`, `playbooks`, `deck_playbooks` — **not** `credentials` / `deck_credentials` |
+| **Codegen entry** | `packages/shared/src/schemas/export-bundle.ts`, `packages/backend/src/export-import/` |
 
 **CLI commands (normative):**
 
 ```bash
-agent-deck export --output <path> [--secrets] [--passphrase] [--deck <uuid>] [--no-secrets]
-agent-deck import <path> [--secrets] [--merge] [--replace-deck <uuid>] [--force]
+agent-deck export all --output <path>
+agent-deck export deck <uuid> --output <path>
+agent-deck import <path>
 ```
 
-**Agent hook:** Reference this PRD from `.cursor/rules/` or project `CLAUDE.md` when implementing export/import.
+**REST (dashboard client header):** `POST /api/export`, `POST /api/import`.
+
+After import, bind with the **new** deck id from `idMap` or `agent-deck deck list`.
 
 ---
 
@@ -296,38 +240,35 @@ agent-deck import <path> [--secrets] [--merge] [--replace-deck <uuid>] [--force]
 
 | NFR | Target | Measurement |
 |-----|--------|-------------|
-| NFR-1 Export latency (full collection, 50 cards, metadata-only) | p95 < 5 s | Local benchmark; n ≥ 20 runs on M-series Mac |
+| NFR-1 Export latency (full collection, 50 cards) | p95 < 5 s | Local; n ≥ 20 on M-series Mac |
 | NFR-2 Import latency (same bundle) | p95 < 10 s | Same |
-| NFR-3 Bundle size (metadata-only, 50 cards) | < 5 MB | Excludes secrets blob |
-| NFR-4 Secret safety | 0 plaintext secrets in metadata export | Automated zip content scan in CI |
+| NFR-3 Bundle size (50 cards) | < 5 MB | File size |
+| NFR-4 Secret safety | 0 secret material in bundle | Unit tests on sanitize + zip/json scan |
 | NFR-5 Forward compatibility | Reject unknown `version` with actionable error | Integration test |
 
 ---
 
 ## 10. Out of scope
 
-Canonical list — other sections defer here.
-
 | Item | Rationale |
 |------|-----------|
+| Credentials (metadata or secrets) | Explicit product cut; keys stay on each machine |
+| Encrypted / plaintext secrets in bundle | Same |
+| Preserve / upsert by source UUID | Natural-key reuse instead |
+| Overwrite existing card body on reuse | v1 warns only |
 | Cloud sync / multi-user replication | [MVP.md](./MVP.md) non-goals |
-| Git-tracked skills, app code, repo `roles/` | User owns in git |
-| Auto-fix OAuth redirect URIs on new host | User reconnects; report lists gaps |
-| Pre-MVP v1 import format | Separate migration spike |
-| `exec_runs` history in bundle | Audit noise; optional future appendix |
-| Icon cache in bundle | Re-fetch favicons (F1.5) |
-| Signed / team attestation bundles | Open decision OD-2 |
+| MCP `export_bundle` / `import_bundle` | MVP: import/export is CLI/dashboard only |
+| `exec_runs`, session binding, harness files | Not layout data |
+| Icon cache | Re-fetch favicons |
+| Git-tracked skills / app code | User owns in git |
 
 ---
 
 ## 11. Milestones
 
-| Week | Exit criteria |
-|------|---------------|
-| **4a** | Zod schemas; backend export/import service; CLI metadata-only; round-trip tests; SC-1, SC-3, SC-4 |
-| **4b** | Encrypted `secrets.enc`; passphrase flow; SC-2 |
-| **4c** | Dashboard wizard; US-5 acceptance |
-| **4d** | Deck-scoped export; MCP tools F4.5; US-4 |
+| Phase | Exit criteria |
+|-------|---------------|
+| **v1** | Zod schemas; link-or-create import; CLI units; REST; dashboard; shared-card + multi-deck-import tests; SC-1, SC-4 |
 
 ---
 
@@ -336,8 +277,7 @@ Canonical list — other sections defer here.
 | Question | Default if undecided | Owner |
 |----------|----------------------|-------|
 | OD-1 Import bundle from older Agent Deck on newer host? | Reader accepts `version: 1` only; ship migration adapter when v2 needed | Eng |
-| OD-2 Signed bundles for team sharing? | Defer; metadata-only git-committed bundles | Product |
-| OD-3 Embed `id_map.json` in bundle on conflict? | Emit only in `ImportReport`; never silent remap | Eng |
+| OD-2 Overwrite card config on reuse? | Defer; warn only in v1 | Eng |
 
 ---
 
@@ -345,10 +285,10 @@ Canonical list — other sections defer here.
 
 | Consumer | Directive |
 |----------|-----------|
-| **Engineer** | Implement pillars in order A → B → C → D; land 4a before 4b. Req IDs in PR comments. |
-| **AI codegen** | Read §7 schemas first; generate `export-bundle.ts` + `export-import-service.ts` + CLI wiring; run round-trip tests before dashboard UI. |
-| **Reviewer** | Trace each US-* to Req IDs and tests; verify Out of scope not re-introduced. |
-| **User (migration)** | Phase 4a: export → copy file → import → follow report checklist for keys and OAuth. |
+| **Engineer** | Implement format → export → import → CLI; land tests before UI. |
+| **AI codegen** | Read §7; generate `export-bundle.ts` + `packages/backend/src/export-import/` + CLI wiring; run round-trip tests. |
+| **Reviewer** | Trace US-1 / US-4 to Req IDs and tests; verify Out of scope not re-introduced. |
+| **User (migration)** | Export → copy file → import → follow report for OAuth; re-add API keys; `bind_workspace` with new deck id. |
 
 ---
 
@@ -356,13 +296,11 @@ Canonical list — other sections defer here.
 
 | Source | Captured as |
 |--------|-------------|
-| Agent Deck playbook `pb_ai_codegen_prd` on **dev** deck (`~/.agent-deck/`) | This document structure |
-| Agent Deck playbook `pb_product_principle` | Voice, scope discipline, substrate-first |
-| Chi — port env to another computer | US-1, US-2 |
-| [MVP.md](./MVP.md) as-built; Import Deck removed | §1, §10 |
-| `packages/backend/src/lib/paths.ts` | §8 data home |
-| `packages/backend/src/vault/yaml-sync.ts`, `secret-store.ts` | §8 secrets |
-| [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) export/sync mention | Related future; not v1 |
+| Agent Deck playbook `pb_ai_codegen_prd` on **dev** deck | Document structure |
+| Agent Deck playbook `pb_product_principle` | Voice, scope discipline |
+| Chi — port env; no credentials in bundle | US-1, Out of scope |
+| [MVP.md](./MVP.md) as-built; bind session-only | §1, drop preserve_ids |
+| [PRD_DECK_DISPLAY.md](./PRD_DECK_DISPLAY.md) | No `deck.yaml` auto-bind |
 
 ---
 
@@ -371,10 +309,9 @@ Canonical list — other sections defer here.
 - [x] One-sentence value statement at top
 - [x] Every user story has verifiable acceptance checkboxes
 - [x] Every requirement has stable `Req ID`
-- [x] Cross-boundary shapes are JSON Schema (§7)
+- [x] Cross-boundary shapes committed (§7)
 - [x] NFR table has measurement window + sample size
 - [x] Out of scope in exactly one section (§10)
 - [x] Open decisions have Default if undecided (§12)
 - [x] Codegen load path + contracts directory named (§8)
-- [x] MCP `export_bundle` input shape committed (§7.4)
 - [x] Pricing section skipped with justification (§5)

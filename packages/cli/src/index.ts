@@ -3,13 +3,14 @@ import {
   parseConnections,
   readSecretFromStdin,
   runCommand,
-} from './lib/runtime';
+} from './backend-runtime';
 
 import {
   runDeckCommand,
   runPlaybookCommand,
   runServiceCommand,
 } from './collection-admin';
+import { runExportCommand, runImportCommand } from './export-import';
 import { runDebugMcp } from './debug-mcp';
 import { runDoctor, runStart } from './start';
 import { runSetup, shouldStartAfterSetup } from './setup';
@@ -52,6 +53,9 @@ function printUsage() {
   agent-deck service list|delete <id>
   agent-deck playbook list|delete <id>
   agent-deck deck list|delete <id>
+  agent-deck export all --output <path>
+  agent-deck export deck <uuid> --output <path>
+  agent-deck import <path>
   agent-deck exec [--deck DECK_ID] [--connections cred_a,cred_b] [--dry-run] -- <command...>`);
 }
 
@@ -305,6 +309,10 @@ export async function runCli(argv: string[]): Promise<number> {
       return runPlaybookCommand(rest);
     case 'deck':
       return runDeckCommand(rest);
+    case 'export':
+      return runExportCommand(rest);
+    case 'import':
+      return runImportCommand(rest);
     case 'exec':
       return runExec(rest);
     default:

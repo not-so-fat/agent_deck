@@ -1,4 +1,4 @@
-import { createCollectionAdmin } from './lib/runtime';
+import { createCollectionAdmin } from './backend-runtime';
 
 function printCollectionUsage(): void {
   console.log(`Usage:

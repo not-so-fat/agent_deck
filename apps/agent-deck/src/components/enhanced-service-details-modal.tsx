@@ -80,7 +80,7 @@ export default function EnhancedServiceDetailsModal({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: service.cardColor }} />
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "#92E4DD" }} />
             {service.name}
             <Badge variant={isConnected ? "default" : "secondary"}>
               {connectionStatus.status}

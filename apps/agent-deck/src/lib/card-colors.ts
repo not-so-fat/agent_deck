@@ -7,11 +7,9 @@ export const PLAYBOOK_CARD_COLOR = "#FFFFFF";
 export const CARD_FACE_CLASS =
   "bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900";
 
-export function getServiceCardColor(service: { type: string; cardColor?: string | null }): string {
-  if (service.type === "mcp" || service.type === "local-mcp") {
-    return MCP_CARD_COLOR;
-  }
-  return service.cardColor ?? MCP_CARD_COLOR;
+/** Fixed by connection type — custom per-card colors are not used. */
+export function getServiceCardColor(_service: { type: string; cardColor?: string | null }): string {
+  return MCP_CARD_COLOR;
 }
 
 /** Border + label color matching a card accent; face comes from CARD_FACE_CLASS. */
