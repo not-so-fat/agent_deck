@@ -31,7 +31,7 @@ describe('createCliCollectionAdmin', () => {
 
   it('lists and deletes a deck', async () => {
     const seed = new DatabaseManager(dbPath);
-    const deck = await seed.createDeck({ name: 'scratch', description: 'temp' });
+    const deck = await seed.createDeck({ name: 'scratch' });
     seed.close();
 
     const admin = createCliCollectionAdmin();

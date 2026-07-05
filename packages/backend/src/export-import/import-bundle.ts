@@ -152,13 +152,11 @@ async function resolvePlaybook(
 async function resolveDeck(
   db: DatabaseManager,
   name: string,
-  description: string | undefined,
   warnings: string[],
 ): Promise<ResolveResult> {
   try {
     const created = await db.createDeck({
       name,
-      ...(description ? { description } : {}),
       isActive: false,
       credentials: [],
       playbooks: [],
@@ -268,12 +266,7 @@ export async function importBundle(
     }
 
     for (const deck of bundle.decks) {
-      const resolved = await resolveDeck(
-        db,
-        deck.name,
-        deck.description,
-        warnings,
-      );
+      const resolved = await resolveDeck(db, deck.name, warnings);
       idMap[deck.id] = resolved.targetId;
       if (resolved.created) {
         counts.decks.created += 1;

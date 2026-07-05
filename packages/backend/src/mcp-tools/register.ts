@@ -463,14 +463,13 @@ function registerEditingTools(host: McpToolHost): void {
     description: 'Create a new deck, then bind_workspace to use it',
     inputSchema: {
       name: z.string(),
-      description: z.string().optional(),
     },
-  }, async ({ name, description }) => {
+  }, async ({ name }) => {
     try {
       const deck = await host.callBackendAPI('/api/decks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description }),
+        body: JSON.stringify({ name }),
       });
       return host.toolResult(deck);
     } catch (error) {

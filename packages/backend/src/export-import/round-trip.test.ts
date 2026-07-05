@@ -58,7 +58,6 @@ describe('export/import round-trip', () => {
 
     const deck = await source.createDeck({
       name: 'dev',
-      description: 'Development workspace',
     });
     await source.addServiceToDeck({ deckId: deck.id, serviceId: serviceA.id, position: 0 });
     await source.addServiceToDeck({ deckId: deck.id, serviceId: serviceB.id, position: 1 });
@@ -112,7 +111,6 @@ describe('export/import round-trip', () => {
     const targetDecks = await target.getAllDecks();
     expect(targetDecks).toHaveLength(1);
     expect(targetDecks[0].name).toBe('dev');
-    expect(targetDecks[0].description).toBe('Development workspace');
     expect(targetDecks[0].services.map((row) => row.name)).toEqual([
       'Linear',
       'Local Tool',

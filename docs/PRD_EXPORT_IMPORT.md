@@ -169,7 +169,6 @@ Implementation: Zod in `packages/shared/src/schemas/export-bundle.ts`.
     {
       "id": "22222222-2222-4222-8222-222222222222",
       "name": "dev",
-      "description": "optional",
       "serviceIds": ["11111111-1111-4111-8111-111111111111"],
       "playbookIds": ["pb_example"]
     }

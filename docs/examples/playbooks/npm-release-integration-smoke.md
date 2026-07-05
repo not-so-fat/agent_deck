@@ -42,7 +42,7 @@ CHANGELOG claim  →  command/API exists in tarball  →  setup wires it  →  a
 | 2 | What **files** does that command create? | `~/.agent-deck/bin/statusline.sh` missing |
 | 3 | What **config keys** does it write? | `statusLine` never merged into settings |
 | 4 | What does **stdout/stderr** look like? | `npm warn` on stdout → blank Claude footer |
-| 5 | Does it work when **prod API ≠ dev data**? | bind in `dev/bindings.json`, API on `:11111` unbound |
+| 5 | Does it work when **prod API ≠ dev data**? | bind in `dev/bindings.json`, API on `:1111` unbound |
 | 6 | Is the claim in **CHANGELOG** under “on npm” or “pending”? | “setup installs” listed as shipped when it wasn’t |
 | 7 | Does **`npm pack` tarball** include the module? | `statusline-setup.ts` never built/shipped |
 
@@ -79,7 +79,7 @@ Do this when the release touches **CLI setup**, **agent surfaces** (Claude/Curso
 ## Anti-patterns
 
 1. **Ship the library, skip the installer** — command without `setup` wiring.
-2. **Test only in monorepo dev** — `npm run dev:all` masks prod paths (`:8000` vs `:11111`, `dev/bindings.json`).
+2. **Test only in monorepo dev** — `npm run dev:all` masks prod paths (`:8000` vs `:1111`, `dev/bindings.json`).
 3. **Doc-only integration** — “add this to settings.json” without `setup` doing it.
 4. **Polluted stdout** — wrappers that call `npx` without `NO_COLOR` + stderr redirect.
 5. **CHANGELOG as wishlist** — features listed as shipped before `release:smoke` passes.

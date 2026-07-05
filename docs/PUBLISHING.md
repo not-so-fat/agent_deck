@@ -76,8 +76,8 @@ npx @agent-deck/cli start --open
 
 **Release integration smoke** (`scripts/release-smoke.sh`) simulates what a user gets from npm: pack CLI, `setup --client claude` in a clean `HOME`, assert `statusline.sh` + `settings.json` exist, stdout is one clean line. Playbook: [examples/playbooks/npm-release-integration-smoke.md](./examples/playbooks/npm-release-integration-smoke.md).
 
-Dashboard: `http://127.0.0.1:11111`  
-MCP: `http://127.0.0.1:11112/mcp`
+Dashboard: `http://127.0.0.1:1111`  
+MCP: `http://127.0.0.1:1110/mcp`
 
 Dev repo (`npm run dev:all`) uses `:8000` / `:3001` so both can run together — see [SETUP.md](./SETUP.md#ports).
 
@@ -142,7 +142,7 @@ Writes MCP config, starts backend, and (by default) installs the terminal status
 
 **Cursor IDE Agent chat:** no deck display API — use MCP `get_session_binding` or dashboard. Out of scope.
 
-**Monorepo contributors:** `npm run dev:all` instead of `agent-deck start`; statusline tries API port `8000` then `11111`.
+**Monorepo contributors:** `npm run dev:all` instead of `agent-deck start`; statusline tries API port `8000` then `1111`.
 
 ## End-user install (Claude Code)
 
@@ -157,7 +157,7 @@ npx @agent-deck/cli start
 ```
 
 ```bash
-claude mcp add --scope user --transport http agent-deck http://127.0.0.1:11112/mcp
+claude mcp add --scope user --transport http agent-deck http://127.0.0.1:1110/mcp
 ```
 
 ### MCP client setup
@@ -188,8 +188,8 @@ Optional env:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `AGENT_DECK_PORT` | `11111` | API + dashboard (dev repo uses `8000`) |
-| `AGENT_DECK_MCP_PORT` | `11112` | MCP HTTP endpoint (dev repo uses `3001`) |
+| `AGENT_DECK_PORT` | `1111` | API + dashboard (dev repo uses `8000` for API) |
+| `AGENT_DECK_MCP_PORT` | `1110` | MCP HTTP endpoint (dev repo uses `3001`) |
 | `AGENT_DECK_HOME` | `~/.agent-deck` | Database and credential metadata |
 
 ## Development vs published
@@ -197,4 +197,4 @@ Optional env:
 | Mode | Command | Dashboard |
 |------|---------|-----------|
 | **Dev** (hot reload) | `npm run dev:all` | `http://localhost:3000` (Vite proxy) |
-| **Published / release** | `npx @agent-deck/cli start` | `http://127.0.0.1:11111` (bundled static UI) |
+| **Published / release** | `npx @agent-deck/cli start` | `http://127.0.0.1:1111` (bundled static UI) |

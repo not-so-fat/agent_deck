@@ -109,7 +109,7 @@ Menubar-only refresh: `npm run setup:dev -- --menubar`
 
 ```bash
 npx @agent-deck/cli@latest setup --client cursor --start
-# Dashboard → http://127.0.0.1:11111  (not :3000; dev repo uses :8000 / :3000)
+# Dashboard → http://127.0.0.1:1111  (dev repo uses :8000 / :3000)
 ```
 
 See [PUBLISHING.md](./PUBLISHING.md) and [README](../README.md).
@@ -125,11 +125,11 @@ Two installs can run on the same machine without clashing:
 | Mode | Backend | MCP | Dashboard |
 |------|---------|-----|-----------|
 | **Dev repo** (`npm run dev:all`) | 8000 | 3001 | http://localhost:3000 |
-| **CLI / npx** (`agent-deck start`) | **11111** | **11112** | http://127.0.0.1:11111 |
+| **CLI / npx** (`agent-deck start`) | **1111** | **1110** | http://127.0.0.1:1111 |
 
 Override CLI ports: `AGENT_DECK_PORT`, `AGENT_DECK_MCP_PORT`.
 
-OAuth redirect URI follows the backend you use (e.g. dev → `http://127.0.0.1:8000/api/oauth/callback`, npx → `http://127.0.0.1:11111/api/oauth/callback`).
+OAuth redirect URI follows the backend you use (e.g. dev → `http://127.0.0.1:8000/api/oauth/callback`, npx → `http://127.0.0.1:1111/api/oauth/callback`).
 
 **Data directories:** production `agent-deck start` uses `~/.agent-deck/`. Monorepo dev (`npm run dev:all`) uses `~/.agent-deck/dev/` so decks and OAuth credentials do not mix with production.
 
@@ -156,8 +156,8 @@ Legacy reference:
 | 3000 | Vite frontend (**dev only**, `npm run dev:all`) |
 | 8000 | Backend API (**dev repo**) |
 | 3001 | MCP server (**dev repo**) |
-| 11111 | Backend + bundled UI (**npx / CLI**) |
-| 11112 | MCP server (**npx / CLI**) |
+| 1111 | Backend + bundled UI (**npx / CLI**) |
+| 1110 | MCP server (**npx / CLI**) |
 
 ```bash
 agent-deck status
@@ -215,7 +215,7 @@ If `claude mcp list` shows agent-deck as **Connected** but the agent cannot call
 
 **Fix:** Exit and restart the Claude Code session.
 
-**Workaround:** Call the MCP JSON-RPC endpoint directly (`initialize` → `tools/call`) or use `curl` against `http://127.0.0.1:11112/mcp` (port may differ — check `claude mcp list`).
+**Workaround:** Call the MCP JSON-RPC endpoint directly (`initialize` → `tools/call`) or use `curl` against `http://127.0.0.1:1110/mcp` (port may differ — check `claude mcp list`).
 
 The terminal status line reflects the live MCP bind on the backend API; it stays **unbound** until `bind_workspace` and does not prove the harness can reach agent-deck when MCP is disconnected.
 

@@ -8,9 +8,9 @@ import {
 } from './defaults';
 
 describe('cli defaults', () => {
-  it('uses rare ports for npx install defaults', () => {
-    expect(CLI_DEFAULT_BACKEND_PORT).toBe(11111);
-    expect(CLI_DEFAULT_MCP_PORT).toBe(11112);
+  it('uses default ports for npx install', () => {
+    expect(CLI_DEFAULT_BACKEND_PORT).toBe(1111);
+    expect(CLI_DEFAULT_MCP_PORT).toBe(1110);
   });
 
   it('parses env overrides', () => {
@@ -19,7 +19,7 @@ describe('cli defaults', () => {
   });
 
   it('falls back when env is invalid', () => {
-    expect(parseCliBackendPort(undefined)).toBe(11111);
-    expect(parseCliMcpPort('nope')).toBe(11112);
+    expect(parseCliBackendPort(undefined)).toBe(1111);
+    expect(parseCliMcpPort('nope')).toBe(1110);
   });
 });

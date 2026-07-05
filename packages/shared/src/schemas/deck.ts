@@ -5,7 +5,6 @@ import { PlaybookSchema } from './playbook';
 export const DeckSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1, 'Deck name is required'),
-  description: z.string().optional(),
   isActive: z.boolean().default(false),
   services: z.array(z.any()).default([]), // Will be populated with Service objects
   credentials: z.array(CredentialSchema).default([]),

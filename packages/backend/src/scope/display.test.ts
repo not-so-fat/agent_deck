@@ -30,7 +30,7 @@ describe('resolveDeckDisplay', () => {
 
   it('shows live MCP bind for workspace', async () => {
     const workspace = path.join(tempDir, 'repo');
-    const boundDeck = await db.createDeck({ name: 'Task Management', description: '' });
+    const boundDeck = await db.createDeck({ name: 'Task Management' });
 
     registry.upsert({
       mcpSessionId: 'mcp-session-1',
@@ -52,7 +52,7 @@ describe('resolveDeckDisplay', () => {
     const workspace = path.join(tempDir, 'repo-manifest');
     await fs.mkdir(path.join(workspace, '.agent-deck'), { recursive: true });
 
-    const deck = await db.createDeck({ name: 'Manifest Deck', description: '' });
+    const deck = await db.createDeck({ name: 'Manifest Deck' });
     await fs.writeFile(
       path.join(workspace, '.agent-deck', 'deck.yaml'),
       `deck_id: ${deck.id}\n`,

@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.3.2 — 2026-07-05
+
+### Default ports (CLI / npx)
+
+Fresh installs use shorter localhost ports:
+
+| Surface | Port |
+|---------|------|
+| Dashboard | `http://127.0.0.1:1111` |
+| Agent Deck MCP | `http://127.0.0.1:1110/mcp` |
+
+Dev workflow unchanged (`8000` API, `3000` UI, `3001` MCP). Re-run `agent-deck setup` if your host still points at `11111` / `11112`.
+
+### README & docs
+
+User-facing Quick Start (global install, macOS Keychain warning, Cursor vs Claude MCP registration, agent-first skills). Tagline and Problem/Idea sections refreshed.
+
+### Dashboard
+
+- Home page ambient orbs animate again
+- Browser tab title: **AgentDeck**
+- Create-deck dialog: name only (matches deck model)
+
+### Deck model
+
+Removed unused `description` field from decks (schema, API, MCP `create_deck`, export bundles). Existing SQLite DBs migrate on startup; legacy export bundles with `description` still import.
+
 ## 1.3.1 — 2026-07-04
 
 ### Export / import (metadata layouts)

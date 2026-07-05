@@ -149,6 +149,22 @@ export class DatabaseManager {
     // Display names are how users/agents distinguish cards and decks (not UUIDs).
     this.ensureUniqueDisplayNameIndex('decks', 'name', 'decks_name_unique');
     this.ensureUniqueDisplayNameIndex('credentials', 'label', 'credentials_label_unique');
+
+    // Deck description was never shown in UI — drop from existing DBs.
+    this.dropColumnIfExists('decks', 'description');
+  }
+
+  private dropColumnIfExists(tableName: string, columnName: string): void {
+    if (!this.tableExists(tableName)) {
+      return;
+    }
+    const columns = this.db
+      .prepare(`PRAGMA table_info(${tableName})`)
+      .all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === columnName)) {
+      return;
+    }
+    this.db.exec(`ALTER TABLE ${tableName} DROP COLUMN ${columnName}`);
   }
 
   private createTables(): void {
@@ -193,7 +209,6 @@ export class DatabaseManager {
       CREATE TABLE IF NOT EXISTS decks (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        description TEXT,
         is_active BOOLEAN NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -630,7 +645,6 @@ export class DatabaseManager {
     const deck: Deck = {
       id: generateId(),
       name: input.name,
-      description: input.description,
       isActive: input.isActive || false,
       services: [],
       credentials: [],
@@ -640,15 +654,14 @@ export class DatabaseManager {
     };
 
     const stmt = this.db.prepare(`
-      INSERT INTO decks (id, name, description, is_active, created_at, updated_at)
-      VALUES (@id, @name, @description, @is_active, @created_at, @updated_at)
+      INSERT INTO decks (id, name, is_active, created_at, updated_at)
+      VALUES (@id, @name, @is_active, @created_at, @updated_at)
     `);
 
     try {
       stmt.run({
         id: deck.id,
         name: deck.name,
-        description: deck.description,
         is_active: deck.isActive ? 1 : 0,
         created_at: deck.createdAt,
         updated_at: deck.updatedAt,
@@ -682,7 +695,6 @@ export class DatabaseManager {
     return {
       id: row.id,
       name: row.name,
-      description: row.description,
       isActive: Boolean(row.is_active),
       services,
       credentials,
@@ -714,7 +726,6 @@ export class DatabaseManager {
       decks.push({
         id: row.id,
         name: row.name,
-        description: row.description,
         isActive: Boolean(row.is_active),
         services,
         credentials,
@@ -749,7 +760,6 @@ export class DatabaseManager {
     return {
       id: row.id,
       name: row.name,
-      description: row.description,
       isActive: Boolean(row.is_active),
       services,
       credentials,
@@ -771,7 +781,7 @@ export class DatabaseManager {
 
     const stmt = this.db.prepare(`
       UPDATE decks SET
-        name = @name, description = @description, is_active = @is_active, updated_at = @updated_at
+        name = @name, is_active = @is_active, updated_at = @updated_at
       WHERE id = @id
     `);
 
@@ -779,7 +789,6 @@ export class DatabaseManager {
       stmt.run({
         id: updated.id,
         name: updated.name,
-        description: updated.description,
         is_active: updated.isActive ? 1 : 0,
         updated_at: updated.updatedAt,
       });

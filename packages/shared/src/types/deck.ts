@@ -3,7 +3,6 @@ import { Service } from './service';
 export interface Deck {
   id: string;
   name: string;
-  description?: string;
   isActive: boolean;
   services: Service[];
   createdAt: string;
@@ -12,13 +11,11 @@ export interface Deck {
 
 export interface CreateDeckInput {
   name: string;
-  description?: string;
   isActive?: boolean;
 }
 
 export interface UpdateDeckInput {
   name?: string;
-  description?: string;
   isActive?: boolean;
 }
 

@@ -711,11 +711,17 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Cyberpunk Background Effects */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute top-20 left-20 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-float"></div>
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-float" style={{animationDelay: '-1s'}}></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-float" style={{animationDelay: '-2s'}}></div>
+      {/* Cyberpunk Background Effects — wrapper positions, inner orb animates */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-20 left-20">
+          <div className="h-96 w-96 rounded-full bg-cyan-500/10 blur-3xl animate-orb-drift-1" />
+        </div>
+        <div className="absolute bottom-20 right-20">
+          <div className="h-96 w-96 rounded-full bg-pink-500/10 blur-3xl animate-orb-drift-2" />
+        </div>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="h-96 w-96 rounded-full bg-purple-500/5 blur-3xl animate-orb-drift-3" />
+        </div>
       </div>
 
       {/* Modals */}

@@ -60,7 +60,7 @@ function startRichStubBackend(): Promise<StubBackend> {
 
   const liveDisplayBodies: unknown[] = [];
   const serviceCalls: StubBackend['serviceCalls'] = [];
-  const decksById = new Map<string, { id: string; name: string; description?: string }>([
+  const decksById = new Map<string, { id: string; name: string }>([
     [DECK_ID, { id: DECK_ID, name: 'dev' }],
   ]);
 
@@ -113,7 +113,6 @@ function startRichStubBackend(): Promise<StubBackend> {
         const created = {
           id,
           name: String(body.name ?? 'untitled'),
-          description: body.description ? String(body.description) : undefined,
         };
         decksById.set(id, created);
         respond({ success: true, data: created });
@@ -424,7 +423,6 @@ describe('MCP golden paths (CI)', () => {
     const sessionId = await nextSession();
     const created = await tool(sessionId, 'create_deck', {
       name: 'scratch',
-      description: 'temp',
     });
     expect(created.id).toBeTruthy();
     expect(created.name).toBe('scratch');

@@ -68,7 +68,6 @@ export async function buildExportBundle(
     decks = allDecks.map((deck) => ({
       id: deck.id,
       name: deck.name,
-      ...(deck.description ? { description: deck.description } : {}),
       serviceIds: (deck.services ?? []).map((service) => service.id),
       playbookIds: (deck.playbooks ?? []).map((playbook) => playbook.id),
     }));
@@ -91,7 +90,6 @@ export async function buildExportBundle(
       {
         id: deck.id,
         name: deck.name,
-        ...(deck.description ? { description: deck.description } : {}),
         serviceIds: deckServices.map((service) => service.id),
         playbookIds: deckPlaybooks.map((playbook) => playbook.id),
       },

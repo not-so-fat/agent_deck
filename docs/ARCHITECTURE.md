@@ -23,7 +23,7 @@ Agent Deck is a local TypeScript monorepo: React dashboard, Fastify API, MCP pro
 ## System diagram
 
 **Dev repo** (`npm run dev:all`): dashboard :3000, API :8000, MCP :3001, data `~/.agent-deck/dev/`  
-**CLI / npx** (`agent-deck start`): dashboard + API :11111, MCP :11112, data `~/.agent-deck/`
+**CLI / npx** (`agent-deck start`): dashboard + API :1111, MCP :1110, data `~/.agent-deck/`
 
 See [SETUP.md](./SETUP.md#ports) for overrides.
 

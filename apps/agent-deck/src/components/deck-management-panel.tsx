@@ -17,7 +17,6 @@ import {
 } from "@/lib/live-bindings";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 interface DeckManagementPanelProps {
@@ -34,10 +33,7 @@ export default function DeckManagementPanel({
   isLoading,
 }: DeckManagementPanelProps) {
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [newDeckData, setNewDeckData] = useState({
-    name: "",
-    description: "",
-  });
+  const [newDeckName, setNewDeckName] = useState("");
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -53,14 +49,13 @@ export default function DeckManagementPanel({
   );
 
   const createDeckMutation = useMutation({
-    mutationFn: async (data: typeof newDeckData) => {
+    mutationFn: async (name: string) => {
       return apiRequest("POST", "/api/decks", {
-        name: data.name,
-        description: data.description,
+        name,
         isActive: false,
       });
     },
-    onSuccess: async (response) => {
+    onSuccess: async (response, name) => {
       const body = await response.json();
       queryClient.invalidateQueries({ queryKey: ["/api/decks"] });
       if (body.data?.id) {
@@ -68,10 +63,10 @@ export default function DeckManagementPanel({
       }
       toast({
         title: "Deck created",
-        description: `${newDeckData.name} has been created successfully.`,
+        description: `${name} has been created successfully.`,
       });
       setCreateModalOpen(false);
-      setNewDeckData({ name: "", description: "" });
+      setNewDeckName("");
     },
     onError: (error: Error) => {
       toast({
@@ -162,7 +157,11 @@ export default function DeckManagementPanel({
 
   const handleCreateDeck = (e: React.FormEvent) => {
     e.preventDefault();
-    createDeckMutation.mutate(newDeckData);
+    const name = newDeckName.trim();
+    if (!name) {
+      return;
+    }
+    createDeckMutation.mutate(name);
   };
 
   const deckCardCount = (deck: Deck) =>
@@ -277,52 +276,33 @@ export default function DeckManagementPanel({
       </div>
 
       <Dialog open={createModalOpen} onOpenChange={setCreateModalOpen}>
-        <DialogContent className="sm:max-w-md bg-gradient-to-br from-cosmic-900 to-cosmic-800 border border-white/20 text-white">
+        <DialogContent className="sm:max-w-md border-border bg-[#161612] text-[#E8F6F4]">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center">
-              <Plus className="w-5 h-5 mr-2 text-purple-400" />
+            <DialogTitle className="flex items-center text-xl font-bold">
+              <Layers className="mr-2 h-5 w-5" style={{ color: "#92E4DD" }} />
               Create New Deck
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleCreateDeck} className="space-y-4" data-testid="form-create-deck">
-            <div>
-              <Label htmlFor="deckName" className="text-sm font-semibold">
-                Deck Name
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="deckName">Deck Name</Label>
               <Input
                 id="deckName"
                 placeholder="e.g., Hiring stack"
-                value={newDeckData.name}
-                onChange={(e) => setNewDeckData((prev) => ({ ...prev, name: e.target.value }))}
-                className="bg-white/10 border-white/20 text-white placeholder-gray-400"
+                value={newDeckName}
+                onChange={(e) => setNewDeckName(e.target.value)}
+                className="border-white/15 bg-[#0F0F0C] text-[#E8F6F4] placeholder:text-[#A8C4C0]/60"
                 required
                 data-testid="input-deck-name"
               />
             </div>
 
-            <div>
-              <Label htmlFor="deckDescription" className="text-sm font-semibold">
-                Description
-              </Label>
-              <Textarea
-                id="deckDescription"
-                placeholder="Brief description of this deck..."
-                value={newDeckData.description}
-                onChange={(e) =>
-                  setNewDeckData((prev) => ({ ...prev, description: e.target.value }))
-                }
-                rows={3}
-                className="bg-white/10 border-white/20 text-white placeholder-gray-400 resize-none"
-                data-testid="textarea-deck-description"
-              />
-            </div>
-
-            <div className="flex space-x-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <Button
                 type="button"
-                variant="secondary"
-                className="flex-1"
+                variant="outline"
+                className="flex-1 rounded-full border-white/20 text-[#E8F6F4] hover:bg-white/10"
                 onClick={() => setCreateModalOpen(false)}
                 data-testid="button-cancel-create"
               >
@@ -330,11 +310,16 @@ export default function DeckManagementPanel({
               </Button>
               <Button
                 type="submit"
-                className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+                className="flex-1 rounded-full border px-6 text-sm font-semibold hover:opacity-90"
+                style={{
+                  background: "#C4B643",
+                  borderColor: "#C4B643",
+                  color: "black",
+                }}
                 disabled={createDeckMutation.isPending}
                 data-testid="button-submit-create"
               >
-                {createDeckMutation.isPending ? "Creating..." : "Create Deck"}
+                {createDeckMutation.isPending ? "Creating…" : "Create Deck"}
               </Button>
             </div>
           </form>

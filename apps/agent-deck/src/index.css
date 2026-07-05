@@ -224,9 +224,45 @@
   }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
+@keyframes orb-drift-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    transform: translate(22px, -26px) scale(1.05);
+    opacity: 0.72;
+  }
+  70% {
+    transform: translate(-18px, 16px) scale(0.96);
+    opacity: 0.88;
+  }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.95;
+  }
+  35% {
+    transform: translate(-24px, 20px) scale(1.03);
+    opacity: 0.7;
+  }
+  65% {
+    transform: translate(20px, -22px) scale(0.98);
+    opacity: 0.82;
+  }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(28px, 24px) scale(1.06);
+    opacity: 0.7;
+  }
 }
 
 @keyframes glow {
@@ -239,8 +275,18 @@
   100% { background-position: 200% 0; }
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+.animate-orb-drift-1 {
+  animation: orb-drift-1 14s ease-in-out infinite;
+}
+
+.animate-orb-drift-2 {
+  animation: orb-drift-2 17s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+.animate-orb-drift-3 {
+  animation: orb-drift-3 20s ease-in-out infinite;
+  animation-delay: -9s;
 }
 
 .animate-glow {

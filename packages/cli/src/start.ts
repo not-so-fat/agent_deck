@@ -83,7 +83,7 @@ async function shutdown(exitCode = 0): Promise<void> {
 function printRunningEndpoints(host: string, backendPort: number, mcpPort: number, backendUrl: string): void {
   console.log('');
   console.log('Agent Deck is running');
-  console.log(`  Dashboard  ${backendUrl}  (not :3000 — that port is dev-only)`);
+  console.log(`  Dashboard  ${backendUrl}`);
   console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
   console.log(`  API health ${backendUrl}/health`);
   console.log('');
@@ -219,7 +219,7 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   const dashboardLine = uiDist ? backendUrl : '(UI bundle missing — use npm run dev:all for dev UI)';
   console.log('');
   console.log('Agent Deck is running');
-  console.log(`  Dashboard  ${dashboardLine}  (not :3000 — that port is dev-only)`);
+  console.log(`  Dashboard  ${dashboardLine}`);
   console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
   console.log(`  API health ${backendUrl}/health`);
   console.log('');

@@ -63,7 +63,7 @@ describe('local-mcp-manifest', () => {
     expect(() =>
       normalizeLocalMcpManifestInput({
         mcpServers: {
-          'agent-deck': { url: 'http://127.0.0.1:11112/mcp' },
+          'agent-deck': { url: 'http://127.0.0.1:1110/mcp' },
         },
       })
     ).toThrow(/expected a top-level "mcpServers"/);

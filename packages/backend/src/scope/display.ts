@@ -8,7 +8,7 @@ import { DatabaseManager } from '../models/database';
 import { LiveDisplayRegistry } from './live-display-registry';
 
 const EMPTY_COUNTS = { mcp: 0, credentials: 0, playbooks: 0 };
-const DEFAULT_MCP_PORT = 11112;
+const DEFAULT_MCP_PORT = 1110;
 
 export type ResolveDeckDisplayInput = {
   workspaceRoot: string;

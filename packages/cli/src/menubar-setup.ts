@@ -180,7 +180,7 @@ export NO_COLOR=1
 export FORCE_COLOR=0
 export NPM_CONFIG_COLOR=false
 
-# Prefer dev backend when npm run dev:all is up (:8000 before :11111)
+# Prefer dev backend when npm run dev:all is up (:8000 before :1111)
 if curl -sf --max-time 0.4 http://127.0.0.1:8000/health >/dev/null 2>&1; then
   export AGENT_DECK_DEV=1
 fi

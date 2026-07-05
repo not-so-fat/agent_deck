@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseManager } from '../models/database';
 import { CredentialManager } from '../vault/credential-manager';
 import { MemorySecretStore } from '../vault/secret-store';
+import { CredentialYamlSync } from '../vault/yaml-sync';
+
+class NoopYamlSync extends CredentialYamlSync {
+  async write(): Promise<void> {}
+  async remove(): Promise<void> {}
+}
 
 describe('CredentialManager', () => {
   let db: DatabaseManager;
@@ -10,7 +16,7 @@ describe('CredentialManager', () => {
   beforeEach(() => {
     process.env.AGENT_DECK_SECRET_STORE = 'memory';
     db = new DatabaseManager(':memory:');
-    manager = new CredentialManager(db, new MemorySecretStore());
+    manager = new CredentialManager(db, new MemorySecretStore(), new NoopYamlSync());
   });
 
   afterEach(() => {

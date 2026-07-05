@@ -65,7 +65,7 @@ Changes agreed during MVP implementation:
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Agent host (Cursor)                                     │
-│    └── MCP → localhost:3001/mcp (unchanged entrypoint)   │
+│    └── MCP → localhost:3001/mcp (dev) or :1110/mcp (CLI) │
 └───────────────────────────┬─────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────┐
@@ -320,7 +320,7 @@ POST   /api/decks/:deckId/playbooks   { playbookId }
 DELETE /api/decks/:deckId/playbooks   { playbookId }
 ```
 
-### MCP tools (`:3001/mcp`)
+### MCP tools (`:1110/mcp` CLI · `:3001/mcp` dev)
 
 | Tool | Args | Returns |
 |------|------|---------|

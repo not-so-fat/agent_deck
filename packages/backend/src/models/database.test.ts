@@ -163,12 +163,10 @@ describe('DatabaseManager', () => {
       
       const updated = await dbManager.updateService(service.id, {
         name: 'Updated Service',
-        description: 'Updated description',
       });
 
       expect(updated).toBeDefined();
       expect(updated?.name).toBe('Updated Service');
-      expect(updated?.description).toBe('Updated description');
       expect(updated?.url).toBe(serviceInput.url); // unchanged
     });
 
@@ -209,14 +207,12 @@ describe('DatabaseManager', () => {
     it('should create a deck', async () => {
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const deck = await dbManager.createDeck(deckInput);
       
       expect(deck.id).toBeDefined();
       expect(deck.name).toBe(deckInput.name);
-      expect(deck.description).toBe(deckInput.description);
       expect(deck.isActive).toBe(false);
       expect(deck.createdAt).toBeDefined();
       expect(deck.updatedAt).toBeDefined();
@@ -269,7 +265,6 @@ describe('DatabaseManager', () => {
     it('should get a deck by ID', async () => {
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const created = await dbManager.createDeck(deckInput);
@@ -288,12 +283,10 @@ describe('DatabaseManager', () => {
     it('should get all decks', async () => {
       const deck1: CreateDeckInput = {
         name: 'Deck 1',
-        description: 'First deck',
       };
 
       const deck2: CreateDeckInput = {
         name: 'Deck 2',
-        description: 'Second deck',
       };
 
       await dbManager.createDeck(deck1);
@@ -308,12 +301,10 @@ describe('DatabaseManager', () => {
     it('should get active deck', async () => {
       const deck1: CreateDeckInput = {
         name: 'Deck 1',
-        description: 'First deck',
       };
 
       const deck2: CreateDeckInput = {
         name: 'Deck 2',
-        description: 'Second deck',
       };
 
       await dbManager.createDeck(deck1);
@@ -329,25 +320,21 @@ describe('DatabaseManager', () => {
     it('should update a deck', async () => {
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const deck = await dbManager.createDeck(deckInput);
       
       const updated = await dbManager.updateDeck(deck.id, {
         name: 'Updated Deck',
-        description: 'Updated description',
       });
 
       expect(updated).toBeDefined();
       expect(updated?.name).toBe('Updated Deck');
-      expect(updated?.description).toBe('Updated description');
     });
 
     it('should delete a deck', async () => {
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const deck = await dbManager.createDeck(deckInput);
@@ -369,7 +356,6 @@ describe('DatabaseManager', () => {
 
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const service = await dbManager.createService(serviceInput);
@@ -396,7 +382,6 @@ describe('DatabaseManager', () => {
 
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const service = await dbManager.createService(serviceInput);
@@ -432,7 +417,6 @@ describe('DatabaseManager', () => {
 
       const deckInput: CreateDeckInput = {
         name: 'Test Deck',
-        description: 'A test deck',
       };
 
       const service1Created = await dbManager.createService(service1);

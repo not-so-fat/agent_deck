@@ -43,11 +43,11 @@ export const BundleDeckSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
-    description: z.string().optional(),
     serviceIds: z.array(z.string()).default([]),
     playbookIds: z.array(z.string()).default([]),
   })
-  .strict();
+  // Ignore legacy `description` on older bundles.
+  .strip();
 
 export const BundleV1Schema = z
   .object({
