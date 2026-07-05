@@ -3,10 +3,6 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
 
-<img src="./misc/Demo.gif" alt="Demo" width="70%" />
-
-[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-red?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=TeLXBKkWkFA)
-
 **One MCP endpoint. Switch context with decks of external dependencies and self-improving skills.**
 
 [Quick Start](#quick-start) · [Reference](#reference) · [Docs](#documentation)
@@ -89,17 +85,19 @@ Terminal agents show the active deck in the footer (`◆ dev · 2 MCP · …`). 
 
 ## Problem
 
-We lean on one agent for more kinds of work — code, triage, releases, research. Each kind adds **external dependencies**: MCP servers, API keys, OAuth apps, and skills you want the agent to follow.
+We lean on one agent for more kinds of work — code, triage, releases, research. Each kind adds **external dependencies**: MCP servers, API keys, OAuth apps, and **skills** you want the agent to follow and refine over time.
 
 Some dependencies are **shared** (GitHub, Linear, Slack). Others belong to **one client or repo**. If everything is connected at once, the tool list balloons — the agent slows down, picks the wrong integration, or leaks context across jobs.
 
-Skills and runbooks stay in old threads or docs, so you **re-explain the same procedure** every session.
-
-<img src="./misc/CursorTooManyTools.png" alt="Too many MCP tools in Cursor" width="30%" />
+Skills stay in old threads or docs — you **re-explain the same procedure** every session, and corrections from one chat **don’t carry into the next**.
 
 ## Idea
 
-Connect **one** Agent Deck MCP endpoint. Register dependencies and skills once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and skills are in play.
+Connect **one** Agent Deck MCP endpoint. Register dependencies and **skills** once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and skills are in play.
+
+When you give feedback on a skill-backed task, the agent can **update the skill** so the next run starts from what you taught it — not from scratch.
+
+<img src="./misc/Idea.png" alt="Single MCP for Context" width="70%" />
 
 ---
 
