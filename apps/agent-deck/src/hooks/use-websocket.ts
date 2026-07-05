@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  invalidateDashboardServiceQueries,
+  isOAuthCompleteMessage,
+} from "@/lib/invalidate-dashboard-queries";
 
 interface WebSocketMessage {
   type: string;
@@ -35,12 +39,13 @@ export function useWebSocket() {
             // Handle specific message types and invalidate queries
             if (message.type === 'deck_update') {
               console.log('Received deck update:', message);
-              // Invalidate deck queries to refresh the UI
-              queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
               queryClient.invalidateQueries({ queryKey: ['/api/decks'] });
             } else if (message.type === 'service_update') {
               console.log('Received service update:', message);
-              queryClient.invalidateQueries({ queryKey: ['/api/services'] });
+              invalidateDashboardServiceQueries(
+                queryClient,
+                typeof message.data?.serviceId === 'string' ? message.data.serviceId : undefined,
+              );
             } else if (message.type === 'connection_status') {
               setConnectionStatus(message.status === 'connected' ? 'connected' : 'disconnected');
             }
@@ -73,7 +78,20 @@ export function useWebSocket() {
 
     connect();
 
+    const handleOAuthComplete = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+      if (!isOAuthCompleteMessage(event.data)) {
+        return;
+      }
+      invalidateDashboardServiceQueries(queryClient, event.data.serviceId);
+    };
+
+    window.addEventListener('message', handleOAuthComplete);
+
     return () => {
+      window.removeEventListener('message', handleOAuthComplete);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }

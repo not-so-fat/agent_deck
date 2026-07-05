@@ -9,6 +9,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import McpToolsPanel from "@/components/mcp-tools-panel";
 import { OAuthConnectPanel } from "@/components/oauth-connect-panel";
+import { invalidateDashboardServiceQueries } from "@/lib/invalidate-dashboard-queries";
 
 
 // API response type that matches the backend
@@ -346,6 +347,8 @@ export default function ServiceDetailsModal({
   useEffect(() => {
     if (!isOpen) {
       setCurrentService(null);
+      oauthResolvedThisSession.current = false;
+      oauthCompletionHandled.current = false;
       return;
     }
     if (service) {
@@ -356,6 +359,7 @@ export default function ServiceDetailsModal({
   }, [service, isOpen]);
 
   const oauthCompletionHandled = useRef(false);
+  const oauthResolvedThisSession = useRef(false);
 
   // Refresh service data after OAuth completes (status query polls until authenticated)
   useEffect(() => {
@@ -373,6 +377,7 @@ export default function ServiceDetailsModal({
       return;
     }
     oauthCompletionHandled.current = true;
+    oauthResolvedThisSession.current = true;
 
     const refreshAfterOAuth = async () => {
       toast({
@@ -380,9 +385,8 @@ export default function ServiceDetailsModal({
         description: 'Authentication successful! Refreshing service status...',
       });
 
-      queryClient.invalidateQueries({ queryKey: ['/api/services', apiService.id] });
+      invalidateDashboardServiceQueries(queryClient, apiService.id);
       queryClient.invalidateQueries({ queryKey: ['/api/mcp/discover', apiService.url] });
-      queryClient.invalidateQueries({ queryKey: ['/api/collection-warnings'] });
 
       try {
         const serviceResponse = await apiRequest('GET', `/api/services/${apiService.id}`);
@@ -397,6 +401,7 @@ export default function ServiceDetailsModal({
       await refetchMcpDiscovery();
       queryClient.invalidateQueries({ queryKey: ['/api/services', apiService.id, 'tools'] });
       await refetchMcpTools();
+      oauthResolvedThisSession.current = false;
     };
 
     void refreshAfterOAuth();
@@ -502,8 +507,21 @@ export default function ServiceDetailsModal({
     }
   };
 
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) {
+      return;
+    }
+
+    if (oauthResolvedThisSession.current) {
+      invalidateDashboardServiceQueries(queryClient, apiService?.id ?? service?.id);
+      oauthResolvedThisSession.current = false;
+    }
+    oauthCompletionHandled.current = false;
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-6xl bg-gradient-to-br from-cosmic-900 to-cosmic-800 border border-white/20 text-white max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold flex items-center">

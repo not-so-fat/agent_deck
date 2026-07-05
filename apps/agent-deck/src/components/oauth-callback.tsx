@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
+import { OAUTH_COMPLETE_MESSAGE } from '@/lib/invalidate-dashboard-queries';
 
 export default function OAuthCallback() {
   const [location] = useLocation();
@@ -13,10 +14,18 @@ export default function OAuthCallback() {
         const url = new URL(window.location.href);
         const success = url.searchParams.get('success');
         const error = url.searchParams.get('error');
+        const serviceId = url.searchParams.get('serviceId');
 
         if (success === 'true') {
           setStatus('success');
           setMessage('Authentication successful! This window will close automatically.');
+
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(
+              { type: OAUTH_COMPLETE_MESSAGE, serviceId: serviceId ?? undefined },
+              window.location.origin,
+            );
+          }
           
           // Close the window after a short delay
           setTimeout(() => {
