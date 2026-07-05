@@ -181,7 +181,8 @@ export class MCPClientManager {
       
       // Convert MCP tools to our ServiceTool format
       const serviceTools: ServiceTool[] = toolsArray.map((tool: any) => ({
-        name: tool.name || tool.title || 'Unknown Tool',
+        name: tool.name || 'Unknown Tool',
+        title: typeof tool.title === 'string' && tool.title.trim() ? tool.title.trim() : undefined,
         description: tool.description || '',
         inputSchema: tool.inputSchema || {},
       }));

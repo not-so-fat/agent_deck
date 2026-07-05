@@ -15,6 +15,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ChevronDown, Search, Wrench } from "lucide-react";
+import ToolDescriptionCell, {
+  ToolDescriptionExpandedRow,
+  useToolDescriptionExpand,
+} from "@/components/tool-description-cell";
 
 interface McpToolsPanelProps {
   serviceId: string;
@@ -29,6 +33,7 @@ function disabledToolsFromServer(tools: ServiceTool[]): Set<string> {
 export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsPanelProps) {
   const [search, setSearch] = useState("");
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
+  const { expandedDescription, toggleDescription } = useToolDescriptionExpand();
   const [disabledTools, setDisabledTools] = useState<Set<string>>(() => disabledToolsFromServer(tools));
 
   const queryClient = useQueryClient();
@@ -98,6 +103,7 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
     return tools.filter(
       (tool) =>
         tool.name.toLowerCase().includes(query) ||
+        (tool.title?.toLowerCase().includes(query) ?? false) ||
         tool.description.toLowerCase().includes(query),
     );
   }, [tools, search]);
@@ -183,7 +189,8 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
             ) : (
               filteredTools.map((tool) => {
                 const isEnabled = !disabledTools.has(tool.name);
-                const isExpanded = expandedTool === tool.name;
+                const isSchemaExpanded = expandedTool === tool.name;
+                const isDescriptionExpanded = expandedDescription === tool.name;
                 const hasSchema =
                   tool.inputSchema && Object.keys(tool.inputSchema).length > 0;
 
@@ -210,12 +217,12 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
                           <button
                             type="button"
                             onClick={() =>
-                              setExpandedTool(isExpanded ? null : tool.name)
+                              setExpandedTool(isSchemaExpanded ? null : tool.name)
                             }
                             className="flex w-full items-center gap-1 text-left font-mono text-sm text-[#92E4DD] hover:text-white"
                           >
                             <ChevronDown
-                              className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                              className={`h-4 w-4 shrink-0 transition-transform ${isSchemaExpanded ? "rotate-180" : ""}`}
                             />
                             {tool.name}
                           </button>
@@ -223,11 +230,23 @@ export default function McpToolsPanel({ serviceId, tools, isLoading }: McpToolsP
                           <span className="font-mono text-sm text-[#92E4DD]">{tool.name}</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-gray-300">
-                        {tool.description || "—"}
+                      <TableCell className="max-w-0 text-sm text-gray-300">
+                        <ToolDescriptionCell
+                          description={tool.description}
+                          title={tool.title}
+                          expanded={isDescriptionExpanded}
+                          onToggle={() => toggleDescription(tool.name)}
+                        />
                       </TableCell>
                     </TableRow>
-                    {hasSchema && isExpanded && (
+                    {isDescriptionExpanded && (
+                      <TableRow className="border-white/10 bg-black/30 hover:bg-black/30">
+                        <TableCell colSpan={3} className="py-3">
+                          <ToolDescriptionExpandedRow description={tool.description} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {hasSchema && isSchemaExpanded && (
                       <TableRow className="border-white/10 bg-black/30 hover:bg-black/30">
                         <TableCell colSpan={3} className="py-3">
                           <pre className="max-h-48 overflow-auto rounded border border-white/10 bg-[#0F0F0C] p-3 text-xs text-gray-300">

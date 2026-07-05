@@ -6,7 +6,7 @@ import { BookOpen, Plus } from "lucide-react";
 import ServiceCardIcon from "@/components/service-card-icon";
 import CardWarningBadge from "@/components/card-warning-badge";
 import CredentialCardIcon from "@/components/credential-card-icon";
-import DeckFan from "@/components/deck-fan";
+import DeckFan, { CARD_HEIGHT, CARD_WIDTH, FAN_SLOT_MIN_HEIGHT } from "@/components/deck-fan";
 import type { CollectionWarningsView } from "@/lib/collection-warnings";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
@@ -160,9 +160,16 @@ export default function DeckBuilder({
       >
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden min-w-0">
           {deckCards === 0 ? (
-            <div className="text-center">
-              <div className="w-32 h-48 border-2 border-dashed border-gray-500 rounded-lg flex items-center justify-center opacity-50 hover:opacity-75 transition-all mb-4">
-                <Plus className="w-8 h-8 text-gray-500" />
+            <div
+              className="flex items-center justify-center"
+              style={{ minHeight: FAN_SLOT_MIN_HEIGHT }}
+            >
+              <div
+                className="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-500 opacity-50 transition-opacity hover:opacity-75"
+                style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+                data-testid="deck-empty-placeholder"
+              >
+                <Plus className="h-8 w-8 text-gray-500" />
               </div>
             </div>
           ) : (

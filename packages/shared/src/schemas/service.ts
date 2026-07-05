@@ -61,6 +61,7 @@ export const ServiceCallSchema = z.object({
 
 export const ServiceToolSchema = z.object({
   name: z.string().min(1, 'Tool name is required'),
+  title: z.string().optional(),
   description: z.string().min(1, 'Tool description is required'),
   inputSchema: z.record(z.any()),
   enabled: z.boolean().optional(),

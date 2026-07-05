@@ -79,8 +79,10 @@ export interface UpdateServiceInput {
 
 export interface ServiceTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: Record<string, any>;
+  enabled?: boolean;
 }
 
 export interface ServiceCallInput {
