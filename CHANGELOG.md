@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.3 — 2026-07-05
+
+### Dashboard
+
+- **OAuth:** collection cards refresh after connect (popup `postMessage`, WebSocket, service modal close)
+- **MCP tools:** clearer tool descriptions in the service details panel (summary + expand for long text)
+- Empty deck builder placeholder centered; playbook details modal widened
+- Updated README screenshots (`misc/Idea.png`, `misc/UI.png`)
+
+### README
+
+- Problem / Idea call out **self-improving skills** — feedback updates deck skills across sessions
+
 ## 1.3.2 — 2026-07-05
 
 ### Default ports (CLI / npx)
