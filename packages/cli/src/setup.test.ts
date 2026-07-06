@@ -35,7 +35,9 @@ describe('setup statusline defaults', () => {
     expect(resolveSetupMenubar('cursor', false)).toBe(false);
   });
 
-  it('setup --menubar alone installs only the SwiftBar plugin', async () => {
+  it.skipIf(process.platform !== 'darwin')(
+    'setup --menubar alone installs only the SwiftBar plugin',
+    async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-deck-setup-menubar-'));
     process.env.AGENT_DECK_SWIFTBAR_DIR = tmpDir;
     try {
@@ -46,5 +48,6 @@ describe('setup statusline defaults', () => {
       delete process.env.AGENT_DECK_SWIFTBAR_DIR;
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  });
+  },
+  );
 });

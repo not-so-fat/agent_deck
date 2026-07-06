@@ -11,7 +11,8 @@
 ### Packaging & CI
 
 - License metadata standardized to MIT across all published packages; `LICENSE` included in npm tarballs
-- GitHub Actions CI: install → rebuild-native → test → type-check
+- GitHub Actions CI: install → build → rebuild-native → test → type-check
+- CI fixes: build workspaces before tests, skip macOS-only menubar test on Linux, spawn statusline via `node`
 - Commit `.mcp.json` contributor wiring for loopback MCP URL
 
 ## 1.3.3 — 2026-07-05

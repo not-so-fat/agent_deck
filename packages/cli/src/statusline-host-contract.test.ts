@@ -33,7 +33,7 @@ function spawnStatuslineHost(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): Promise<HostRunResult> {
-  const command = options.command ?? [CLI_BIN, 'statusline'];
+    const command = options.command ?? [process.execPath, CLI_BIN, 'statusline'];
   const start = Date.now();
 
   return new Promise((resolve, reject) => {
