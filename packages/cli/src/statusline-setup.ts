@@ -22,8 +22,16 @@ function resolveStatuslineScriptPath(): string {
 }
 
 function resolveSetupCliBin(): string {
-  const candidate = path.join(__dirname, 'bin.js');
-  return fs.existsSync(candidate) ? candidate : '';
+  const candidates = [
+    path.join(__dirname, 'bin.js'),
+    path.join(__dirname, '..', 'dist', 'bin.js'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
 }
 
 function buildStatuslineScript(setupCliBin: string): string {
