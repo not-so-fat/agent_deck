@@ -1,6 +1,6 @@
 # ADR — Installation must make Agent Deck unavoidable
 
-**Status:** Proposed  
+**Status:** Superseded (partial) — `deck.yaml` / Layer 2 bind model was not shipped; **session binding** (`bind_workspace`) is as-built per [MVP.md](../MVP.md). Retained as historical incident + design notes.  
 **Date:** 2026-06-30  
 **Context:** Agent bypassed Agent Deck when drafting PRDs — read `~/.agent-deck/agent_deck.db` via `sqlite3` instead of `get_playbook` on MCP.
 
@@ -42,7 +42,7 @@ Today `setup` only does **Layer 1**. Layers 2–4 are missing.
 
 ```
 Layer 1 — Transport     MCP config + harness          (shipped)
-Layer 2 — Workspace   deck.yaml + bind contract       (missing)
+Layer 2 — Workspace   deck.yaml + bind contract       (superseded — use session binding; see MVP + MONOREPO_SCOPE)
 Layer 3 — Content     playbooks on bound deck         (manual / split brain)
 Layer 4 — Verify      doctor checks agent can read PB   (missing)
 ```
@@ -60,7 +60,9 @@ agent-deck setup --client cursor --scope project --profile dev
 
 `--profile dev` sets `AGENT_DECK_DEV=1` hint in generated docs and uses MCP port **3001** + backend **8000**.
 
-### Layer 2 — Workspace bind (NEW, required for project scope)
+### Layer 2 — Workspace bind (superseded — not shipped)
+
+> **Superseded:** The `deck.yaml` model below was not shipped. As-built binding uses **`bind_workspace`** per session — see [MVP.md](../MVP.md) and [MONOREPO_SCOPE.md](../MONOREPO_SCOPE.md).
 
 On `setup --scope project` (or `--profile dev`):
 

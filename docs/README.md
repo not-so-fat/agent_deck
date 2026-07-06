@@ -1,6 +1,6 @@
 # Documentation index
 
-**Entry:** [README](../README.md) · **Shipped scope:** [MVP.md](./MVP.md)
+**Entry:** [README](../README.md) · **Shipped scope:** [MVP.md](./MVP.md) · **Direction:** [DIRECTION.md](./DIRECTION.md)
 
 ---
 
@@ -22,6 +22,7 @@
 
 | Doc | Role |
 |-----|------|
+| [DIRECTION.md](./DIRECTION.md) | Cross-product direction (agent_deck + agent-dealer), locked decisions, roadmap |
 | [MVP.md](./MVP.md) | Shipped product — bound deck, vault, playbooks, MCP tools |
 | [SETUP.md](./SETUP.md) | Install, ports, data dirs, **dashboard** tour |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Components, SQLite, secret storage |

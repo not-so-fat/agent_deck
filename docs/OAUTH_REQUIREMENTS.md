@@ -4,6 +4,8 @@
 
 **As-built decision (2025):** Managed Slack OAuth (Stytch broker, hosted callback, shared app one-click) is **deferred**. See [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md) for the full spike notes and architecture. **Ship today:** auto OAuth (Linear/Notion), BYO OAuth (Slack/Google/GitHub), honest fallbacks.
 
+> **Product scope (2026-07):** Local-first, single-user per [DIRECTION.md](./DIRECTION.md). Hosted / managed OAuth paths below are **archive** — see [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md).
+
 **Related:** [OAUTH_AND_HOSTING.md](./OAUTH_AND_HOSTING.md) (operational setup), [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md) (Slack app steps), [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md) (tiers and roadmap).
 
 ---

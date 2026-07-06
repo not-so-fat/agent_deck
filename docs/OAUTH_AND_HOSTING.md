@@ -2,12 +2,14 @@
 
 **Read this first** if OAuth, Slack, HTTPS, or “local vs hosted” has been confusing. **Product requirements & Stytch feasibility:** [OAUTH_REQUIREMENTS.md](./OAUTH_REQUIREMENTS.md). Detailed Slack steps: [SLACK_OAUTH_APP.md](./SLACK_OAUTH_APP.md). Integration tiers: [MCP_INTEGRATION_STRATEGY.md](./MCP_INTEGRATION_STRATEGY.md).
 
+> **Product scope (2026-07):** Local-first, single-user per [DIRECTION.md](./DIRECTION.md). Hosted / managed OAuth paths below are **archive** — see [decisions/slack-oauth-stytch-deferred.md](./decisions/slack-oauth-stytch-deferred.md).
+
 ## What Agent Deck is today
 
 | Mode | Who runs it | Dashboard | OAuth callback | Best for |
 |------|-------------|-----------|----------------|----------|
 | **Local (default)** | User’s machine (`agent-deck start` or `npm run dev:all`) | `http://127.0.0.1:1111` (npx) or `http://localhost:3000` (dev) | `http://localhost:8000/api/oauth/callback` unless env overrides | Linear, Notion, dev, power users |
-| **Hosted (planned product path)** | Agent Deck team on HTTPS | `https://your-domain` | `https://your-domain/api/oauth/callback` | Shared Slack/Google apps, non-technical users |
+| **Hosted (archive — not product path)** | Agent Deck team on HTTPS | `https://your-domain` | `https://your-domain/api/oauth/callback` | Shared Slack/Google apps, non-technical users |
 
 Agent Deck is **primarily a local MCP proxy**. OAuth for easy providers (Linear, Notion) works on localhost. **Slack public distribution** requires an **HTTPS** redirect on **your** server — not tunnels as the product design; you deploy Agent Deck (or at least its backend) on HTTPS.
 
@@ -66,6 +68,8 @@ AGENT_DECK_PUBLIC_URL=https://oauth.agent-deck.dev   # when hosted
 ```
 
 ## Hosting the HTTPS backend (maintainers)
+
+*Maintainer-only; not required for local-first product scope.*
 
 Goal: one small always-on server with TLS for OAuth callbacks (and optionally the full dashboard).
 

@@ -12,10 +12,10 @@ Product notes on MCP OAuth and connection tiers. **Requirements overview:** [OAU
 | **Status endpoint** | `GET /api/oauth/:serviceId/status` returns `authenticated: hasToken && !isExpired` plus `hasToken`, `isExpired`, `hasRefreshToken`, `expiresAt`. |
 | **Collection warnings** | MCP OAuth warnings use stored token + discovery context; dashboard calls use `x-agent-deck-client: dashboard` so warnings do not require an `Authorization` header on the API. |
 | **Frontend status query** | Service details modal polls `/api/oauth/:id/status` when MCP discovery reports OAuth required; stops polling once `authenticated` is true. |
+| **Token storage** | Client secrets + access/refresh tokens in macOS Keychain (`OAuthClientSecretVault`, `OAuthTokenVault`); see [SETUP.md](./SETUP.md#secrets--oauth-storage). |
 
 ### Deferred
 
-- **Encrypted token storage** — tokens live in SQLite as plaintext today.
 - **Auth profiles on presets** — seeded cards do not carry per-vendor OAuth app presets or connection tiers.
 - **RFC 8707 resource parameter** — not sent on authorize/token requests yet.
 - **CIMD (Client ID Metadata Documents)** — dynamic registration without stored client secret not implemented.
@@ -126,5 +126,4 @@ This is **OAuth client identity**, not “building a Slack product.” You are r
 
 1. Tag each preset with `connectionTier` in seed data and surface it in the service details UI.
 2. Split OAuth flows: `auto-setup` vs `manual-credentials` vs `vault-token`.
-3. ~~Encrypt OAuth columns at rest (or OS keychain-backed secret store).~~ **Shipped:** client secrets + access/refresh tokens in Keychain (`OAuthClientSecretVault`, `OAuthTokenVault`); see [SETUP.md — Secrets & OAuth storage](./SETUP.md#secrets--oauth-storage).
-4. Add RFC 8707 `resource` when discovery provides resource metadata.
+3. Add RFC 8707 `resource` when discovery provides resource metadata.

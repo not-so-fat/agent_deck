@@ -3,7 +3,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
 
-**One MCP endpoint. Switch context with decks of external dependencies and self-improving skills.**
+**Switch what your agent knows — decks of tools, keys, and self-improving playbooks.**
 
 [Quick Start](#quick-start) · [Reference](#reference) · [Docs](#documentation)
 
@@ -50,17 +50,17 @@ agent-deck setup --client claude
 
 <img src="./misc/UI.png" alt="Dashboard — collection and deck fan" width="70%" />
 
-A **deck** bundles external MCP servers, API keys, and skills for one context (e.g. “work”, “this client”).
+A **deck** bundles external MCP servers, API keys, and playbooks for one context (e.g. “work”, “this client”).
 
 **Dashboard:** **My Decks** → create a deck → drag cards from **My Collection** (after steps 4–5).
 
 **Agent chat:** ask the agent to create a deck and add cards.
 
-### 4. Register skills (agent-first)
+### 4. Register playbooks (agent-first)
 
-Describe the procedure in chat — e.g. *“Add a release checklist skill with trigger ‘ship to npm’.”* Let the agent register it and attach it to your deck. It can refine the skill from your feedback over time.
+Describe the procedure in chat — e.g. *“Add a release checklist playbook with trigger ‘ship to npm’.”* Let the agent register it and attach it to your deck. It can refine the playbook from your feedback over time.
 
-The dashboard can add skills too; chat authoring usually works better.
+The dashboard can add playbooks too; chat authoring usually works better.
 
 ### 5. Add external MCP servers and API keys
 
@@ -85,17 +85,17 @@ Terminal agents show the active deck in the footer (`◆ dev · 2 MCP · …`). 
 
 ## Problem
 
-We lean on one agent for more kinds of work — code, triage, releases, research. Each kind adds **external dependencies**: MCP servers, API keys, OAuth apps, and **skills** you want the agent to follow and refine over time.
+We lean on one agent for more kinds of work — code, triage, releases, research. Each kind adds **external dependencies**: MCP servers, API keys, OAuth apps, and **playbooks** you want the agent to follow and refine over time.
 
 Some dependencies are **shared** (GitHub, Linear, Slack). Others belong to **one client or repo**. If everything is connected at once, the tool list balloons — the agent slows down, picks the wrong integration, or leaks context across jobs.
 
-Skills stay in old threads or docs — you **re-explain the same procedure** every session, and corrections from one chat **don’t carry into the next**.
+Playbooks stay in old threads or docs — you **re-explain the same procedure** every session, and corrections from one chat **don’t carry into the next**.
 
 ## Idea
 
-Connect **one** Agent Deck MCP endpoint. Register dependencies and **skills** once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and skills are in play.
+Connect **one** Agent Deck MCP endpoint. Register dependencies and **playbooks** once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and playbooks are in play.
 
-When you give feedback on a skill-backed task, the agent can **update the skill** so the next run starts from what you taught it — not from scratch.
+When you give feedback on a playbook-backed task, the agent can **update the playbook** so the next run starts from what you taught it — not from scratch.
 
 <img src="./misc/Idea.png" alt="Single MCP for Context" width="70%" />
 
@@ -107,7 +107,7 @@ For contributors, dev ports (`:3000` / `:8000` / `:3001`) and env vars → [Setu
 
 **Dashboard:** collection + deck editor · OAuth and API key secrets (Keychain) · per-tool toggles · export/import layouts (`.agent-deck.json`, no secrets) · collection warnings.
 
-**Agent MCP** (`http://127.0.0.1:1110/mcp`): decks, collection, external MCP proxy, skills. Secrets, OAuth, and deletes stay on dashboard/CLI. Tool catalog → [MVP](docs/MVP.md).
+**Agent MCP** (`http://127.0.0.1:1110/mcp`): decks, collection, external MCP proxy, playbooks. Secrets, OAuth, and deletes stay on dashboard/CLI. Tool catalog → [MVP](docs/MVP.md).
 
 **CLI:** `agent-deck export` / `import` · `credential` · `exec` (inject keys) · `upgrade`
 
@@ -130,9 +130,9 @@ Port conflicts: `agent-deck status` · `agent-deck start --force`
 | Guide | Description |
 |-------|-------------|
 | [Setup](docs/SETUP.md) | Ports, env vars, secrets, troubleshooting |
-| [MVP](docs/MVP.md) | Source of truth — decks, vault, skills, MCP tools |
+| [MVP](docs/MVP.md) | Source of truth — decks, vault, playbooks, MCP tools |
 | [Agent harness](docs/AGENT_HARNESS.md) | What `setup` installs |
-| [Playbooks vs Skills](docs/PLAYBOOKS_AND_SKILLS.md) | Deck skills vs Cursor skills |
+| [Playbooks vs Cursor skills](docs/PLAYBOOKS_AND_SKILLS.md) | Deck playbooks vs Cursor skills |
 | [Export / import](docs/PRD_EXPORT_IMPORT.md) | Portable layout bundles |
 | [Deck display](docs/PRD_DECK_DISPLAY.md) | Terminal status line |
 | [Architecture](docs/ARCHITECTURE.md) | SQLite, Keychain, components |
