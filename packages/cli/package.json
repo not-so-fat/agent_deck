@@ -1,14 +1,15 @@
 {
   "name": "@agent-deck/cli",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Local MCP proxy — decks of tools, keys, and self-improving playbooks",
-  "license": "ISC",
+  "license": "MIT",
   "bin": {
     "agent-deck": "./dist/bin.js"
   },
   "main": "dist/index.js",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20.0.0"
@@ -39,8 +40,8 @@
     "prepublishOnly": "node ../../scripts/pre-publish-check.mjs && npm run build"
   },
   "dependencies": {
-    "@agent-deck/backend": "^1.3.3",
-    "@agent-deck/shared": "^1.3.3"
+    "@agent-deck/backend": "^1.3.4",
+    "@agent-deck/shared": "^1.3.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

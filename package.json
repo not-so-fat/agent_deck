@@ -1,6 +1,6 @@
 {
   "name": "agent-deck",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Agent Deck — decks of tools, keys, and self-improving playbooks",
   "private": true,
   "workspaces": [
@@ -50,8 +50,8 @@
     "react",
     "nextjs"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "@not-so-fat",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/not-so-fat/agent_deck/issues"
   },

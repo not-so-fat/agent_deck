@@ -30,6 +30,7 @@ type McpSession = {
 
 export class AgentDeckMCPServer {
   private port: number;
+  private host: string;
   private app: express.Application;
   private backendUrl: string;
   private toolProfile: McpToolProfile;
@@ -54,10 +55,12 @@ export class AgentDeckMCPServer {
     port: number = 3001,
     backendUrl: string = 'http://localhost:8000',
     toolProfile?: McpToolProfile,
+    host: string = '127.0.0.1',
   ) {
     this.port = port;
     this.backendUrl = backendUrl;
     this.toolProfile = toolProfile ?? resolveMcpToolProfile();
+    this.host = host;
 
     this.app = express();
     this.app.use(express.json());
@@ -612,7 +615,7 @@ export class AgentDeckMCPServer {
       console.log(`🚀 Starting Agent Deck MCP Server on port ${this.port}...`);
       console.log(`🔗 Backend API URL: ${this.backendUrl}`);
 
-      this.app.listen(this.port, () => {
+      this.app.listen(this.port, this.host, () => {
         console.log(`✅ Agent Deck MCP Server is ready to accept connections`);
         console.log(`📋 Available tools:`);
         console.log(`   - bind_workspace: Bind session to workspace + deck (deckId required)`);
@@ -626,10 +629,10 @@ export class AgentDeckMCPServer {
         console.log(`   - agent-deck://active-deck: The currently active deck`);
         console.log(`   - agent-deck://active-deck/credentials: API keys on the active deck`);
         console.log(`   - agent-deck://active-deck/services: Services in the active deck`);
-        console.log(`🌐 Server running on http://localhost:${this.port}`);
-        console.log(`🔧 MCP endpoint: http://localhost:${this.port}/mcp`);
-        console.log(`❤️  Health check: http://localhost:${this.port}/health`);
-        console.log(`🔗 Backend status: http://localhost:${this.port}/backend-status`);
+        console.log(`🌐 Server running on http://${this.host}:${this.port}`);
+        console.log(`🔧 MCP endpoint: http://${this.host}:${this.port}/mcp`);
+        console.log(`❤️  Health check: http://${this.host}:${this.port}/health`);
+        console.log(`🔗 Backend status: http://${this.host}:${this.port}/backend-status`);
         console.log(`📝 Architecture: MCP Server → Backend API → Active Deck Services`);
       });
       

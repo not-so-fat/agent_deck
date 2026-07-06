@@ -36,8 +36,29 @@ export async function createServer() {
   });
 
   // Register plugins
+  const allowedOriginsEnv = process.env.AGENT_DECK_DASHBOARD_ORIGIN;
+  const defaultAllowedOrigins = [
+    'http://127.0.0.1:1111',
+    'http://localhost:1111',
+    'http://127.0.0.1:3000',
+    'http://localhost:3000',
+  ];
+
+  const corsOrigins = allowedOriginsEnv
+    ? [allowedOriginsEnv]
+    : defaultAllowedOrigins;
+
   await fastify.register(cors, {
-    origin: true, // Allow all origins in development
+    origin: (origin, cb) => {
+      if (!origin) {
+        // Non-browser clients (curl, CLI) — allow.
+        return cb(null, true);
+      }
+      if (corsOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+      cb(new Error('Origin not allowed by CORS'), false);
+    },
     credentials: true,
   });
 

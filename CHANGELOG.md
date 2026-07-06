@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.4 — 2026-07-06
+
+### Security
+
+- **MCP proxy:** bind to loopback by default (`AGENT_DECK_MCP_HOST`, default `127.0.0.1`) — fixes LAN exposure on port 1110
+- **REST backend:** default `HOST` is `127.0.0.1` instead of `0.0.0.0`
+- **CORS:** restrict browser origins to dashboard/dev loopback URLs (or `AGENT_DECK_DASHBOARD_ORIGIN`)
+
+### Packaging & CI
+
+- License metadata standardized to MIT across all published packages; `LICENSE` included in npm tarballs
+- GitHub Actions CI: install → rebuild-native → test → type-check
+- Commit `.mcp.json` contributor wiring for loopback MCP URL
+
 ## 1.3.3 — 2026-07-05
 
 ### Dashboard

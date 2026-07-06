@@ -1,7 +1,7 @@
 # Agent Deck
 
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-[![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Switch what your agent knows — decks of tools, keys, and self-improving playbooks.**
 
