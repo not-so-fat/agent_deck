@@ -16,8 +16,7 @@ Canonical checklist: [docs/PUBLISHING.md](../../docs/PUBLISHING.md). Integration
 4. **Integration smoke** — `npm run release:smoke` (also runs inside `build:release`; blocks publish on failure)
 5. Commit on `main`: `Ship X.Y.Z: <short why>.`
 6. Push `main` (user publishes npm unless they ask you to run `npm run publish:packages`)
-7. **After npm publish:** `npm run release:tag:push`
-8. Optional GitHub Release: `node scripts/release-tag.mjs --push --github-release`
+7. **After npm publish:** `npm run release:tag:push` (git tag + GitHub Release from `CHANGELOG.md`)
 
 ## Git tags (required every npm release)
 
@@ -34,12 +33,13 @@ If the ship commit is already pushed and HEAD moved, tag explicitly: `node scrip
 - **Do not** publish to npm unless the user explicitly asks.
 - **Do** run version bump, changelog, commit, push, and `release:tag:push` when they say publish/ship/release.
 - **Do** ensure `npm run release:smoke` passes before publish (included in `build:release`).
-- **Do** mention `gh` is needed only for `--github-release`.
+- **Do** run `release:tag:push` after npm publish — creates annotated tag and GitHub Release (requires `gh` CLI).
 - One-time historical tags: `npm run release:tag:backfill` (already done; do not re-run unless asked).
 
 ## Do not
 
 - Tag without a matching `CHANGELOG.md` section
+- Tag or publish without a GitHub Release when `gh` is available
 - Use lightweight tags or non-`v` prefix
 - Bump version without syncing all packages
 - Publish if `release:smoke` fails — move unfinished bullets to **Pending publish** in CHANGELOG

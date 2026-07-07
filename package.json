@@ -25,7 +25,7 @@
     "build:release": "node scripts/prepare-release.mjs",
     "version:sync": "node scripts/sync-versions.mjs",
     "release:tag": "node scripts/release-tag.mjs",
-    "release:tag:push": "node scripts/release-tag.mjs --push",
+    "release:tag:push": "node scripts/release-tag.mjs --push --github-release",
     "release:tag:backfill": "node scripts/release-tag.mjs --backfill --push",
     "publish:packages": "npm run build:release && npm publish -w @agent-deck/shared --access public && npm publish -w @agent-deck/backend --access public && npm publish -w @agent-deck/cli --access public",
     "smoke:dev": "bash ./scripts/smoke-dev.sh",

@@ -75,6 +75,7 @@ Do this when the release touches **CLI setup**, **agent surfaces** (Claude/Curso
    - Cursor **IDE Agent chat** ✗ — no host API; do not imply otherwise in CHANGELOG
 5. **CHANGELOG honesty** — bullets under `X.Y.Z` are **only** what passed `release:smoke`. Everything else → `### Pending publish`.
 6. **Tag = tarball** — `git show vX.Y.Z:path` must contain the same files as `npm pack` at that version.
+7. **GitHub Release** — `gh release view vX.Y.Z` exists with notes from the matching `CHANGELOG.md` section (run via `npm run release:tag:push`).
 
 ## Anti-patterns
 
@@ -84,6 +85,7 @@ Do this when the release touches **CLI setup**, **agent surfaces** (Claude/Curso
 4. **Polluted stdout** — wrappers that call `npx` without `NO_COLOR` + stderr redirect.
 5. **CHANGELOG as wishlist** — features listed as shipped before `release:smoke` passes.
 6. **Replace entire user config** — merge JSON; document merge in setup code.
+7. **Tag without GitHub Release** — `vX.Y.Z` exists but `gh release view` fails; users see no release notes on GitHub.
 
 ## When to extend this playbook
 

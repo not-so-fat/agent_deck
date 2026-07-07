@@ -28,6 +28,7 @@ Teams test **units** and **dev workflows** but skip **fresh-user simulation**:
 | Files on disk after install | | ✗ |
 | Output shape host app expects | | ✗ |
 | Published artifact = git tag | | ✗ |
+| **GitHub Release notes** | | ✗ |
 
 **Symptom:** Changelog says shipped; users run one command; nothing appears; docs say “paste this JSON manually.”
 
@@ -55,6 +56,7 @@ If any link is missing, the feature is **not shipped** — move the bullet to �
 | 8 | Does every **runtime `require()` / import** resolve inside the artifact? | `--no-dependencies` build still references workspace packages |
 | 9 | Does **activation / startup** succeed in a headless host stub? | Unit tests pass; plugin/extension shows nothing |
 | 10 | Is failure **visible** when activation breaks? | Silent crash with no log channel or smoke assertion |
+| 11 | Does **`gh release view vX.Y.Z`** show CHANGELOG notes? | Tag exists but GitHub Release page empty |
 
 ## Packaged runtime completeness (extensions, plugins, `--no-dependencies`)
 
@@ -107,6 +109,7 @@ Add a script (e.g. `release:smoke`) that CI and `prepare-release` run **before p
 4. **CHANGELOG as wishlist**
 5. **Replace** user config files instead of merging
 6. Assume **dev data** is visible to **prod** runtime
+7. **Tag without GitHub Release** — `vX.Y.Z` on origin but no release notes when `gh` is available
 
 ## When done
 

@@ -42,11 +42,8 @@ Tag every npm release so `git checkout v1.2.1` matches what shipped.
 ### After publish
 
 ```bash
-# Tag current HEAD (reads version from package.json) and push
+# Tag current HEAD (reads version from package.json), push, and create GitHub Release from CHANGELOG
 npm run release:tag:push
-
-# Optional: GitHub Release with CHANGELOG section for this version
-node scripts/release-tag.mjs --push --github-release
 ```
 
 ### One-time backfill (older releases)
@@ -90,11 +87,7 @@ npm run publish:packages
 npm run release:tag:push
 ```
 
-Optional GitHub Release notes from `CHANGELOG.md`:
-
-```bash
-node scripts/release-tag.mjs --push --github-release
-```
+`release:tag:push` tags the ship commit, pushes `vX.Y.Z`, and creates a GitHub Release with notes from `CHANGELOG.md` (requires `gh` CLI).
 
 This runs the full test suite, `build:release`, then publishes shared → backend → cli.
 
