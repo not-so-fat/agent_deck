@@ -192,7 +192,7 @@ function registerRuntimeTools(host: McpToolHost): void {
   r('update_playbook', {
     title: 'Update Playbook',
     description:
-      'Update a playbook on the bound deck. Dependencies are re-detected from updated content by default.',
+      'Update a playbook on the bound deck when the user explicitly directs a change (already reviewed). For corrections after normal work, use propose_playbook_patch instead.',
     inputSchema: {
       playbook_id: z.string(),
       title: z.string().optional(),
@@ -224,6 +224,68 @@ function registerRuntimeTools(host: McpToolHost): void {
         },
       );
       return host.toolResult(playbook);
+    } catch (error) {
+      return host.toolError(error);
+    }
+  });
+
+  r('propose_playbook_patch', {
+    title: 'Propose Playbook Patch',
+    description:
+      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal (item deltas preferred). Use after fixing output when the user corrected you.',
+    inputSchema: {
+      kind: z.enum(['create', 'update', 'merge', 'retire']),
+      playbook_id: z.string().optional(),
+      ops: z
+        .array(
+          z.object({
+            op: z.string(),
+            section: z.string().optional(),
+            text: z.string().optional(),
+            anchor: z.string().optional(),
+            triggers: z.array(z.string()).optional(),
+          }),
+        )
+        .optional(),
+      new_playbook: z
+        .object({
+          title: z.string(),
+          body: z.string().optional(),
+          triggers: z.array(z.string()).min(1),
+          exec: z.string().optional(),
+          skill: z.string().optional(),
+        })
+        .optional(),
+      rationale: z.string(),
+      evidence: z
+        .object({
+          failure_summary: z.string(),
+          user_feedback_excerpt: z.string(),
+          corrected_output_hint: z.string().optional(),
+        })
+        .optional(),
+    },
+  }, async ({ kind, playbook_id, ops, new_playbook, rationale, evidence }) => {
+    try {
+      const deckId = await host.getBoundDeckId();
+      const patch = await host.callBackendAPI('/api/playbook-patches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-mcp-session-id': host.getSessionId(),
+        },
+        body: JSON.stringify({
+          kind,
+          playbook_id,
+          ops,
+          new_playbook: new_playbook
+            ? { ...new_playbook, body: new_playbook.body ?? '', deck_id: deckId }
+            : undefined,
+          rationale,
+          evidence,
+        }),
+      });
+      return host.toolResult(patch);
     } catch (error) {
       return host.toolError(error);
     }

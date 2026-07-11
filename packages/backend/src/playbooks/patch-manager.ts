@@ -1,0 +1,231 @@
+import {
+  CreatePlaybookPatchFieldsSchema,
+  PatchOpSchema,
+  ProposePlaybookPatchInput,
+  ProposePlaybookPatchSchema,
+  type CreatePlaybookPatchFields,
+  type PatchOp,
+  type PatchPreview,
+  type PlaybookPatch,
+  type PlaybookPatchSource,
+  generateShortId,
+  derivePlaybookDefaults,
+  generateId,
+} from '@agent-deck/shared';
+import { DatabaseManager } from '../models/database';
+import { PlaybookManager } from './playbook-manager';
+import { applyPatchOps } from './apply-patch-ops';
+
+export class PatchConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PatchConflictError';
+  }
+}
+
+export class PatchManager {
+  constructor(
+    private db: DatabaseManager,
+    private playbookManager: PlaybookManager,
+  ) {}
+
+  private newPatchId(): string {
+    return `pp_${generateShortId()}`;
+  }
+
+  async propose(
+    input: ProposePlaybookPatchInput,
+    source: PlaybookPatchSource,
+    sourceRef: string | null,
+    deckIdForCreate?: string,
+  ): Promise<PlaybookPatch> {
+    const validated = ProposePlaybookPatchSchema.parse(input);
+
+    if (validated.kind === 'create') {
+      const fieldsInput = validated.new_playbook;
+      if (!fieldsInput) {
+        throw new Error('new_playbook is required for create patches');
+      }
+      const fields = CreatePlaybookPatchFieldsSchema.parse({
+        ...fieldsInput,
+        deck_id: fieldsInput.deck_id ?? deckIdForCreate,
+      });
+      if (!fields.deck_id) {
+        throw new Error('deck_id is required for create patches');
+      }
+      return this.db.createPlaybookPatch({
+        id: this.newPatchId(),
+        kind: 'create',
+        playbookId: null,
+        opsJson: JSON.stringify(fields),
+        rationale: validated.rationale,
+        source,
+        sourceRef,
+        evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
+      });
+    }
+
+    if (!validated.playbook_id) {
+      throw new Error('playbook_id is required for update patches');
+    }
+    const playbook = await this.db.getPlaybook(validated.playbook_id);
+    if (!playbook) {
+      throw new Error(`Playbook not found: ${validated.playbook_id}`);
+    }
+
+    const ops = parseOps(validated.ops ?? []);
+    return this.db.createPlaybookPatch({
+      id: this.newPatchId(),
+      kind: validated.kind,
+      playbookId: validated.playbook_id,
+      opsJson: JSON.stringify(ops),
+      rationale: validated.rationale,
+      source,
+      sourceRef,
+      evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
+    });
+  }
+
+  async preview(patchId: string): Promise<PatchPreview | null> {
+    const patch = await this.db.getPlaybookPatch(patchId);
+    if (!patch) return null;
+
+    if (patch.kind === 'create') {
+      const fields = CreatePlaybookPatchFieldsSchema.parse(JSON.parse(patch.opsJson));
+      return {
+        before: { title: '', body: '', triggers: [] },
+        after: {
+          title: fields.title,
+          body: fields.body,
+          triggers: fields.triggers,
+        },
+      };
+    }
+
+    if (!patch.playbookId) return null;
+    const playbook = await this.db.getPlaybook(patch.playbookId);
+    if (!playbook) return null;
+
+    const ops = parseOps(JSON.parse(patch.opsJson));
+    const result = applyPatchOps(
+      { body: playbook.body, triggers: playbook.triggers },
+      ops,
+    );
+    if (!result.ok) {
+      throw new PatchConflictError(result.conflict);
+    }
+
+    return {
+      before: {
+        title: playbook.title,
+        body: playbook.body,
+        triggers: playbook.triggers,
+      },
+      after: {
+        title: playbook.title,
+        body: result.value.body,
+        triggers: result.value.triggers,
+      },
+    };
+  }
+
+  async accept(patchId: string): Promise<PlaybookPatch> {
+    const patch = await this.db.getPlaybookPatch(patchId);
+    if (!patch) {
+      throw new Error('Patch not found');
+    }
+    if (patch.status !== 'proposed') {
+      throw new Error(`Patch is not proposed (status=${patch.status})`);
+    }
+
+    if (patch.kind === 'create') {
+      const fields = CreatePlaybookPatchFieldsSchema.parse(JSON.parse(patch.opsJson));
+      const defaults = derivePlaybookDefaults(fields.title);
+      const created = await this.playbookManager.create({
+        title: fields.title,
+        body: fields.body,
+        triggers: fields.triggers,
+        exec: fields.exec,
+        skill: fields.skill,
+        id: defaults.id,
+        dependsOnCredentialIds: [],
+        dependsOnServiceIds: [],
+      });
+      await this.playbookManager.addToDeck({ deckId: fields.deck_id, playbookId: created.id });
+      await this.snapshotVersion(created, patchId, 'agent');
+      const updated = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+      return updated!;
+    }
+
+    if (!patch.playbookId) {
+      throw new Error('Update patch missing playbook_id');
+    }
+    const playbook = await this.db.getPlaybook(patch.playbookId);
+    if (!playbook) {
+      await this.db.updatePlaybookPatchStatus(
+        patchId,
+        'rejected',
+        'Target playbook was deleted',
+      );
+      throw new Error('Target playbook was deleted');
+    }
+
+    const ops = parseOps(JSON.parse(patch.opsJson));
+    const result = applyPatchOps(
+      { body: playbook.body, triggers: playbook.triggers },
+      ops,
+    );
+    if (!result.ok) {
+      await this.db.updatePlaybookPatchStatus(patchId, 'stale');
+      throw new PatchConflictError(result.conflict);
+    }
+
+    const updatedPlaybook = await this.playbookManager.updateWithDependencies(patch.playbookId, {
+      body: result.value.body,
+      triggers: result.value.triggers,
+      autoDetectDependencies: true,
+    });
+    if (!updatedPlaybook) {
+      throw new Error('Failed to update playbook');
+    }
+    await this.snapshotVersion(updatedPlaybook, patchId, 'agent');
+    const accepted = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+    return accepted!;
+  }
+
+  async reject(patchId: string, reason: string): Promise<PlaybookPatch | null> {
+    const patch = await this.db.getPlaybookPatch(patchId);
+    if (!patch) return null;
+    if (patch.status !== 'proposed') {
+      throw new Error(`Patch is not proposed (status=${patch.status})`);
+    }
+    return this.db.updatePlaybookPatchStatus(patchId, 'rejected', reason);
+  }
+
+  async list(status?: PlaybookPatch['status']): Promise<PlaybookPatch[]> {
+    return this.db.listPlaybookPatches(status);
+  }
+
+  async snapshotVersion(
+    playbook: { id: string; title: string; body: string; triggers: string[] },
+    patchId: string | null,
+    actor: 'user' | 'agent',
+  ): Promise<void> {
+    await this.db.createPlaybookVersion({
+      id: generateId(),
+      playbookId: playbook.id,
+      title: playbook.title,
+      body: playbook.body,
+      triggers: playbook.triggers,
+      patchId,
+      actor,
+    });
+  }
+}
+
+function parseOps(raw: unknown): PatchOp[] {
+  if (!Array.isArray(raw)) {
+    throw new Error('ops must be an array');
+  }
+  return raw.map((op) => PatchOpSchema.parse(op));
+}

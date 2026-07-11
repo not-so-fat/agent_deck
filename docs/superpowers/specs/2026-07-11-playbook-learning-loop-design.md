@@ -13,6 +13,8 @@
 - **Tiny genesis is valid:** title + trigger + one gotcha is an acceptable new-playbook proposal.
 - Lightweight **usage logging** (fetch counts) to measure undertriggering — no A′ architecture dependency; `get_playbook` already transits backend REST.
 
+**Manual QA:** [LEARNING_LOOP_TEST_SCENARIOS.md](../LEARNING_LOOP_TEST_SCENARIOS.md) · seed: `node .temporal/scripts/seed-dev-learning-loop.mjs`
+
 Related direction: extends DIRECTION.md Phase 1 (D3 learning loop). The per-deck-endpoint architecture (A′) is a separate future spec; nothing here depends on it, and everything here survives it.
 
 ---
@@ -46,7 +48,8 @@ One new module in the backend (`src/playbooks/patches.ts` + routes), one new MCP
 | `ops_json` | TEXT | delta operations (below); for `create`: the initial card fields |
 | `rationale` | TEXT | why this change helps future runs |
 | `source` | TEXT | `ide` \| `dealer` \| `hook` \| `harvester` |
-| `source_ref` | TEXT NULL | dealer run id / session hint — provenance |
+| `source_ref` | TEXT NULL | provenance: dealer run id; for MCP proposals the backend auto-attaches the MCP session id (`host.getSessionId()`) — producers don't self-report it |
+| `evidence_json` | TEXT NULL | raw correction signal, stored verbatim for later analysis: `{ failure_summary, user_feedback_excerpt, corrected_output_hint? }` — what was wrong, what the user actually said (short verbatim quote), optionally what the fix looked like |
 | `status` | TEXT | `proposed` \| `accepted` \| `rejected` \| `stale` |
 | `rejection_reason` | TEXT NULL | rejection reasons are signal; keep them |
 | `created_at` / `resolved_at` | TEXT | |
@@ -77,7 +80,9 @@ Playbook bodies stay plain markdown. Ops target **list items within sections** (
 - For `kind=create`: `ops_json` holds `{ title, body, triggers, exec?, skill?, deck_id }` — `deck_id` is resolved at propose time (MCP: the session's bound deck; dealer: the run's deck) so accept knows where to link the new card. Minimal body (one gotcha) is explicitly valid.
 - `merge` / `retire`: schema + accept semantics defined (merge = ops applied to survivor + retire of the other; retire = unlink from decks, card kept), **no producer in this phase** — dashboard-only creation if wanted, else dormant.
 
-Apply logic lives in one pure function (`applyPatchOps(body, ops) → { body } | { conflict }`) — unit-testable, shared by preview (dashboard diff) and accept.
+Apply logic lives in one pure function (`applyPatchOps(body, ops) → { body } | { conflict }`) — unit-testable, shared by preview (dashboard diff) and accept. `set_triggers` is applied outside the body (metadata on the playbook row).
+
+**Architecture revisit (triggering):** implicit triggering and the MCP connection model (one URL per workspace, trigger stubs) are specified in [2026-07-11-architecture-revisit-triggering-learning-loop.md](./2026-07-11-architecture-revisit-triggering-learning-loop.md) (A′). This proposal-queue spec is compatible with A′ and ships first.
 
 ## 4. API surface
 
@@ -91,14 +96,14 @@ Apply logic lives in one pure function (`applyPatchOps(body, ops) → { body } |
 
 ### MCP tool: `propose_playbook_patch`
 
-One tool (tool-surface discipline): `{ kind, playbook_id?, ops?, new_playbook?, rationale }`. Registered alongside existing playbook tools; description states it is the **default** way for agents to change playbooks. `update_playbook` remains for explicit user-directed edits ("please fix the playbook to say X" = user already reviewed) — its handler now also writes a `playbook_versions` row.
+One tool (tool-surface discipline): `{ kind, playbook_id?, ops?, new_playbook?, rationale, evidence? }` where `evidence = { failure_summary, user_feedback_excerpt, corrected_output_hint? }` — the harness instructs agents to always fill `evidence` with a short **verbatim** quote of the correction (distillation goes in `rationale`/ops; evidence stays raw). Registered alongside existing playbook tools; description states it is the **default** way for agents to change playbooks. `update_playbook` remains for explicit user-directed edits ("please fix the playbook to say X" = user already reviewed) — its handler now also writes a `playbook_versions` row.
 
 ## 5. Dashboard: review queue
 
 New page (badge count in nav when proposals pending):
 
 - List proposed patches: playbook title (or "NEW: <title>"), kind, source, rationale, age.
-- Detail: **item-level diff** (ops rendered as added/removed/changed lines against current body via preview endpoint); `rewrite_body` shown as full diff + warning banner.
+- Detail: **item-level diff** (ops rendered as added/removed/changed lines against current body via preview endpoint); `rewrite_body` shown as full diff + warning banner; the `evidence` block (your own correction words) shown alongside the diff — reviewing "what I said" against "what it learned" is the drift check.
 - Accept / Reject (reason required — one line). Stale patches shown greyed with re-propose hint.
 - Playbook card view gains: version history list (diff any two), fetch-count sparkline from `playbook_events`.
 
@@ -117,7 +122,7 @@ CLAUDE.md / .mdc templates and PLAYBOOKS_AND_SKILLS.md / AGENT_HARNESS.md update
 
 `runReflect` (packages/server/src/runners/reflect.ts):
 
-- Prompt changes: output `{ rationale, ops: [...] }` (item deltas) instead of `{ rationale, proposedBody }`.
+- Prompt changes: output `{ rationale, ops: [...], evidence: {...} }` (item deltas) instead of `{ rationale, proposedBody }` — for retry-with-feedback triggers, `evidence.user_feedback_excerpt` is the reviewer's feedback verbatim (D3 already calls this the highest-value signal; now it's persisted, not just consumed).
 - On parse success: `POST /api/playbook-patches` (source `dealer`, `source_ref` = run id) instead of writing a private `playbook_patch` artifact; keep a slim artifact `{ patchId, status: "proposed" }` so the review drawer links to the deck dashboard.
 - Dealer's own accept path for patches is removed (single review surface: agent_deck dashboard).
 
@@ -144,6 +149,6 @@ CLAUDE.md / .mdc templates and PLAYBOOKS_AND_SKILLS.md / AGENT_HARNESS.md update
 
 ## Out of scope (later sub-projects)
 
-- A′ per-deck endpoints, trigger stubs, meta-tool removal (separate ADR/spec).
+- **A′ per-deck endpoint + trigger stubs** — see [architecture revisit spec](./2026-07-11-architecture-revisit-triggering-learning-loop.md) (§3c connection model: one URL per workspace). Ships after or alongside proposal queue; learning-loop telemetry feeds stub curation.
 - Stop-hook capture, transcript harvester, automated curation pass (producers into this same queue).
 - D4 memory cards — but `kind` column and create-ops shape deliberately leave room for `kind: memory` proposals.

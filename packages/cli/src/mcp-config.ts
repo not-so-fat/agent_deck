@@ -16,17 +16,21 @@ export function buildMcpUrl({ host, mcpPort }: McpEndpoint): string {
   return `http://${host}:${mcpPort}/mcp`;
 }
 
-export function resolveConfigPath(client: McpClient, scope: SetupScope): string {
+export function resolveConfigPath(
+  client: McpClient,
+  scope: SetupScope,
+  cwd: string = process.cwd(),
+): string {
   const home = os.homedir();
 
   switch (client) {
     case 'cursor':
       return scope === 'project'
-        ? path.join(process.cwd(), '.cursor', 'mcp.json')
+        ? path.join(cwd, '.cursor', 'mcp.json')
         : path.join(home, '.cursor', 'mcp.json');
     case 'claude':
       return scope === 'project'
-        ? path.join(process.cwd(), '.mcp.json')
+        ? path.join(cwd, '.mcp.json')
         : path.join(home, '.claude.json');
     case 'claude-desktop':
       if (process.platform === 'darwin') {

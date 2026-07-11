@@ -1,0 +1,141 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { DatabaseManager } from '../models/database';
+import { PlaybookManager } from './playbook-manager';
+import { PatchManager, PatchConflictError } from './patch-manager';
+
+describe('PatchManager', () => {
+  let dbPath: string;
+  let db: DatabaseManager;
+  let playbookManager: PlaybookManager;
+  let patchManager: PatchManager;
+  let deckId: string;
+
+  beforeEach(async () => {
+    dbPath = path.join(os.tmpdir(), `agent-deck-patches-${Date.now()}.db`);
+    db = new DatabaseManager(dbPath);
+    playbookManager = new PlaybookManager(db);
+    patchManager = new PatchManager(db, playbookManager);
+    const deck = await db.createDeck({ name: `dev-${Date.now()}`, isActive: false });
+    deckId = deck.id;
+  });
+
+  afterEach(() => {
+    db.close();
+    fs.rmSync(dbPath, { force: true });
+  });
+
+  it('proposes, previews, accepts an update patch', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Hiring inbox',
+      body: '## Gotchas\n- Old gotcha.\n',
+      triggers: ['check inbox'],
+    });
+    await playbookManager.addToDeck({ deckId, playbookId: playbook.id });
+
+    const patch = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbook.id,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'New gotcha.' }],
+        rationale: 'User corrected output.',
+        evidence: {
+          failure_summary: 'Missed dry-run',
+          user_feedback_excerpt: 'always dry-run first',
+        },
+      },
+      'ide',
+      'session-1',
+    );
+
+    const preview = await patchManager.preview(patch.id);
+    expect(preview?.after.body).toContain('New gotcha.');
+
+    const accepted = await patchManager.accept(patch.id);
+    expect(accepted.status).toBe('accepted');
+
+    const updated = await db.getPlaybook(playbook.id);
+    expect(updated?.body).toContain('New gotcha.');
+
+    const versions = await db.listPlaybookVersions(playbook.id);
+    expect(versions).toHaveLength(1);
+  });
+
+  it('proposes and accepts genesis create patch', async () => {
+    const patch = await patchManager.propose(
+      {
+        kind: 'create',
+        new_playbook: {
+          title: 'Slip risk',
+          body: '## Gotchas\n- Check velocity vs capacity.\n',
+          triggers: ['slip risk', 'sprint risk'],
+          deck_id: deckId,
+        },
+        rationale: 'New task uncovered by correction.',
+      },
+      'ide',
+      null,
+    );
+
+    const accepted = await patchManager.accept(patch.id);
+    expect(accepted.status).toBe('accepted');
+
+    const onDeck = await playbookManager.listForDeck(deckId);
+    expect(onDeck).toHaveLength(1);
+    expect(onDeck[0].triggers).toContain('slip risk');
+  });
+
+  it('marks patch stale on anchor conflict at accept', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Test',
+      body: '## Steps\n- Step one.\n',
+      triggers: [],
+    });
+
+    const patch = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbook.id,
+        ops: [
+          {
+            op: 'amend_item',
+            section: 'Steps',
+            anchor: '- Missing anchor.',
+            text: '- Nope.',
+          },
+        ],
+        rationale: 'test',
+      },
+      'ide',
+      null,
+    );
+
+    await expect(patchManager.accept(patch.id)).rejects.toBeInstanceOf(PatchConflictError);
+    const stale = await db.getPlaybookPatch(patch.id);
+    expect(stale?.status).toBe('stale');
+  });
+
+  it('rejects a proposed patch with reason', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Test',
+      body: 'Body',
+      triggers: [],
+    });
+    const patch = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbook.id,
+        ops: [{ op: 'rewrite_body', text: 'Nope' }],
+        rationale: 'test',
+      },
+      'ide',
+      null,
+    );
+
+    const rejected = await patchManager.reject(patch.id, 'Too broad');
+    expect(rejected?.status).toBe('rejected');
+    expect(rejected?.rejectionReason).toBe('Too broad');
+  });
+});

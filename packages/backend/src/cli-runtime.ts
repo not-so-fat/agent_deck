@@ -88,6 +88,30 @@ export function createCliCollectionAdmin() {
       const decks = await db.getAllDecks();
       return decks.map((deck) => ({ id: deck.id, name: deck.name }));
     },
+
+    async resolveDeck(ref: string): Promise<{ id: string; name: string } | null> {
+      const trimmed = ref.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const byId = await db.getDeck(trimmed);
+      if (byId) {
+        return { id: byId.id, name: byId.name };
+      }
+      const decks = await db.getAllDecks();
+      const lower = trimmed.toLowerCase();
+      const byName = decks.filter((deck) => deck.name.toLowerCase() === lower);
+      if (byName.length === 1) {
+        return { id: byName[0].id, name: byName[0].name };
+      }
+      return null;
+    },
+
+    async listDeckPlaybookStubs(
+      deckId: string,
+    ): Promise<Array<{ id: string; title: string; triggers: string[] }>> {
+      return playbooks.listSummariesForDeck(deckId);
+    },
   };
 }
 

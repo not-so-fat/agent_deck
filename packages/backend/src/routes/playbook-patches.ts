@@ -1,0 +1,125 @@
+import { FastifyInstance } from 'fastify';
+import {
+  ApiResponse,
+  ProposePlaybookPatchSchema,
+  RejectPlaybookPatchSchema,
+  type PatchPreview,
+  type PlaybookPatch,
+  AGENT_DECK_CLIENT_HEADER,
+} from '@agent-deck/shared';
+import { requireDashboardClient } from '../lib/client-scope';
+import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
+import { PatchConflictError } from '../playbooks/patch-manager';
+
+function patchAffectsStubs(patch: PlaybookPatch): boolean {
+  if (patch.kind === 'create') {
+    return true;
+  }
+  try {
+    const ops = JSON.parse(patch.opsJson) as Array<{ op?: string }>;
+    return ops.some((op) => op.op === 'set_triggers' || op.op === 'set_title');
+  } catch {
+    return false;
+  }
+}
+
+export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
+  fastify.post('/', async (request, reply) => {
+    try {
+      const body = ProposePlaybookPatchSchema.parse(request.body);
+      const deckId = await resolveAgentDeckId(request, fastify.db).catch(() => null);
+      const patch = await fastify.patchManager.propose(
+        body,
+        'ide',
+        request.headers['x-mcp-session-id']?.toString() ?? null,
+        deckId ?? undefined,
+      );
+      return reply.status(201).send({ success: true, data: patch } satisfies ApiResponse<PlaybookPatch>);
+    } catch (error) {
+      const status = error instanceof AgentDeckContextError ? 400 : 400;
+      return reply.status(status).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.get<{ Querystring: { status?: PlaybookPatch['status'] } }>('/', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const patches = await fastify.patchManager.list(request.query.status);
+      return reply.send({ success: true, data: patches } satisfies ApiResponse<PlaybookPatch[]>);
+    } catch (error) {
+      return reply.status(403).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Forbidden',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id/preview', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const preview = await fastify.patchManager.preview(request.params.id);
+      if (!preview) {
+        return reply.status(404).send({ success: false, error: 'Patch not found' } satisfies ApiResponse);
+      }
+      return reply.send({ success: true, data: preview } satisfies ApiResponse<PatchPreview>);
+    } catch (error) {
+      if (error instanceof PatchConflictError) {
+        return reply.status(409).send({ success: false, error: error.message } satisfies ApiResponse);
+      }
+      return reply.status(403).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Forbidden',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/accept', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const patch = await fastify.patchManager.accept(request.params.id);
+      const stubsRefreshRecommended = patchAffectsStubs(patch);
+      return reply.send({
+        success: true,
+        data: patch,
+        message: stubsRefreshRecommended
+          ? 'Stub triggers may have changed — run agent-deck use --refresh in workspaces using this deck.'
+          : undefined,
+      } satisfies ApiResponse<PlaybookPatch>);
+    } catch (error) {
+      if (error instanceof PatchConflictError) {
+        return reply.status(409).send({ success: false, error: error.message } satisfies ApiResponse);
+      }
+      const status = error instanceof Error && error.message.includes('not found') ? 404 : 400;
+      return reply.status(status).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/reject', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const { reason } = RejectPlaybookPatchSchema.parse(request.body);
+      const patch = await fastify.patchManager.reject(request.params.id, reason);
+      if (!patch) {
+        return reply.status(404).send({ success: false, error: 'Patch not found' } satisfies ApiResponse);
+      }
+      return reply.send({ success: true, data: patch } satisfies ApiResponse<PlaybookPatch>);
+    } catch (error) {
+      return reply.status(400).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } satisfies ApiResponse);
+    }
+  });
+}
+
+export function playbookEventSource(request: { headers: Record<string, unknown> }): string {
+  const client = request.headers[AGENT_DECK_CLIENT_HEADER];
+  if (typeof client === 'string' && client.length > 0) return client;
+  return 'rest';
+}

@@ -26,25 +26,38 @@ Open `http://127.0.0.1:1111`. Day to day: `agent-deck start` / `agent-deck stop`
 
 Your host must know **`http://127.0.0.1:1110/mcp`** — not Linear, Notion, or other services. Without this, chat cannot reach your decks or collection.
 
-`setup` writes MCP config and the [agent harness](docs/AGENT_HARNESS.md) (terminal status line on by default; `--no-statusline` to skip).
+**Two layers** (one-time machine setup, then operate from the agent):
+
+| Command | When | What it does |
+|---------|------|----------------|
+| **`setup`** | **Once** per machine | MCP URL + [agent harness](docs/AGENT_HARNESS.md) — teaches the agent `get_decks`, `bind_workspace`, `switch_bound_deck`, playbooks, proposals |
+| **`use <deck>`** | **Optional**, once per repo | Default deck hint (`.agent-deck/use.json`) + thin **trigger stubs** for better implicit playbook matching — bodies still live on the deck |
+
+Day to day you **do not** need `use`. Say *“use the dev deck”* (or *“switch to work deck”*) in chat; the agent binds via MCP. `use` is for repos where you want a stable default deck and host-native trigger discovery without repeating the deck name every session.
+
+`setup` also installs the terminal status line by default (`--no-statusline` to skip).
 
 #### Cursor
 
 ```bash
-agent-deck setup --client cursor
+agent-deck setup --client cursor    # once
 ```
 
-Global: `~/.cursor/mcp.json` · Project: `--scope project` → `.cursor/mcp.json`
+Optional per repo: `agent-deck use my-deck` → project `.cursor/mcp.json`, stubs under `.cursor/rules/agent-deck-stubs/`
 
 Or **Settings → Tools & MCP → Add custom MCP** (HTTP) with the URL above. **Restart Cursor** — `agent-deck` should show connected while `agent-deck start` is running.
 
 #### Claude Code
 
 ```bash
-agent-deck setup --client claude
+agent-deck setup --client claude    # once
 ```
 
+Optional per repo: `agent-deck use my-deck` → `.mcp.json`, stubs under `.claude/skills/agent-deck-*/`
+
 **Restart Claude Code**, then `claude mcp list` — `agent-deck` should be **Connected**.
+
+If you use `use` and accept playbook patches that change **triggers**, run `agent-deck use --refresh` in that repo (or ask the agent to).
 
 ### 3. Create a deck
 
@@ -60,7 +73,7 @@ A **deck** bundles external MCP servers, API keys, and playbooks for one context
 
 Describe the procedure in chat — e.g. *“Add a release checklist playbook with trigger ‘ship to npm’.”* Let the agent register it and attach it to your deck. It can refine the playbook from your feedback over time.
 
-The dashboard can add playbooks too; chat authoring usually works better.
+The dashboard can add playbooks too; chat authoring usually works better. Corrections become **proposals** you review in the dashboard (Playbook patches); accepted changes update the deck. If you use per-repo `use` stubs and triggers changed, refresh with `agent-deck use --refresh`.
 
 ### 5. Add external MCP servers and API keys
 
@@ -75,9 +88,9 @@ Drag cards onto your deck in the dashboard, or ask the agent when building the d
 
 ### 6. Pick a deck each session
 
-**No default deck.** Every new chat is unscoped until you say which deck to use.
+**Default (agent-operated):** no repo config required. Tell the agent which deck — *“use the dev deck”*, *“work deck for this project”*, or mid-session *“switch to my personal deck”*. It calls `bind_workspace` / `switch_bound_deck` over MCP.
 
-*“Use the dev deck”* · *“Work deck for this project”* · mid-session: *“Switch to my personal deck”*
+**Optional `agent-deck use`:** writes `.agent-deck/use.json` so the agent can bind that deck on session open without you naming it; trigger stubs improve playbook matching.
 
 Terminal agents show the active deck in the footer (`◆ dev · 2 MCP · …`). If it stays unbound, check `agent-deck start` and that the deck exists in **My Decks**.
 
@@ -95,7 +108,7 @@ Playbooks stay in old threads or docs — you **re-explain the same procedure** 
 
 Connect **one** Agent Deck MCP endpoint. Register dependencies and **playbooks** once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and playbooks are in play.
 
-When you give feedback on a playbook-backed task, the agent can **update the playbook** so the next run starts from what you taught it — not from scratch.
+When you give feedback on a playbook-backed task, the agent files a **patch proposal**; after you accept it in the dashboard, the next run starts from what you taught it — not from scratch.
 
 <img src="./misc/Idea.png" alt="Single MCP for Context" width="70%" />
 
@@ -109,7 +122,7 @@ For contributors, dev ports (`:3000` / `:8000` / `:3001`) and env vars → [Setu
 
 **Agent MCP** (`http://127.0.0.1:1110/mcp`): decks, collection, external MCP proxy, playbooks. Secrets, OAuth, and deletes stay on dashboard/CLI. Tool catalog → [MVP](docs/MVP.md).
 
-**CLI:** `agent-deck export` / `import` · `credential` · `exec` (inject keys) · `upgrade`
+**CLI:** `agent-deck use` · `agent-deck export` / `import` · `credential` · `exec` (inject keys) · `upgrade`
 
 ## Install & run
 

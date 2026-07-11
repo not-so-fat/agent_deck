@@ -28,6 +28,7 @@
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Components, SQLite, secret storage |
 | [DEVELOPMENT.md](./DEVELOPMENT.md) | Clone, test, contribute |
 | [TESTING.md](./TESTING.md) | FE / BE / MCP / CLI test map + integration scenarios |
+| [LEARNING_LOOP_TEST_SCENARIOS.md](./LEARNING_LOOP_TEST_SCENARIOS.md) | Manual QA — proposal queue, stubs, self-improvement |
 | [AGENT_HARNESS.md](./AGENT_HARNESS.md) | What `agent-deck setup` installs |
 | [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) | Playbooks vs Cursor skills |
 | [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | Session binding in monorepos |

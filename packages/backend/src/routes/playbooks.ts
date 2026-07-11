@@ -20,6 +20,8 @@ import {
   requirePlaybookOnBoundDeck,
 } from '../lib/bound-deck-scope';
 import { PlaybookDependencyError } from '../playbooks/playbook-manager';
+import { playbookEventSource } from './playbook-patches';
+import { generateId } from '@agent-deck/shared';
 
 interface PlaybookIdRequest {
   Params: { id: string };
@@ -139,6 +141,13 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
         } satisfies ApiResponse);
       }
 
+      await fastify.db.recordPlaybookEvent({
+        id: generateId(),
+        playbookId: playbook.id,
+        event: 'fetched',
+        source: playbookEventSource(request),
+      });
+
       return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
     } catch (error) {
       return reply.status(500).send({
@@ -202,6 +211,7 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
         if (!playbook) {
           return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
         }
+        await fastify.patchManager.snapshotVersion(playbook, null, 'user');
         return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
       }
 
@@ -219,6 +229,7 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
       if (!playbook) {
         return reply.status(404).send({ success: false, error: 'Playbook not found' } satisfies ApiResponse);
       }
+      await fastify.patchManager.snapshotVersion(playbook, null, 'user');
 
       return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
     } catch (error) {
@@ -230,6 +241,19 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
       }
       const { status, body } = dashboardOnlyResponse(error);
       return reply.status(status === 403 ? 400 : status).send(body);
+    }
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id/events/count', async (request, reply) => {
+    try {
+      requireDashboardClient(request);
+      const count = await fastify.db.countPlaybookEvents(request.params.id);
+      return reply.send({ success: true, data: count } satisfies ApiResponse<number>);
+    } catch (error) {
+      return reply.status(403).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Forbidden',
+      } satisfies ApiResponse);
     }
   });
 

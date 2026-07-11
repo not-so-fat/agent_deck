@@ -21,6 +21,9 @@ import {
   AddPlaybookToDeckInput,
   RemovePlaybookFromDeckInput,
   DeckPlaybook,
+  PlaybookPatch,
+  PlaybookVersion,
+  PlaybookEvent,
 } from '@agent-deck/shared';
 import { 
   serializeForDatabase, 
@@ -303,6 +306,50 @@ export class DatabaseManager {
         PRIMARY KEY (exec_run_id, credential_id)
       )
     `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS playbook_patches (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        playbook_id TEXT,
+        ops_json TEXT NOT NULL,
+        rationale TEXT NOT NULL,
+        source TEXT NOT NULL,
+        source_ref TEXT,
+        evidence_json TEXT,
+        status TEXT NOT NULL DEFAULT 'proposed',
+        rejection_reason TEXT,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        FOREIGN KEY (playbook_id) REFERENCES playbooks (id) ON DELETE SET NULL
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS playbook_versions (
+        id TEXT PRIMARY KEY,
+        playbook_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        triggers TEXT NOT NULL DEFAULT '[]',
+        patch_id TEXT,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (playbook_id) REFERENCES playbooks (id) ON DELETE CASCADE,
+        FOREIGN KEY (patch_id) REFERENCES playbook_patches (id) ON DELETE SET NULL
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS playbook_events (
+        id TEXT PRIMARY KEY,
+        playbook_id TEXT NOT NULL,
+        event TEXT NOT NULL,
+        source TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (playbook_id) REFERENCES playbooks (id) ON DELETE CASCADE
+      )
+    `);
   }
 
   hasAnyServices(): boolean {
@@ -320,6 +367,9 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_deck_credentials_position ON deck_credentials(position);
       CREATE INDEX IF NOT EXISTS idx_deck_playbooks_position ON deck_playbooks(position);
       CREATE INDEX IF NOT EXISTS idx_exec_runs_started_at ON exec_runs(started_at);
+      CREATE INDEX IF NOT EXISTS idx_playbook_patches_status ON playbook_patches(status);
+      CREATE INDEX IF NOT EXISTS idx_playbook_versions_playbook ON playbook_versions(playbook_id);
+      CREATE INDEX IF NOT EXISTS idx_playbook_events_playbook ON playbook_events(playbook_id);
     `);
   }
 
@@ -1281,6 +1331,180 @@ export class DatabaseManager {
       playbookId: row.playbook_id,
       position: row.position,
     }));
+  }
+
+  private mapPlaybookPatchRow(row: any): PlaybookPatch {
+    return {
+      id: row.id,
+      kind: row.kind,
+      playbookId: row.playbook_id ?? null,
+      opsJson: row.ops_json,
+      rationale: row.rationale,
+      source: row.source,
+      sourceRef: row.source_ref ?? null,
+      evidenceJson: row.evidence_json ?? null,
+      status: row.status,
+      rejectionReason: row.rejection_reason ?? null,
+      createdAt: row.created_at,
+      resolvedAt: row.resolved_at ?? null,
+    };
+  }
+
+  async createPlaybookPatch(input: {
+    id: string;
+    kind: PlaybookPatch['kind'];
+    playbookId: string | null;
+    opsJson: string;
+    rationale: string;
+    source: PlaybookPatch['source'];
+    sourceRef: string | null;
+    evidenceJson: string | null;
+  }): Promise<PlaybookPatch> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO playbook_patches (
+        id, kind, playbook_id, ops_json, rationale, source, source_ref,
+        evidence_json, status, created_at
+      ) VALUES (
+        @id, @kind, @playbook_id, @ops_json, @rationale, @source, @source_ref,
+        @evidence_json, 'proposed', @created_at
+      )
+    `).run({
+      id: input.id,
+      kind: input.kind,
+      playbook_id: input.playbookId,
+      ops_json: input.opsJson,
+      rationale: input.rationale,
+      source: input.source,
+      source_ref: input.sourceRef,
+      evidence_json: input.evidenceJson,
+      created_at: now,
+    });
+    return (await this.getPlaybookPatch(input.id))!;
+  }
+
+  async getPlaybookPatch(id: string): Promise<PlaybookPatch | null> {
+    const row = this.db.prepare('SELECT * FROM playbook_patches WHERE id = ?').get(id) as any;
+    return row ? this.mapPlaybookPatchRow(row) : null;
+  }
+
+  async listPlaybookPatches(status?: PlaybookPatch['status']): Promise<PlaybookPatch[]> {
+    const rows = status
+      ? (this.db
+          .prepare('SELECT * FROM playbook_patches WHERE status = ? ORDER BY created_at DESC')
+          .all(status) as any[])
+      : (this.db.prepare('SELECT * FROM playbook_patches ORDER BY created_at DESC').all() as any[]);
+    return rows.map((row) => this.mapPlaybookPatchRow(row));
+  }
+
+  async updatePlaybookPatchStatus(
+    id: string,
+    status: PlaybookPatch['status'],
+    rejectionReason: string | null = null,
+  ): Promise<PlaybookPatch | null> {
+    const resolvedAt =
+      status === 'proposed' ? null : new Date().toISOString();
+    const result = this.db.prepare(`
+      UPDATE playbook_patches SET
+        status = @status,
+        rejection_reason = @rejection_reason,
+        resolved_at = @resolved_at
+      WHERE id = @id
+    `).run({
+      id,
+      status,
+      rejection_reason: rejectionReason,
+      resolved_at: resolvedAt,
+    });
+    if (result.changes === 0) return null;
+    return this.getPlaybookPatch(id);
+  }
+
+  async createPlaybookVersion(input: {
+    id: string;
+    playbookId: string;
+    title: string;
+    body: string;
+    triggers: string[];
+    patchId: string | null;
+    actor: PlaybookVersion['actor'];
+  }): Promise<PlaybookVersion> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO playbook_versions (
+        id, playbook_id, title, body, triggers, patch_id, actor, created_at
+      ) VALUES (
+        @id, @playbook_id, @title, @body, @triggers, @patch_id, @actor, @created_at
+      )
+    `).run({
+      id: input.id,
+      playbook_id: input.playbookId,
+      title: input.title,
+      body: input.body,
+      triggers: JSON.stringify(input.triggers),
+      patch_id: input.patchId,
+      actor: input.actor,
+      created_at: now,
+    });
+    return {
+      id: input.id,
+      playbookId: input.playbookId,
+      title: input.title,
+      body: input.body,
+      triggers: input.triggers,
+      patchId: input.patchId,
+      actor: input.actor,
+      createdAt: now,
+    };
+  }
+
+  async listPlaybookVersions(playbookId: string): Promise<PlaybookVersion[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM playbook_versions WHERE playbook_id = ? ORDER BY created_at DESC')
+      .all(playbookId) as any[];
+    return rows.map((row) => ({
+      id: row.id,
+      playbookId: row.playbook_id,
+      title: row.title,
+      body: row.body,
+      triggers: row.triggers ? JSON.parse(row.triggers) : [],
+      patchId: row.patch_id ?? null,
+      actor: row.actor,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async recordPlaybookEvent(input: {
+    id: string;
+    playbookId: string;
+    event: 'fetched';
+    source: string;
+  }): Promise<PlaybookEvent> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO playbook_events (id, playbook_id, event, source, created_at)
+      VALUES (@id, @playbook_id, @event, @source, @created_at)
+    `).run({
+      id: input.id,
+      playbook_id: input.playbookId,
+      event: input.event,
+      source: input.source,
+      created_at: now,
+    });
+    return {
+      id: input.id,
+      playbookId: input.playbookId,
+      event: input.event,
+      source: input.source,
+      createdAt: now,
+    };
+  }
+
+  async countPlaybookEvents(playbookId: string, event: 'fetched' = 'fetched'): Promise<number> {
+    const row = this.db
+      .prepare('SELECT COUNT(*) as count FROM playbook_events WHERE playbook_id = ? AND event = ?')
+      .get(playbookId, event) as { count: number };
+    return row.count;
   }
 
   // Cleanup

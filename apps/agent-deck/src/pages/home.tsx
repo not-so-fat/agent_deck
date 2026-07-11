@@ -27,7 +27,9 @@ import { downloadBundleJson, exportBundle } from "@/lib/export-import";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid, Download, Upload } from "lucide-react";
+import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid, Download, Upload, GitPullRequest } from "lucide-react";
+import { Link } from "wouter";
+import { listPlaybookPatches } from "@/lib/playbook-patches";
 import AgentDeckLogo from "@/assets/AgentDeckLogo3.png";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,6 +51,11 @@ export default function Home() {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   
   const { toast } = useToast();
+
+  const { data: proposedPatches = [] } = useQuery({
+    queryKey: ["/api/playbook-patches", "proposed"],
+    queryFn: () => listPlaybookPatches("proposed"),
+  });
 
   const handleExportAll = async () => {
     setExportingAll(true);
@@ -305,6 +312,18 @@ export default function Home() {
               
               {/* Live MCP sessions (replaces editing-deck name/cards chip) */}
               <LiveSessionBadges highlightDeckId={editingDeckId ?? undefined} />
+
+              <Link href="/playbook-patches">
+                <Button variant="outline" size="sm" className="relative border-white/20 bg-white/5 text-[#E8F6F4]">
+                  <GitPullRequest className="mr-2 h-4 w-4" />
+                  Review
+                  {proposedPatches.length > 0 && (
+                    <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-black">
+                      {proposedPatches.length}
+                    </span>
+                  )}
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

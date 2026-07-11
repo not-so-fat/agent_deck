@@ -19,6 +19,7 @@ import { runStatusline } from './statusline';
 import { runMenubar } from './menubar';
 import { runStop } from './stop';
 import { runUpgrade } from './upgrade';
+import { runUseCommand } from './use';
 import { getAgentDeckVersion } from './version';
 
 type VaultManager = {
@@ -43,6 +44,7 @@ function printUsage() {
   agent-deck statusline [--workspace <path>]
   agent-deck menubar
   agent-deck setup --client cursor|claude|claude-desktop [--scope global|project] [--start]
+  agent-deck use <deck> [--client cursor|claude|both] [--refresh] [--mcp-port PORT]
   agent-deck upgrade [--check]
   agent-deck doctor
   agent-deck debug-mcp
@@ -295,6 +297,8 @@ export async function runCli(argv: string[]): Promise<number> {
       }
       return code;
     }
+    case 'use':
+      return runUseCommand(rest);
     case 'upgrade':
       return runUpgrade(rest);
     case 'doctor':

@@ -20,16 +20,14 @@ describe('agent-harness templates', () => {
   it('global cursor file includes self-improvement playbook rules', () => {
     const file = buildCursorHarnessFile('global');
     expect(file).toContain('get_bound_deck');
+    expect(file).toContain('propose_playbook_patch');
     expect(file).toContain('update_playbook');
     expect(file).toContain('get_playbook');
     expect(file).toContain('display_summary');
     expect(file).toContain('Session opener');
     expect(file).toContain('get_session_binding');
-    expect(file).toContain('this session');
-    expect(file).toContain("don't infer from playbook title");
-    expect(file).toContain('Do both');
-    expect(file).toContain('Generalize');
-    expect(file).toContain('audit drift');
+    expect(file).toContain('Genesis case');
+    expect(file).toContain('evidence.user_feedback_excerpt');
     expect(file).not.toContain('weekly priority');
   });
 
@@ -53,7 +51,8 @@ describe('agent-harness templates', () => {
   it('project cursor file adds repo bind line', () => {
     const file = buildCursorHarnessFile('project');
     expect(file).toContain('bind_workspace');
-    expect(file).toContain('this repo');
+    expect(file).toContain('agent-deck use');
+    expect(file).toContain('use.json');
   });
 
   it('claude block avoids project-specific examples', () => {

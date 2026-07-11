@@ -21,6 +21,10 @@ export type CliCollectionAdmin = {
   listServices(): Promise<Array<{ id: string; name: string; type: string }>>;
   listPlaybooks(): Promise<Array<{ id: string; title: string }>>;
   listDecks(): Promise<Array<{ id: string; name: string }>>;
+  resolveDeck(ref: string): Promise<{ id: string; name: string } | null>;
+  listDeckPlaybookStubs(
+    deckId: string,
+  ): Promise<Array<{ id: string; title: string; triggers: string[] }>>;
 };
 
 export function createCollectionAdmin(): CliCollectionAdmin {

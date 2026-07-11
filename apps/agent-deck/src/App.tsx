@@ -7,12 +7,14 @@ import Home from "@/pages/home";
 import NotFound from "@/pages/not-found";
 import OAuthCallback from "@/components/oauth-callback";
 import McpTestPage from "@/pages/mcp-test";
+import PlaybookPatchesPage from "@/pages/playbook-patches";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/oauth/callback" component={OAuthCallback} />
+      <Route path="/playbook-patches" component={PlaybookPatchesPage} />
       <Route path="/mcp-test" component={McpTestPage} />
       <Route component={NotFound} />
     </Switch>

@@ -133,6 +133,9 @@ temp/
 .cursor/*
 !.cursor/rules/
 !.cursor/rules/**
+.cursor/rules/agent-deck-stubs/
+
+.agent-deck/
 .temporal/
 packages/backend/static-ui/
 *.swp

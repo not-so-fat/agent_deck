@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Playbook learning loop
+
+- **Proposal queue:** `propose_playbook_patch` MCP tool, `playbook_patches` / versions / events tables, REST lifecycle (propose → preview → accept/reject)
+- **Dashboard:** Playbook patches review page with diff preview and evidence panel
+- **Harness:** correction-driven write trigger (update + genesis cases); `update_playbook` reserved for explicit user-directed edits
+- Re-run `agent-deck setup --client cursor|claude` after upgrade for new harness wording
+
+### A′ trigger stubs
+
+- **`agent-deck use <deck>`:** project MCP config, `.agent-deck/use.json`, thin Cursor/Claude trigger stubs (pointer only — bodies stay on deck)
+- **`agent-deck use --refresh`:** regenerate stubs after trigger changes; accept API returns refresh hint when triggers/title change
+
 ## 1.3.4 — 2026-07-06
 
 ### Security

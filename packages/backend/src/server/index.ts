@@ -24,6 +24,8 @@ import { CollectionWarningService } from '../services/collection-warning-service
 import { registerCollectionRoutes } from '../routes/collection';
 import { registerExportImportRoutes } from '../routes/export-import';
 import { PlaybookManager } from '../playbooks/playbook-manager';
+import { PatchManager } from '../playbooks/patch-manager';
+import { registerPlaybookPatchRoutes } from '../routes/playbook-patches';
 import { getAgentDeckVersion } from '../lib/version';
 import { seedDefaultServicesIfEmpty } from '../data/seed-default-services';
 import { LiveDisplayRegistry } from '../scope/live-display-registry';
@@ -87,6 +89,7 @@ export async function createServer() {
   );
   void serviceManager.backfillMissingIcons();
   const playbookManager = new PlaybookManager(db);
+  const patchManager = new PatchManager(db, playbookManager);
   const collectionWarningService = new CollectionWarningService();
   const liveDisplayRegistry = new LiveDisplayRegistry();
 
@@ -97,6 +100,7 @@ export async function createServer() {
   await fastify.register(registerCredentialRoutes, { prefix: '/api/credentials' });
   await fastify.register(registerScopeRoutes, { prefix: '/api/scope' });
   await fastify.register(registerPlaybookRoutes, { prefix: '/api/playbooks' });
+  await fastify.register(registerPlaybookPatchRoutes, { prefix: '/api/playbook-patches' });
   await fastify.register(registerCollectionRoutes, { prefix: '/api/collection' });
   await fastify.register(registerExportImportRoutes, { prefix: '/api' });
   await fastify.register(registerOAuthRoutes, { prefix: '/api/oauth' });
@@ -144,6 +148,7 @@ export async function createServer() {
   fastify.decorate('oauthTokenVault', oauthTokenVault);
   fastify.decorate('credentialManager', credentialManager);
   fastify.decorate('playbookManager', playbookManager);
+  fastify.decorate('patchManager', patchManager);
   fastify.decorate('collectionWarningService', collectionWarningService);
   fastify.decorate('liveDisplayRegistry', liveDisplayRegistry);
 
@@ -177,6 +182,7 @@ declare module 'fastify' {
     oauthTokenVault: OAuthTokenVault;
     credentialManager: CredentialManager;
     playbookManager: PlaybookManager;
+    patchManager: PatchManager;
     collectionWarningService: CollectionWarningService;
     liveDisplayRegistry: LiveDisplayRegistry;
     broadcastServiceUpdate: (update: ServiceStatusUpdate) => void;

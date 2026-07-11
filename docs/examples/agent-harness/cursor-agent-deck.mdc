@@ -5,26 +5,30 @@ alwaysApply: true
 
 # Agent Deck
 
+<!-- agent-deck:harness:start -->
 **Connect first:** Ensure Agent Deck MCP is connected before using deck tools (`agent-deck setup --client cursor|claude --start`, then restart the host). Claude Code: `claude mcp list` should show agent-deck as Connected when the backend is running.
 
-**Session opener (first turn only):** When Agent Deck MCP is connected and this is a new conversation in a workspace, call `get_decks`, then `bind_workspace` with the project root and a `deckId`, then `get_session_binding`, and tell the user **exactly one line** using `display_summary` (e.g. `◆ dev · 2 MCP · 0 keys · 1 playbooks`). This is the deck-status line for IDE Agent chat — there is no host footer there. Do **not** repeat it every turn unless the user asks or the bind changes (`switch_bound_deck`, new repo).
+**Session opener (first turn only):** When Agent Deck MCP is connected and this is a new conversation in a workspace, call `get_decks`, then `bind_workspace` with the project root and a `deckId` (if `.agent-deck/use.json` exists, use its `deckId`), then `get_session_binding`, and tell the user **exactly one line** using `display_summary` (e.g. `◆ dev · 2 MCP · 0 keys · 1 playbooks`). This is the deck-status line for IDE Agent chat — there is no host footer there. Do **not** repeat it every turn unless the user asks or the bind changes (`switch_bound_deck`, new repo).
 
 **Later turns:** Call `bind_workspace` before the first deck-scoped tool if not already bound. Terminal hosts may also show the deck in the prompt footer via `statusLine`; do not duplicate unless the user asks.
 
 Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck MCP: `bind_workspace`, `get_bound_deck`, `call_service_tool`. Don't hardcode deck IDs.
 
-Deck playbooks are task recipes — check `triggers` on `get_bound_deck` playbooks, then `get_playbook`. Don't mirror into `.cursor/skills/` — one source of truth on the deck.
+Deck playbooks are task recipes — thin trigger stubs from `agent-deck use` plus `get_bound_deck` / `get_playbook`. **Never** mirror playbook bodies into `.cursor/skills/`, rules, or Claude skills — one source of truth on the deck; stubs are pointers only.
 
 ### Playbooks — refine from outcomes (self-improvement)
 
-**When:** The user gives feedback on output you produced while following a bound-deck playbook — you called `get_playbook` this session and used its body/steps for that artifact. Use that session trace to identify the playbook; don't infer from playbook title, filename, or output type alone.
+**When the user corrects your output** (the write trigger — no need to have called `get_playbook` earlier in the session):
 
-**Do both (default):**
-1. Fix the **current output** per the user's feedback.
-2. Call `update_playbook` on that same playbook so the **next** run avoids repeating the mistake.
+**Update case** (a playbook covered this task): fix the output, then `propose_playbook_patch` with item ops — prefer one `add_item` to Gotchas/Checklist; include `evidence.user_feedback_excerpt` as a short verbatim quote of the correction.
 
-**How to update the playbook:**
-- **Generalize** — drop project-specific names, paths, and schemas; the playbook is reusable practice
-- **Place the lesson** — checklist item for verification, technique for positive patterns, anti-pattern for mistakes to avoid
-- **Restructure** if the playbook can't absorb the lesson cleanly — don't bolt it on
-- **Surface the change** in your response so the user can audit drift
+**Genesis case** (no playbook covered the task): before ending, `propose_playbook_patch { kind: "create", new_playbook: { title, triggers, body with one gotcha } }` — a few lines is the right size.
+
+**Explicit user-directed playbook edits** ("fix the playbook to say X"): `update_playbook` — they already reviewed.
+
+Tell the user in one line that a proposal was filed; review happens in the dashboard.
+
+**How to shape proposals:** generalize project-specific names but keep concrete gotchas; place lessons in Checklist/Gotchas; use `rewrite_body` only when structure cannot absorb the lesson.
+
+In this repo: run `agent-deck use <deck>` once (writes MCP + trigger stubs + `.agent-deck/use.json`). `bind_workspace` with the workspace root and that `deckId`. When a task matches a stub or deck `triggers`, `get_playbook` before improvising. After accepting playbook patches that change triggers, run `agent-deck use --refresh`.
+<!-- agent-deck:harness:end -->

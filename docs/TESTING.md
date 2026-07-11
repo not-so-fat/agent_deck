@@ -132,7 +132,7 @@ Use this table to decide what we automate next. Mark **Auto** (CI), **Smoke** (r
 | S2 | Agent bind workspace + deck | Agent | MCP | `display_summary` + live-display | **Auto** (`golden-path.http.test.ts`) |
 | S3 | Capability rescue | Agent | MCP | link service; `get_bound_deck`; `call_service_tool` | **Auto** |
 | S4 | Playbook discover + follow | Agent | MCP | triggers on `get_bound_deck`; `get_playbook` body | **Auto** |
-| S5 | Playbook self-improve | Agent | MCP | `update_playbook` persists | **Auto** |
+| S5 | Playbook self-improve (proposal queue) | Agent | MCP + dashboard | `propose_playbook_patch` → review → accept; genesis + update cases | **Manual** — [LEARNING_LOOP_TEST_SCENARIOS.md](./LEARNING_LOOP_TEST_SCENARIOS.md) |
 | S6 | Link existing card to deck | Agent | MCP | `manage_deck_card` link | **Auto** |
 | S7 | Unlink card | Agent | MCP | unlink; still in `list_collection` | **Auto** |
 | S8 | Create deck then bind | Agent | MCP | `create_deck` + bind known deck | **Auto** |

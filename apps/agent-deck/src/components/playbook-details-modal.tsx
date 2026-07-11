@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { getPlaybookFetchCount } from "@/lib/playbook-patches";
 import { AlertTriangle } from "lucide-react";
 
 interface PlaybookDetailsModalProps {
@@ -22,6 +23,12 @@ export default function PlaybookDetailsModal({
 }: PlaybookDetailsModalProps) {
   const { data: response, isLoading } = useQuery<{ success: boolean; data: PlaybookWithDependencies }>({
     queryKey: playbookId ? [`/api/playbooks/${playbookId}`] : ["playbook-detail-disabled"],
+    enabled: open && Boolean(playbookId),
+  });
+
+  const { data: fetchCount } = useQuery({
+    queryKey: [`/api/playbooks/${playbookId}/events/count`],
+    queryFn: () => getPlaybookFetchCount(playbookId!),
     enabled: open && Boolean(playbookId),
   });
 
@@ -45,10 +52,17 @@ export default function PlaybookDetailsModal({
         ) : (
           <div className="space-y-4 text-sm">
             <p className="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-[#A8C4C0]">
-              Ask your AI agent to refine this playbook with{" "}
-              <span className="font-mono text-xs">update_playbook</span> — dependencies are
-              re-detected from the content automatically.
+              Agent corrections file as{" "}
+              <span className="font-mono text-xs">propose_playbook_patch</span> proposals — review
+              in the queue. Direct{" "}
+              <span className="font-mono text-xs">update_playbook</span> is for explicit edits only.
             </p>
+
+            {typeof fetchCount === "number" && (
+              <p className="text-xs text-gray-500">
+                Fetched {fetchCount} time{fetchCount === 1 ? "" : "s"} (undertriggering signal)
+              </p>
+            )}
 
             {playbook.triggers.length > 0 && (
               <div>
