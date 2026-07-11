@@ -1,9 +1,23 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { parseUseArgs, runUse } from './use';
+
+vi.mock('./backend-runtime', () => ({
+  createCollectionAdmin: () => ({
+    resolveDeck: async (ref: string) => {
+      if (ref === 'dev' || ref === 'deck-1') {
+        return { id: 'deck-1', name: 'dev' };
+      }
+      return null;
+    },
+    listDeckPlaybookStubs: async () => [
+      { id: 'pb_test', title: 'Test playbook', triggers: ['test trigger'] },
+    ],
+  }),
+}));
 
 const tmpDirs: string[] = [];
 
@@ -35,15 +49,18 @@ describe('agent-deck use', () => {
     }
 
     const result = await runUse({ ...parsed, workspaceRoot: workspace });
+    expect('error' in result).toBe(false);
     if ('error' in result) {
-      expect(result.error).toBeUndefined();
       return;
     }
 
     expect(result.deck.name).toBe('dev');
+    expect(result.playbookCount).toBe(1);
     expect(fs.existsSync(path.join(workspace, '.cursor', 'mcp.json'))).toBe(true);
     expect(fs.existsSync(path.join(workspace, '.agent-deck', 'use.json'))).toBe(true);
-    expect(fs.existsSync(path.join(workspace, '.cursor', 'rules', 'agent-deck-stubs'))).toBe(true);
+    expect(fs.existsSync(path.join(workspace, '.cursor', 'rules', 'agent-deck-stubs', 'pb_test.mdc'))).toBe(
+      true,
+    );
     const mcp = JSON.parse(fs.readFileSync(path.join(workspace, '.cursor', 'mcp.json'), 'utf8')) as {
       mcpServers: Record<string, { url?: string }>;
     };
