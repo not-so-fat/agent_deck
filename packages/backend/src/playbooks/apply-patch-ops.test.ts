@@ -137,6 +137,34 @@ The Chronicle UI git pill reflects the live checkout branch.
     expect(result.ok).toBe(true);
   });
 
+  it('keeps spacing stable across repeated applies (no blank-line inflation)', () => {
+    const first = applyPatchOps({ body: SAMPLE_BODY, triggers: [] }, [
+      { op: 'add_item', section: 'Gotchas', text: 'First added gotcha.' },
+    ]);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.value.body).toBe(`# Hiring inbox
+
+## Steps
+
+- Run the hiring CLI via Agent Deck exec.
+- Walk results worst-tier first.
+
+## Gotchas
+
+- Do not skip dry-run until user says otherwise.
+- First added gotcha.
+`);
+
+    const second = applyPatchOps(first.value, [
+      { op: 'add_item', section: 'Gotchas', text: 'Second added gotcha.' },
+    ]);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.body).not.toMatch(/\n{3,}/);
+    expect(second.value.body).toContain('- First added gotcha.\n- Second added gotcha.');
+  });
+
   it('applies multiple valid ops in order', () => {
     const ops: PatchOp[] = [
       { op: 'add_item', section: 'Gotchas', text: '- Added gotcha.' },

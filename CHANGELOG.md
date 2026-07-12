@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.2 — 2026-07-12
+
+### CLI daemon mode
+
+- **`agent-deck start --daemon`:** detached supervisor survives terminal/IDE close; logs to `~/.agent-deck/logs/` (`supervisor.log`, `backend.log`, `mcp.log`); returns immediately
+- Foreground `agent-deck start` unchanged for debugging; docs/README default to `--daemon`
+
+### Playbook review UX
+
+- **Review queue layout:** scrollable detail panel with pinned Accept/Reject footer — no overlap on wide screens
+- **Accept button:** gold gate style (`#C4B643`) matching agent-dealer review drawers
+- **Diff panel:** `minmax(0,1fr)` grid columns prevent horizontal blowout on long lines
+
+### Patch apply fixes
+
+- **`apply-patch-ops`:** trim blank edges when serializing sections (stops body inflating on every accept)
+- **`add_item`:** insert before trailing blank lines so new list items stay adjacent
+
 ## 1.4.1 — 2026-07-12
 
 ### Playbook review & proposals

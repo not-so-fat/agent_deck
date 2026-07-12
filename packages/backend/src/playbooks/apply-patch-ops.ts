@@ -47,10 +47,13 @@ function serializeSections(preamble: string, sections: Section[]): string {
 
   for (const section of sections) {
     parts.push(`## ${section.name}`);
-    if (section.lines.length > 0) {
-      const sectionBody = section.lines.join('\n');
-      parts.push(sectionBody.endsWith('\n') ? sectionBody.slice(0, -1) : sectionBody);
-    }
+    // Trim blank edges: parsed lines keep the blank line after the heading and
+    // before the next one, and the '\n\n' join below re-adds spacing — without
+    // trimming, every apply inflates the body by one blank line per section.
+    const lines = [...section.lines];
+    while (lines.length > 0 && lines[0].trim() === '') lines.shift();
+    while (lines.length > 0 && lines[lines.length - 1].trim() === '') lines.pop();
+    if (lines.length > 0) parts.push(lines.join('\n'));
   }
 
   return parts.join('\n\n') + (parts.length > 0 ? '\n' : '');
@@ -88,7 +91,10 @@ function applyBodyOp(state: PlaybookPatchState, op: PatchOp): ApplyPatchOpsResul
       section = { name: op.section, lines: [] };
       sections.push(section);
     }
-    section.lines.push(formatListItem(op.text));
+    // Insert before any trailing blank lines so the new item stays adjacent to the list.
+    let insertAt = section.lines.length;
+    while (insertAt > 0 && section.lines[insertAt - 1].trim() === '') insertAt -= 1;
+    section.lines.splice(insertAt, 0, formatListItem(op.text));
     return {
       ok: true,
       value: { ...state, body: serializeSections(parsed.preamble, sections) },

@@ -38,7 +38,7 @@ function getVaultManager(): VaultManager {
 
 function printUsage() {
   console.log(`Usage:
-  agent-deck start [--open] [--no-ui] [--force] [--port PORT] [--mcp-port PORT]
+  agent-deck start [--daemon] [--open] [--no-ui] [--force] [--port PORT] [--mcp-port PORT]
   agent-deck stop
   agent-deck status
   agent-deck statusline [--workspace <path>]
@@ -259,6 +259,8 @@ export async function runCli(argv: string[]): Promise<number> {
       let openBrowser = false;
       let skipUi = false;
       let force = false;
+      let daemon = false;
+      let supervisor = false;
       let backendPort: number | undefined;
       let mcpPort: number | undefined;
 
@@ -270,6 +272,10 @@ export async function runCli(argv: string[]): Promise<number> {
           skipUi = true;
         } else if (arg === '--force') {
           force = true;
+        } else if (arg === '--daemon') {
+          daemon = true;
+        } else if (arg === '--_supervisor') {
+          supervisor = true;
         } else if (arg === '--port') {
           backendPort = Number.parseInt(rest[++i] ?? '', 10);
         } else if (arg === '--mcp-port') {
@@ -280,7 +286,7 @@ export async function runCli(argv: string[]): Promise<number> {
         }
       }
 
-      return runStart({ openBrowser, skipUi, force, backendPort, mcpPort });
+      return runStart({ openBrowser, skipUi, force, daemon, supervisor, backendPort, mcpPort });
     }
     case 'stop':
       return runStop();
@@ -293,7 +299,7 @@ export async function runCli(argv: string[]): Promise<number> {
     case 'setup': {
       const code = await runSetup(rest);
       if (shouldStartAfterSetup(code)) {
-        return runStart({});
+        return runStart({ daemon: true });
       }
       return code;
     }

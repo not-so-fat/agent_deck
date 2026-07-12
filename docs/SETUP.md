@@ -162,8 +162,11 @@ Legacy reference:
 ```bash
 agent-deck status
 agent-deck stop
-agent-deck start --force
+agent-deck start --daemon          # background (recommended)
+agent-deck start --daemon --force  # restart
 ```
+
+**Daemon mode:** `agent-deck start --daemon` spawns a detached supervisor; backend/MCP logs go to `~/.agent-deck/logs/` (`backend.log`, `mcp.log`, `supervisor.log`). Foreground `agent-deck start` still works for debugging in an open terminal.
 
 ## Environment variables
 

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import { resolveBackendEntry, resolveBackendRoot, resolveUiDist } from './paths';
 import { assertSqliteNative, assertSupportedNodeVersion, getNodeMajor, verifySqliteNative } from './node-runtime';
 import { formatPortConflict, isTcpPortOpen, listListeningPids, probeAgentDeck } from './ports';
@@ -7,6 +7,13 @@ import { runStop } from './stop';
 import { maybeAutoUpgradeOnStart, notifyIfUpdateAvailable } from './upgrade';
 import { getAgentDeckVersion } from './version';
 import { parseCliBackendPort, parseCliMcpPort } from './defaults';
+import {
+  appendDaemonLogLine,
+  openDaemonLogFd,
+  resolveCliEntry,
+  resolveDaemonLogPath,
+  resolveDaemonLogsDir,
+} from './daemon-logs';
 
 export interface StartOptions {
   backendPort?: number;
@@ -14,10 +21,20 @@ export interface StartOptions {
   openBrowser?: boolean;
   skipUi?: boolean;
   force?: boolean;
+  /** Detach a background supervisor (survives terminal close). */
+  daemon?: boolean;
+  /** Internal: detached supervisor child (set via --_supervisor or AGENT_DECK_SUPERVISOR). */
+  supervisor?: boolean;
 }
+
+type SpawnIoMode = 'inherit' | 'file';
 
 const children: ChildProcess[] = [];
 let shuttingDown = false;
+
+function isSupervisorMode(options: StartOptions): boolean {
+  return options.supervisor === true || process.env.AGENT_DECK_SUPERVISOR === '1';
+}
 
 async function waitForHealth(url: string, attempts = 60): Promise<boolean> {
   for (let i = 0; i < attempts; i += 1) {
@@ -34,14 +51,23 @@ async function waitForHealth(url: string, attempts = 60): Promise<boolean> {
   return false;
 }
 
+function resolveServiceStdio(label: 'backend' | 'mcp', ioMode: SpawnIoMode): StdioOptions {
+  if (ioMode === 'inherit') {
+    return 'inherit';
+  }
+  const fd = openDaemonLogFd(label);
+  return ['ignore', fd, fd];
+}
+
 function spawnNodeService(
-  label: string,
+  label: 'backend' | 'mcp',
   entry: string,
   env: Record<string, string>,
+  ioMode: SpawnIoMode,
 ): ChildProcess {
   const child = spawn(process.execPath, [entry], {
     env: { ...process.env, ...env },
-    stdio: 'inherit',
+    stdio: resolveServiceStdio(label, ioMode),
   });
 
   child.on('exit', (code, signal) => {
@@ -49,14 +75,23 @@ function spawnNodeService(
       return;
     }
     const detail = signal ? `signal ${signal}` : `code ${code ?? 1}`;
-    console.error(`[agent-deck] ${label} exited (${detail})`);
+    const message = `[agent-deck] ${label} exited (${detail})`;
+    if (ioMode === 'file') {
+      appendDaemonLogLine('supervisor', `${new Date().toISOString()} ${message}`);
+    } else {
+      console.error(message);
+    }
     if (label === 'backend') {
       void shutdown(code ?? 1);
       return;
     }
-    console.warn(
-      '[agent-deck] MCP stopped; dashboard API remains available. Run `agent-deck stop && agent-deck start` to recover MCP.',
-    );
+    const mcpWarn =
+      '[agent-deck] MCP stopped; dashboard API remains available. Run `agent-deck stop && agent-deck start` to recover MCP.';
+    if (ioMode === 'file') {
+      appendDaemonLogLine('supervisor', `${new Date().toISOString()} ${mcpWarn}`);
+    } else {
+      console.warn(mcpWarn);
+    }
   });
 
   children.push(child);
@@ -68,6 +103,14 @@ async function shutdown(exitCode = 0): Promise<void> {
     return;
   }
   shuttingDown = true;
+
+  if (isSupervisorMode({})) {
+    appendDaemonLogLine(
+      'supervisor',
+      `${new Date().toISOString()} [agent-deck] supervisor shutting down (exit ${exitCode})`,
+    );
+  }
+
   clearRunState();
 
   for (const child of children) {
@@ -90,6 +133,64 @@ function printRunningEndpoints(host: string, backendPort: number, mcpPort: numbe
   console.log('Claude Code:');
   console.log(`  claude mcp add --scope user --transport http agent-deck http://${host}:${mcpPort}/mcp`);
   console.log('');
+}
+
+function buildSupervisorArgs(options: StartOptions): string[] {
+  const args = ['start', '--_supervisor'];
+  if (options.skipUi) {
+    args.push('--no-ui');
+  }
+  if (options.force) {
+    args.push('--force');
+  }
+  if (options.backendPort !== undefined) {
+    args.push('--port', String(options.backendPort));
+  }
+  if (options.mcpPort !== undefined) {
+    args.push('--mcp-port', String(options.mcpPort));
+  }
+  return args;
+}
+
+async function runDaemonLauncher(options: StartOptions): Promise<number> {
+  const backendPort = options.backendPort ?? parseCliBackendPort(process.env.AGENT_DECK_PORT);
+  const mcpPort = options.mcpPort ?? parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
+  const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
+  const backendUrl = `http://${host}:${backendPort}`;
+
+  const supervisorLogFd = openDaemonLogFd('supervisor');
+  const cliEntry = resolveCliEntry();
+
+  const child = spawn(process.execPath, [cliEntry, ...buildSupervisorArgs(options)], {
+    detached: true,
+    stdio: ['ignore', supervisorLogFd, supervisorLogFd],
+    env: { ...process.env, AGENT_DECK_SUPERVISOR: '1' },
+  });
+
+  child.unref();
+
+  const healthy = await waitForHealth(`${backendUrl}/health`);
+  if (!healthy) {
+    console.error('[agent-deck] Daemon supervisor failed health check.');
+    console.error(`[agent-deck] See ${resolveDaemonLogPath('supervisor')}`);
+    return 1;
+  }
+
+  const mcpHealthy = await waitForHealth(`http://${host}:${mcpPort}/health`, 20);
+  if (!mcpHealthy) {
+    console.warn('[agent-deck] MCP not healthy yet — dashboard API is up.');
+    console.warn(`[agent-deck] See ${resolveDaemonLogPath('mcp')}`);
+  }
+
+  console.log('');
+  console.log('Agent Deck started in background');
+  console.log(`  Dashboard  ${backendUrl}`);
+  console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
+  console.log(`  Logs       ${resolveDaemonLogsDir()}/`);
+  console.log('  Stop       agent-deck stop');
+  console.log('');
+
+  return 0;
 }
 
 async function ensurePortsAvailable(
@@ -129,6 +230,35 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   await maybeAutoUpgradeOnStart();
   await notifyIfUpdateAvailable();
 
+  const supervisor = isSupervisorMode(options);
+  if (options.daemon && !supervisor) {
+    const backendPort = options.backendPort ?? parseCliBackendPort(process.env.AGENT_DECK_PORT);
+    const mcpPort = options.mcpPort ?? parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
+    const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
+
+    const probe = await probeAgentDeck(host, backendPort, mcpPort);
+    if (probe.backendUp && probe.mcpUp) {
+      if (options.force) {
+        console.log('[agent-deck] Restarting existing instance (--force) ...');
+        await runStop();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } else {
+        printRunningEndpoints(host, backendPort, mcpPort, `http://${host}:${backendPort}`);
+        console.log('Already running. Use `agent-deck stop` or `agent-deck start --daemon --force` to restart.');
+        return 0;
+      }
+    }
+
+    const refreshedProbe = options.force ? await probeAgentDeck(host, backendPort, mcpPort) : probe;
+    const portError = await ensurePortsAvailable(host, backendPort, mcpPort, refreshedProbe);
+    if (portError !== null) {
+      return portError;
+    }
+
+    return runDaemonLauncher(options);
+  }
+
+  const ioMode: SpawnIoMode = supervisor ? 'file' : 'inherit';
   const backendPort = options.backendPort ?? parseCliBackendPort(process.env.AGENT_DECK_PORT);
   const mcpPort = options.mcpPort ?? parseCliMcpPort(process.env.AGENT_DECK_MCP_PORT);
   const host = process.env.AGENT_DECK_HOST ?? '127.0.0.1';
@@ -156,56 +286,92 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   }
 
   if (!options.skipUi && !uiDist) {
-    console.warn(
-      '[agent-deck] Dashboard UI bundle not found (static-ui). API and MCP will still start.',
-    );
-    console.warn('[agent-deck] Set AGENT_DECK_UI_DIST or run from a published npm package build.');
+    const warnUi =
+      '[agent-deck] Dashboard UI bundle not found (static-ui). API and MCP will still start.';
+    const warnDist = '[agent-deck] Set AGENT_DECK_UI_DIST or run from a published npm package build.';
+    if (ioMode === 'file') {
+      appendDaemonLogLine('supervisor', warnUi);
+      appendDaemonLogLine('supervisor', warnDist);
+    } else {
+      console.warn(warnUi);
+      console.warn(warnDist);
+    }
   }
 
   const backendEntry = resolveBackendEntry('index');
   const mcpEntry = resolveBackendEntry('mcp-index');
 
-  console.log('[agent-deck] Starting backend ...');
-  const backendChild = spawnNodeService('backend', backendEntry, {
-    PORT: String(backendPort),
-    HOST: host,
-    NODE_ENV: 'production',
-    AGENT_DECK_DEV: '0',
-    AGENT_DECK_MCP_PORT: String(mcpPort),
-    ...(uiDist ? { AGENT_DECK_UI_DIST: uiDist } : {}),
-  });
+  const logStart = (line: string) => {
+    if (ioMode === 'file') {
+      appendDaemonLogLine('supervisor', `${new Date().toISOString()} ${line}`);
+    } else {
+      console.log(line);
+    }
+  };
+
+  logStart('[agent-deck] Starting backend ...');
+  const backendChild = spawnNodeService(
+    'backend',
+    backendEntry,
+    {
+      PORT: String(backendPort),
+      HOST: host,
+      NODE_ENV: 'production',
+      AGENT_DECK_DEV: '0',
+      AGENT_DECK_MCP_PORT: String(mcpPort),
+      ...(uiDist ? { AGENT_DECK_UI_DIST: uiDist } : {}),
+    },
+    ioMode,
+  );
 
   const healthy = await waitForHealth(`${backendUrl}/health`);
   if (!healthy) {
-    console.error('[agent-deck] Backend failed health check (port conflict or crash).');
-    console.error(`[agent-deck] Run: agent-deck status`);
+    const failMsg = '[agent-deck] Backend failed health check (port conflict or crash).';
+    if (ioMode === 'file') {
+      appendDaemonLogLine('supervisor', failMsg);
+    } else {
+      console.error(failMsg);
+      console.error('[agent-deck] Run: agent-deck status');
+    }
     await shutdown(1);
     return 1;
   }
 
-  console.log('[agent-deck] Starting MCP server ...');
+  logStart('[agent-deck] Starting MCP server ...');
   let mcpPid = 0;
 
   if (refreshedProbe.mcpUp) {
-    console.log('[agent-deck] MCP server already running — reusing existing instance');
+    logStart('[agent-deck] MCP server already running — reusing existing instance');
     mcpPid = listListeningPids(mcpPort)[0] ?? 0;
   } else {
-    const mcpChild = spawnNodeService('mcp', mcpEntry, {
-      AGENT_DECK_MCP_PORT: String(mcpPort),
-      AGENT_DECK_BACKEND_URL: backendUrl,
-      NODE_ENV: 'production',
-      AGENT_DECK_DEV: '0',
-    });
+    const mcpChild = spawnNodeService(
+      'mcp',
+      mcpEntry,
+      {
+        AGENT_DECK_MCP_PORT: String(mcpPort),
+        AGENT_DECK_BACKEND_URL: backendUrl,
+        NODE_ENV: 'production',
+        AGENT_DECK_DEV: '0',
+      },
+      ioMode,
+    );
 
     await new Promise((resolve) => setTimeout(resolve, 400));
     const mcpProbe = await probeAgentDeck(host, backendPort, mcpPort);
     if (!mcpProbe.mcpUp) {
-      console.error('[agent-deck] MCP server failed to start (port conflict or crash).');
-      console.error('[agent-deck] Dashboard API is still running. Run: agent-deck stop && agent-deck start');
+      const mcpFail =
+        '[agent-deck] MCP server failed to start (port conflict or crash). Dashboard API is still running.';
+      if (ioMode === 'file') {
+        appendDaemonLogLine('supervisor', mcpFail);
+      } else {
+        console.error(mcpFail);
+        console.error('[agent-deck] Run: agent-deck stop && agent-deck start');
+      }
     } else {
       mcpPid = mcpChild.pid ?? 0;
     }
   }
+
   writeRunState({
     host,
     backendPort,
@@ -217,15 +383,29 @@ export async function runStart(options: StartOptions = {}): Promise<number> {
   });
 
   const dashboardLine = uiDist ? backendUrl : '(UI bundle missing — use npm run dev:all for dev UI)';
-  console.log('');
-  console.log('Agent Deck is running');
-  console.log(`  Dashboard  ${dashboardLine}`);
-  console.log(`  MCP        http://${host}:${mcpPort}/mcp`);
-  console.log(`  API health ${backendUrl}/health`);
-  console.log('');
-  console.log('Claude Code:');
-  console.log(`  claude mcp add --scope user --transport http agent-deck http://${host}:${mcpPort}/mcp`);
-  console.log('');
+  const runningLines = [
+    '',
+    'Agent Deck is running',
+    `  Dashboard  ${dashboardLine}`,
+    `  MCP        http://${host}:${mcpPort}/mcp`,
+    `  API health ${backendUrl}/health`,
+    '',
+    'Claude Code:',
+    `  claude mcp add --scope user --transport http agent-deck http://${host}:${mcpPort}/mcp`,
+    '',
+  ];
+
+  if (ioMode === 'file') {
+    for (const line of runningLines) {
+      if (line) {
+        appendDaemonLogLine('supervisor', line);
+      }
+    }
+  } else {
+    for (const line of runningLines) {
+      console.log(line);
+    }
+  }
 
   if (options.openBrowser && uiDist) {
     const open = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';

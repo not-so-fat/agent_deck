@@ -3,7 +3,7 @@ import { patchPreviewHasChanges } from "@/lib/patch-preview";
 import { buildUnifiedDiffRows, hasDiffRows, type DiffRow } from "@/lib/line-diff";
 
 const diffPanelClass =
-  "min-h-[min(50vh,28rem)] max-h-[min(70vh,40rem)] overflow-auto rounded-md border border-gray-800 bg-gray-950 font-mono text-xs leading-5";
+  "max-w-full overflow-x-auto rounded-md border border-gray-800 bg-gray-950 font-mono text-xs leading-5";
 
 function rowClass(kind: DiffRow["kind"]): string {
   switch (kind) {
@@ -41,7 +41,7 @@ function UnifiedDiffView({ rows, emptyLabel }: { rows: DiffRow[]; emptyLabel: st
       {rows.map((row, index) => (
         <div
           key={`${row.kind}-${index}-${row.oldLine ?? ""}-${row.newLine ?? ""}`}
-          className={`grid grid-cols-[3rem_3rem_1fr] gap-0 ${rowClass(row.kind)}`}
+          className={`grid min-w-0 grid-cols-[3rem_3rem_minmax(0,1fr)] gap-0 ${rowClass(row.kind)}`}
         >
           <span className="select-none border-r border-gray-800/80 px-2 py-0.5 text-right text-gray-600">
             {row.oldLine ?? ""}
@@ -72,7 +72,7 @@ function TriggerDiff({ before, after }: { before: string[]; after: string[] }) {
         {removed.map((trigger) => (
           <div
             key={`removed-${trigger}`}
-            className="grid grid-cols-[3rem_3rem_1fr] bg-rose-950/70 text-rose-100"
+            className="grid min-w-0 grid-cols-[3rem_3rem_minmax(0,1fr)] bg-rose-950/70 text-rose-100"
           >
             <span className="border-r border-gray-800/80 px-2 py-0.5" />
             <span className="border-r border-gray-800/80 px-2 py-0.5" />
@@ -85,7 +85,7 @@ function TriggerDiff({ before, after }: { before: string[]; after: string[] }) {
         {added.map((trigger) => (
           <div
             key={`added-${trigger}`}
-            className="grid grid-cols-[3rem_3rem_1fr] bg-emerald-950/70 text-emerald-100"
+            className="grid min-w-0 grid-cols-[3rem_3rem_minmax(0,1fr)] bg-emerald-950/70 text-emerald-100"
           >
             <span className="border-r border-gray-800/80 px-2 py-0.5" />
             <span className="border-r border-gray-800/80 px-2 py-0.5" />
@@ -114,7 +114,7 @@ export function PlaybookPatchDiff({ preview }: { preview: PatchPreview }) {
     preview.before.triggers.join("\n") !== preview.after.triggers.join("\n");
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       {!hasChanges && (
         <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-100">
           No change detected — ops did not alter the playbook body or triggers. Reject this
@@ -132,7 +132,7 @@ export function PlaybookPatchDiff({ preview }: { preview: PatchPreview }) {
           <h4 className="text-sm font-medium text-gray-400">Title</h4>
           <div className={`${diffPanelClass} p-0`}>
             {preview.before.title && (
-              <div className="grid grid-cols-[3rem_3rem_1fr] bg-rose-950/70 text-rose-100">
+              <div className="grid min-w-0 grid-cols-[3rem_3rem_minmax(0,1fr)] bg-rose-950/70 text-rose-100">
                 <span className="border-r border-gray-800/80 px-2 py-0.5" />
                 <span className="border-r border-gray-800/80 px-2 py-0.5" />
                 <div className="flex gap-2 px-2 py-0.5">
@@ -142,7 +142,7 @@ export function PlaybookPatchDiff({ preview }: { preview: PatchPreview }) {
               </div>
             )}
             {preview.after.title && (
-              <div className="grid grid-cols-[3rem_3rem_1fr] bg-emerald-950/70 text-emerald-100">
+              <div className="grid min-w-0 grid-cols-[3rem_3rem_minmax(0,1fr)] bg-emerald-950/70 text-emerald-100">
                 <span className="border-r border-gray-800/80 px-2 py-0.5" />
                 <span className="border-r border-gray-800/80 px-2 py-0.5" />
                 <div className="flex gap-2 px-2 py-0.5">

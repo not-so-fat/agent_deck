@@ -41,10 +41,10 @@ One MCP endpoint, registered once. Decks scope it per job; playbooks make it com
 
 ```bash
 npm install -g @agent-deck/cli
-agent-deck start
+agent-deck start --daemon
 ```
 
-Open `http://127.0.0.1:1111`. Day to day: `agent-deck start` / `agent-deck stop` · `agent-deck status` if something fails.
+Open `http://127.0.0.1:1111`. Day to day: `agent-deck start --daemon` / `agent-deck stop` · `agent-deck status` if something fails. Use plain `agent-deck start` only when you want a foreground process in an open terminal (logs go to stdout).
 
 ### 2. Register Agent Deck in your agent
 

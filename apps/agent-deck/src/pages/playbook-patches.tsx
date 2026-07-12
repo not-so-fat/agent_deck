@@ -97,7 +97,7 @@ export default function PlaybookPatchesPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(18rem,20rem)_1fr] lg:items-start">
+      <main className="mx-auto grid min-w-0 max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)] lg:items-start">
         <section className="min-w-0">
           <h2 className="mb-3 text-sm font-medium text-gray-400">Proposals</h2>
           {isLoading && <p className="text-sm text-gray-500">Loading…</p>}
@@ -140,44 +140,48 @@ export default function PlaybookPatchesPage() {
             <p className="text-sm text-gray-500">Select a proposal to preview the diff.</p>
           )}
           {selected && (
-            <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4 sm:p-5">
-              <div className="space-y-4">
-                <p className="text-sm leading-relaxed text-gray-300">{selected.rationale}</p>
-                {(() => {
-                  const evidence = parseEvidence(selected);
-                  if (!evidence) return null;
-                  return (
-                    <div className="rounded-md border border-gray-700 bg-gray-950 p-4 text-sm">
-                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Your correction
-                      </p>
-                      <p className="mt-2 italic text-gray-200">
-                        &ldquo;{evidence.user_feedback_excerpt}&rdquo;
-                      </p>
-                      {evidence.failure_summary && (
-                        <p className="mt-2 text-gray-400">{evidence.failure_summary}</p>
-                      )}
+            <div className="flex max-h-[calc(100dvh-8rem)] min-h-0 flex-col overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                <div className="min-w-0 space-y-4">
+                  <p className="text-sm leading-relaxed text-gray-300">{selected.rationale}</p>
+                  {(() => {
+                    const evidence = parseEvidence(selected);
+                    if (!evidence) return null;
+                    return (
+                      <div className="rounded-md border border-gray-700 bg-gray-950 p-4 text-sm">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                          Your correction
+                        </p>
+                        <p className="mt-2 italic text-gray-200">
+                          &ldquo;{evidence.user_feedback_excerpt}&rdquo;
+                        </p>
+                        {evidence.failure_summary && (
+                          <p className="mt-2 text-gray-400">{evidence.failure_summary}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {previewLoading && <p className="text-sm text-gray-500">Loading preview…</p>}
+                  {previewError && (
+                    <div className="rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-100">
+                      Preview failed — {previewErrorDetail?.message ?? "could not apply ops to the current playbook."}
+                      {" "}Reject and re-propose with exact list anchors or <code>rewrite_body</code>.
                     </div>
-                  );
-                })()}
-                {previewLoading && <p className="text-sm text-gray-500">Loading preview…</p>}
-                {previewError && (
-                  <div className="rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-100">
-                    Preview failed — {previewErrorDetail?.message ?? "could not apply ops to the current playbook."}
-                    {" "}Reject and re-propose with exact list anchors or <code>rewrite_body</code>.
-                  </div>
-                )}
-                {preview && <PlaybookPatchDiff preview={preview} />}
-                {selected.status === "stale" && (
-                  <p className="text-sm text-amber-400">
-                    Stale — playbook changed since proposal. Re-propose from a fresh session.
-                  </p>
-                )}
+                  )}
+                  {preview && <PlaybookPatchDiff preview={preview} />}
+                  {selected.status === "stale" && (
+                    <p className="text-sm text-amber-400">
+                      Stale — playbook changed since proposal. Re-propose from a fresh session.
+                    </p>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-6 space-y-4 border-t border-gray-800 pt-5">
+              <div className="shrink-0 space-y-4 border-t border-gray-800 bg-gray-900/95 p-4 backdrop-blur-sm sm:p-5">
                 <h3 className="text-sm font-medium text-gray-400">Your decision</h3>
                 <Button
+                  variant="gold"
+                  className="w-full sm:w-auto"
                   onClick={() => acceptMutation.mutate(selected.id)}
                   disabled={acceptMutation.isPending || previewError || !previewHasChanges}
                 >
