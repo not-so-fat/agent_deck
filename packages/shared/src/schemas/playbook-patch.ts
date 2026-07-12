@@ -20,32 +20,32 @@ export const PatchEvidenceSchema = z.object({
 });
 
 export const AddItemOpSchema = z.object({
-  op: z.literal('add_item'),
-  section: z.string().min(1),
-  text: z.string().min(1),
+  op: z.literal('add_item').describe('Append a bullet to a ## section (creates the section if missing)'),
+  section: z.string().min(1).describe('## heading name, e.g. Gotchas or Checklist'),
+  text: z.string().min(1).describe('Bullet text; a leading "- " is added when omitted'),
 });
 
 export const AmendItemOpSchema = z.object({
-  op: z.literal('amend_item'),
-  section: z.string().min(1),
-  anchor: z.string().min(1),
-  text: z.string().min(1),
+  op: z.literal('amend_item').describe('Replace one existing list item line (not prose paragraphs)'),
+  section: z.string().min(1).describe('## heading that contains the anchor line'),
+  anchor: z.string().min(1).describe('Exact list line to replace, including "- " prefix'),
+  text: z.string().min(1).describe('Replacement bullet text; leading "- " optional'),
 });
 
 export const RemoveItemOpSchema = z.object({
-  op: z.literal('remove_item'),
-  section: z.string().min(1),
-  anchor: z.string().min(1),
+  op: z.literal('remove_item').describe('Delete one existing list item line (not prose paragraphs)'),
+  section: z.string().min(1).describe('## heading that contains the anchor line'),
+  anchor: z.string().min(1).describe('Exact list line to delete, including "- " prefix'),
 });
 
 export const SetTriggersOpSchema = z.object({
-  op: z.literal('set_triggers'),
-  triggers: z.array(z.string()),
+  op: z.literal('set_triggers').describe('Replace the playbook trigger phrases'),
+  triggers: z.array(z.string()).describe('New trigger list'),
 });
 
 export const RewriteBodyOpSchema = z.object({
-  op: z.literal('rewrite_body'),
-  text: z.string(),
+  op: z.literal('rewrite_body').describe('Replace the entire playbook body — use only when item ops cannot reach the edit'),
+  text: z.string().describe('Full new markdown body'),
 });
 
 export const BodyPatchOpSchema = z.discriminatedUnion('op', [

@@ -128,10 +128,12 @@ CLAUDE.md / .mdc templates and PLAYBOOKS_AND_SKILLS.md / AGENT_HARNESS.md update
 
 ## 8. Error handling
 
+- **Propose-time validation (update patches):** ops are dry-run against the current playbook before a proposal is stored. Anchor/section mismatch or non-list anchors → **409** with a concrete message (no silent empty proposals). Ops that resolve but change nothing → **409** `PatchNoChangeError`.
 - Anchor mismatch at accept → 409, patch → `stale`; never partial-apply (ops apply is all-or-nothing).
 - Proposal referencing a deleted playbook → reject-on-sight with system reason.
 - Backend offline when proposing (dealer) → existing `checkAgentDeckHealth` skip path, reflect_status records it.
-- MCP propose with malformed ops → tool error with the expected shape (agent can retry).
+- MCP propose uses typed `PatchOpSchema` (`add_item` | `amend_item` | `remove_item` | `set_triggers` | `rewrite_body`) with field descriptions — not free-form `op` strings.
+- Dashboard preview: **409** surfaces as an explicit preview-failed banner; successful previews with identical before/after show **no change detected** and disable Accept.
 
 ## 9. Testing
 

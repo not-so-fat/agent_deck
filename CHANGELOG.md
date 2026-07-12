@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1 — 2026-07-12
+
+### Playbook review & proposals
+
+- **Propose-time validation:** update patches dry-run before storage; **409** on anchor mismatch, non-list `amend_item` targets, or no-op ops (`PatchNoChangeError`)
+- **MCP `propose_playbook_patch`:** typed `PatchOpSchema` with field descriptions (`add_item`, `amend_item`, `remove_item`, `set_triggers`, `rewrite_body`)
+- **Dashboard review queue:** GitHub-style unified diff; narrow list + wide detail; **No change detected** and **Preview failed** banners; Accept disabled when preview has no diff
+- **Harness + stub templates:** pushier stub descriptions, `propose_playbook_patch` op table, playbook-task workflow — re-run `agent-deck setup` after upgrade; `agent-deck use --refresh` after trigger changes
+
+### Tests & docs
+
+- Route tests for `POST /api/playbook-patches` (409/201) and `patchPreviewHasChanges`
+- Learning-loop manual scenarios H (propose 409) and I (visual diff)
+
 ## 1.4.0 — 2026-07-11
 
 ### Playbook learning loop

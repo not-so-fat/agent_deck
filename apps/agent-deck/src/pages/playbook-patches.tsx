@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { PatchPreview, PlaybookPatch } from "@agent-deck/shared";
+import type { PlaybookPatch } from "@agent-deck/shared";
+import { patchPreviewHasChanges } from "@/lib/patch-preview";
 import {
   acceptPlaybookPatch,
   getPlaybookPatchPreview,
@@ -12,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { PlaybookPatchDiff } from "@/components/playbook-patch-diff";
 import { ArrowLeft } from "lucide-react";
 
 function parseEvidence(patch: PlaybookPatch) {
@@ -27,45 +29,6 @@ function parseEvidence(patch: PlaybookPatch) {
   }
 }
 
-function DiffPanel({ preview }: { preview: PatchPreview }) {
-  const rewrite =
-    preview.before.body.trim() !== preview.after.body.trim() &&
-    preview.after.body.length > 0 &&
-    !preview.after.body.includes(preview.before.body.slice(0, 40));
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {rewrite && (
-        <div className="md:col-span-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm text-amber-100">
-          Full-body rewrite proposed — review carefully.
-        </div>
-      )}
-      <div>
-        <h4 className="mb-2 text-sm font-medium text-gray-400">Before</h4>
-        <pre className="max-h-64 overflow-auto rounded-md bg-gray-900 p-3 text-xs text-gray-200 whitespace-pre-wrap">
-          {preview.before.body || "(empty)"}
-        </pre>
-        {preview.before.triggers.length > 0 && (
-          <p className="mt-2 text-xs text-gray-500">
-            Triggers: {preview.before.triggers.join(", ")}
-          </p>
-        )}
-      </div>
-      <div>
-        <h4 className="mb-2 text-sm font-medium text-gray-400">After</h4>
-        <pre className="max-h-64 overflow-auto rounded-md bg-gray-900 p-3 text-xs text-green-100 whitespace-pre-wrap">
-          {preview.after.body || "(empty)"}
-        </pre>
-        {preview.after.triggers.length > 0 && (
-          <p className="mt-2 text-xs text-gray-500">
-            Triggers: {preview.after.triggers.join(", ")}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function PlaybookPatchesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -77,11 +40,18 @@ export default function PlaybookPatchesPage() {
     queryFn: () => listPlaybookPatches("proposed"),
   });
 
-  const { data: preview, isLoading: previewLoading } = useQuery({
+  const {
+    data: preview,
+    isLoading: previewLoading,
+    isError: previewError,
+    error: previewErrorDetail,
+  } = useQuery({
     queryKey: ["/api/playbook-patches", selectedId, "preview"],
     queryFn: () => getPlaybookPatchPreview(selectedId!),
     enabled: Boolean(selectedId),
   });
+
+  const previewHasChanges = preview ? patchPreviewHasChanges(preview) : false;
 
   const selected = patches.find((p) => p.id === selectedId) ?? null;
 
@@ -115,7 +85,7 @@ export default function PlaybookPatchesPage() {
   return (
     <div className="min-h-dvh bg-gray-950 text-gray-100">
       <header className="border-b border-gray-800 px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-3">
           <Link href="/">
             <Button variant="ghost" size="sm" className="text-gray-300">
               <ArrowLeft className="mr-1 h-4 w-4" />
@@ -127,8 +97,8 @@ export default function PlaybookPatchesPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-2">
-        <section>
+      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(18rem,20rem)_1fr] lg:items-start">
+        <section className="min-w-0">
           <h2 className="mb-3 text-sm font-medium text-gray-400">Proposals</h2>
           {isLoading && <p className="text-sm text-gray-500">Loading…</p>}
           {!isLoading && patches.length === 0 && (
@@ -164,60 +134,72 @@ export default function PlaybookPatchesPage() {
           </ul>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <h2 className="mb-3 text-sm font-medium text-gray-400">Detail</h2>
           {!selected && (
             <p className="text-sm text-gray-500">Select a proposal to preview the diff.</p>
           )}
           {selected && (
-            <div className="space-y-4 rounded-lg border border-gray-800 bg-gray-900/50 p-4">
-              <p className="text-sm text-gray-300">{selected.rationale}</p>
-              {(() => {
-                const evidence = parseEvidence(selected);
-                if (!evidence) return null;
-                return (
-                  <div className="rounded-md border border-gray-700 bg-gray-950 p-3 text-sm">
-                    <p className="text-xs font-medium uppercase text-gray-500">Your correction</p>
-                    <p className="mt-1 italic text-gray-200">
-                      &ldquo;{evidence.user_feedback_excerpt}&rdquo;
-                    </p>
-                    {evidence.failure_summary && (
-                      <p className="mt-2 text-gray-400">{evidence.failure_summary}</p>
-                    )}
+            <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-4 sm:p-5">
+              <div className="space-y-4">
+                <p className="text-sm leading-relaxed text-gray-300">{selected.rationale}</p>
+                {(() => {
+                  const evidence = parseEvidence(selected);
+                  if (!evidence) return null;
+                  return (
+                    <div className="rounded-md border border-gray-700 bg-gray-950 p-4 text-sm">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                        Your correction
+                      </p>
+                      <p className="mt-2 italic text-gray-200">
+                        &ldquo;{evidence.user_feedback_excerpt}&rdquo;
+                      </p>
+                      {evidence.failure_summary && (
+                        <p className="mt-2 text-gray-400">{evidence.failure_summary}</p>
+                      )}
+                    </div>
+                  );
+                })()}
+                {previewLoading && <p className="text-sm text-gray-500">Loading preview…</p>}
+                {previewError && (
+                  <div className="rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-100">
+                    Preview failed — {previewErrorDetail?.message ?? "could not apply ops to the current playbook."}
+                    {" "}Reject and re-propose with exact list anchors or <code>rewrite_body</code>.
                   </div>
-                );
-              })()}
-              {previewLoading && <p className="text-sm text-gray-500">Loading preview…</p>}
-              {preview && <DiffPanel preview={preview} />}
-              {selected.status === "stale" && (
-                <p className="text-sm text-amber-400">
-                  Stale — playbook changed since proposal. Re-propose from a fresh session.
-                </p>
-              )}
-              <div className="flex flex-wrap gap-2">
+                )}
+                {preview && <PlaybookPatchDiff preview={preview} />}
+                {selected.status === "stale" && (
+                  <p className="text-sm text-amber-400">
+                    Stale — playbook changed since proposal. Re-propose from a fresh session.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-6 space-y-4 border-t border-gray-800 pt-5">
+                <h3 className="text-sm font-medium text-gray-400">Your decision</h3>
                 <Button
                   onClick={() => acceptMutation.mutate(selected.id)}
-                  disabled={acceptMutation.isPending}
+                  disabled={acceptMutation.isPending || previewError || !previewHasChanges}
                 >
                   Accept
                 </Button>
-              </div>
-              <div className="space-y-2 border-t border-gray-800 pt-4">
-                <Textarea
-                  placeholder="Rejection reason (required)"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="min-h-[72px] bg-gray-950"
-                />
-                <Button
-                  variant="destructive"
-                  disabled={!rejectReason.trim() || rejectMutation.isPending}
-                  onClick={() =>
-                    rejectMutation.mutate({ id: selected.id, reason: rejectReason.trim() })
-                  }
-                >
-                  Reject
-                </Button>
+                <div className="space-y-2 rounded-md border border-gray-800 bg-gray-950/60 p-3">
+                  <Textarea
+                    placeholder="Rejection reason (required)"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="min-h-[88px] bg-gray-950"
+                  />
+                  <Button
+                    variant="destructive"
+                    disabled={!rejectReason.trim() || rejectMutation.isPending}
+                    onClick={() =>
+                      rejectMutation.mutate({ id: selected.id, reason: rejectReason.trim() })
+                    }
+                  >
+                    Reject
+                  </Button>
+                </div>
               </div>
             </div>
           )}

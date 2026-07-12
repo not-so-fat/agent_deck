@@ -67,6 +67,10 @@ function formatListItem(text: string): string {
   return `- ${trimmed}`;
 }
 
+function isListItemLine(line: string): boolean {
+  return /^(-|\d+\.)\s/.test(line.trim());
+}
+
 function applyBodyOp(state: PlaybookPatchState, op: PatchOp): ApplyPatchOpsResult {
   if (op.op === 'rewrite_body') {
     return { ok: true, value: { ...state, body: op.text } };
@@ -101,7 +105,14 @@ function applyBodyOp(state: PlaybookPatchState, op: PatchOp): ApplyPatchOpsResul
     if (index === -1) {
       return {
         ok: false,
-        conflict: `Anchor not found in section "${op.section}": ${op.anchor}`,
+        conflict: `Anchor not found in section "${op.section}": ${op.anchor}. amend_item/remove_item require an exact list item line (- or 1. prefix). Use add_item for new bullets or rewrite_body for prose edits.`,
+      };
+    }
+    const matched = section.lines[index];
+    if (!isListItemLine(matched)) {
+      return {
+        ok: false,
+        conflict: `Anchor in section "${op.section}" must be a list item line (- or 1. prefix), not prose or headings. Use add_item for new bullets or rewrite_body for prose edits.`,
       };
     }
     if (op.op === 'amend_item') {

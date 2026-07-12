@@ -10,7 +10,7 @@ export const CURSOR_RULE_FILENAME = 'agent-deck.mdc';
 
 /** One-line rule description (Cursor rule picker / skill-style discoverability). */
 export const HARNESS_RULE_DESCRIPTION =
-  'Agent Deck MCP — check decks for tools; playbooks for recipes; self-improve playbooks from feedback';
+  'Use when user mentions decks, playbooks, deck MCP tools, or corrects playbook output — Agent Deck harness';
 
 const GLOBAL_BODY = `**Connect first:** Ensure Agent Deck MCP is connected before using deck tools (\`agent-deck setup --client cursor|claude --start\`, then restart the host). Claude Code: \`claude mcp list\` should show agent-deck as Connected when the backend is running.
 
@@ -22,6 +22,12 @@ Before declining for missing tools (Slack, Linear, GitHub, etc.), use agent-deck
 
 Deck playbooks are task recipes — thin trigger stubs from \`agent-deck use\` plus \`get_bound_deck\` / \`get_playbook\`. **Never** mirror playbook bodies into \`.cursor/skills/\`, rules, or Claude skills — one source of truth on the deck; stubs are pointers only.
 
+### When user asks for a playbook task
+
+1. \`bind_workspace\` if needed.
+2. \`get_playbook(pb_x)\` before improvising (stub or \`get_bound_deck\` triggers point you here).
+3. Follow the playbook body; use \`call_service_tool\` for deck MCPs.
+
 ### Playbooks — refine from outcomes (self-improvement)
 
 **When the user corrects your output** (the write trigger — no need to have called \`get_playbook\` earlier in the session):
@@ -32,9 +38,21 @@ Deck playbooks are task recipes — thin trigger stubs from \`agent-deck use\` p
 
 **Explicit user-directed playbook edits** ("fix the playbook to say X"): \`update_playbook\` — they already reviewed.
 
-Tell the user in one line that a proposal was filed; review happens in the dashboard.
+Tell the user in one line: proposal filed — review in dashboard **Playbook patches** (unified diff).
 
-**How to shape proposals:** generalize project-specific names but keep concrete gotchas; place lessons in Checklist/Gotchas; use \`rewrite_body\` only when structure cannot absorb the lesson.`;
+**How to shape proposals:** generalize project-specific names but keep concrete gotchas; place lessons in Checklist/Gotchas; use \`rewrite_body\` only when structure cannot absorb the lesson.
+
+**propose_playbook_patch ops:**
+
+| Situation | Op | Notes |
+|-----------|-----|-------|
+| New gotcha or checklist item | \`add_item\` | \`section\`: ## heading; \`text\`: bullet (leading \`-\` optional) |
+| Replace one list line | \`amend_item\` | \`anchor\`: exact line including \`-\` prefix — **not prose** |
+| Delete one list line | \`remove_item\` | Same anchor rules as amend |
+| Edit prose or a whole section | \`rewrite_body\` | Not amend_item on paragraphs |
+| Change trigger phrases | \`set_triggers\` | Then user runs \`agent-deck use --refresh\` |
+
+Wrong: \`amend_item\` with a prose sentence as anchor → **409** at propose. Right: \`rewrite_body\` for prose edits.`;
 
 const PROJECT_BODY_EXTRA =
   'In this repo: run \`agent-deck use <deck>\` once (writes MCP + trigger stubs + \`.agent-deck/use.json\`). \`bind_workspace\` with the workspace root and that \`deckId\`. When a task matches a stub or deck \`triggers\`, \`get_playbook\` before improvising. After accepting playbook patches that change triggers, run \`agent-deck use --refresh\`.';

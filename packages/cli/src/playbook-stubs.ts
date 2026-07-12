@@ -31,10 +31,9 @@ export function slugFromPlaybook(title: string, id: string): string {
 
 export function buildStubDescription(playbook: PlaybookStubInput): string {
   const fromTriggers = playbook.triggers.map((trigger) => trigger.trim()).filter(Boolean);
-  if (fromTriggers.length > 0) {
-    return fromTriggers.join(', ');
-  }
-  return playbook.title.trim() || playbook.id;
+  const when =
+    fromTriggers.length > 0 ? fromTriggers.join(', ') : playbook.title.trim() || playbook.id;
+  return `Use when the user asks about ${when}. Call get_playbook("${playbook.id}") before improvising.`;
 }
 
 export function buildCursorStubFile(playbook: PlaybookStubInput): string {
@@ -52,7 +51,7 @@ export function buildCursorStubFile(playbook: PlaybookStubInput): string {
     'Playbook body lives on the deck — **never** copy procedure steps into this file.',
     '',
     `1. \`bind_workspace\` if needed, then \`get_playbook("${playbook.id}")\` before following steps.`,
-    '2. On user correction to playbook-shaped output: `propose_playbook_patch` with evidence (not `update_playbook` unless they directed an edit).',
+    '2. On user correction: `propose_playbook_patch` — `add_item` for gotchas; `amend_item` only for exact list lines; `rewrite_body` for prose (not `update_playbook` unless they directed an edit).',
     STUB_MARKER_END,
     '',
   ].join('\n');
@@ -75,7 +74,7 @@ export function buildClaudeStubFile(playbook: PlaybookStubInput): string {
     'Playbook body lives on the deck — **never** copy procedure steps into this file.',
     '',
     `1. \`bind_workspace\` if needed, then \`get_playbook("${playbook.id}")\` before following steps.`,
-    '2. On user correction to playbook-shaped output: `propose_playbook_patch` with evidence (not `update_playbook` unless they directed an edit).',
+    '2. On user correction: `propose_playbook_patch` — `add_item` for gotchas; `amend_item` only for exact list lines; `rewrite_body` for prose (not `update_playbook` unless they directed an edit).',
     STUB_MARKER_END,
     '',
   ].join('\n');

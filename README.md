@@ -5,7 +5,31 @@
 
 **Switch what your agent knows — decks of tools, keys, and self-improving playbooks.**
 
-[Quick Start](#quick-start) · [Reference](#reference) · [Docs](#documentation)
+[Why](#why) · [Quick Start](#quick-start) · [Reference](#reference) · [Docs](#documentation)
+
+<!-- DEMO VIDEO/GIF — drop the demo here.
+     On github.com, drag the .mp4 into the README editor to get a user-attachments URL,
+     then paste it on its own line. GIF fallback:
+<img src="misc/demo.gif" alt="Switch decks mid-session; the agent's tools and playbooks follow" width="80%" />
+-->
+
+## Why
+
+You lean on one agent for everything — client code, triage, releases, research. Each kind of work needs its own MCP servers, API keys, and procedures. Wire them all into the agent at once and the tool list balloons: the agent slows down, picks the wrong integration, or leaks one client's context into another's. And the procedures you carefully explained live in old chat threads — you re-explain the same release checklist every session.
+
+**Monday, 9am — client bug.** You say *"use the acme deck."* The agent binds that client's Linear and repo MCP servers, their keys from your Keychain, and the `code-review` playbook that encodes how they like PRs. Only that deck's tools are in play.
+
+**Same afternoon — your own release.** *"Switch to the dev deck."* Different tools, different keys, and the `ship-to-npm` playbook with the checklist you refined last month. Nothing from acme leaks in.
+
+**You correct the agent once** — "changelog entries go newest-first." Instead of dying with the thread, the correction becomes a playbook **patch proposal**; you accept it in the dashboard, and every future session — Cursor or Claude Code — starts from what you taught it, not from scratch.
+
+One MCP endpoint, registered once. Decks scope it per job; playbooks make it compound.
+
+<img src="./misc/Idea.png" alt="Single MCP for Context" width="70%" />
+
+### Run your day through it
+
+[agent-dealer](https://github.com/not-so-fat/agent-dealer) is the execution half: queue tasks against a deck, approve the plan before anything runs, execute headless under budget caps, review results, and gate every outbound send. Dealer runs consume deck playbooks and file patch proposals back — every run makes the next one better. ([Direction](docs/DIRECTION.md))
 
 ## Quick Start
 
@@ -96,24 +120,6 @@ Terminal agents show the active deck in the footer (`◆ dev · 2 MCP · …`). 
 
 ---
 
-## Problem
-
-We lean on one agent for more kinds of work — code, triage, releases, research. Each kind adds **external dependencies**: MCP servers, API keys, OAuth apps, and **playbooks** you want the agent to follow and refine over time.
-
-Some dependencies are **shared** (GitHub, Linear, Slack). Others belong to **one client or repo**. If everything is connected at once, the tool list balloons — the agent slows down, picks the wrong integration, or leaks context across jobs.
-
-Playbooks stay in old threads or docs — you **re-explain the same procedure** every session, and corrections from one chat **don’t carry into the next**.
-
-## Idea
-
-Connect **one** Agent Deck MCP endpoint. Register dependencies and **playbooks** once in a **collection**. **Decks** mix them for each kind of work. Each session, **you name the deck** — there is no default — and only that deck’s tools and playbooks are in play.
-
-When you give feedback on a playbook-backed task, the agent files a **patch proposal**; after you accept it in the dashboard, the next run starts from what you taught it — not from scratch.
-
-<img src="./misc/Idea.png" alt="Single MCP for Context" width="70%" />
-
----
-
 ## Reference
 
 For contributors, dev ports (`:3000` / `:8000` / `:3001`) and env vars → [Setup](docs/SETUP.md) · [Development](docs/DEVELOPMENT.md).
@@ -142,6 +148,7 @@ Port conflicts: `agent-deck status` · `agent-deck start --force`
 
 | Guide | Description |
 |-------|-------------|
+| [Direction](docs/DIRECTION.md) | Cross-product direction — agent_deck + agent-dealer |
 | [Setup](docs/SETUP.md) | Ports, env vars, secrets, troubleshooting |
 | [MVP](docs/MVP.md) | Source of truth — decks, vault, playbooks, MCP tools |
 | [Agent harness](docs/AGENT_HARNESS.md) | What `setup` installs |

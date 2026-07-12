@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseManager } from '../models/database';
 import { PlaybookManager } from './playbook-manager';
-import { PatchManager, PatchConflictError } from './patch-manager';
+import { PatchManager, PatchConflictError, PatchNoChangeError } from './patch-manager';
 
 describe('PatchManager', () => {
   let dbPath: string;
@@ -87,6 +87,55 @@ describe('PatchManager', () => {
     expect(onDeck[0].triggers).toContain('slip risk');
   });
 
+  it('rejects propose when anchor does not resolve', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Test',
+      body: '## Steps\n- Step one.\n',
+      triggers: [],
+    });
+
+    await expect(
+      patchManager.propose(
+        {
+          kind: 'update',
+          playbook_id: playbook.id,
+          ops: [
+            {
+              op: 'amend_item',
+              section: 'Steps',
+              anchor: '- Missing anchor.',
+              text: '- Nope.',
+            },
+          ],
+          rationale: 'test',
+        },
+        'ide',
+        null,
+      ),
+    ).rejects.toBeInstanceOf(PatchConflictError);
+  });
+
+  it('rejects propose when ops produce no change', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Test',
+      body: '## Steps\n- Step one.\n',
+      triggers: ['ship'],
+    });
+
+    await expect(
+      patchManager.propose(
+        {
+          kind: 'update',
+          playbook_id: playbook.id,
+          ops: [{ op: 'set_triggers', triggers: ['ship'] }],
+          rationale: 'test',
+        },
+        'ide',
+        null,
+      ),
+    ).rejects.toBeInstanceOf(PatchNoChangeError);
+  });
+
   it('marks patch stale on anchor conflict at accept', async () => {
     const playbook = await playbookManager.create({
       title: 'Test',
@@ -94,23 +143,24 @@ describe('PatchManager', () => {
       triggers: [],
     });
 
-    const patch = await patchManager.propose(
-      {
-        kind: 'update',
-        playbook_id: playbook.id,
-        ops: [
-          {
-            op: 'amend_item',
-            section: 'Steps',
-            anchor: '- Missing anchor.',
-            text: '- Nope.',
-          },
-        ],
-        rationale: 'test',
-      },
-      'ide',
-      null,
-    );
+    // Bypass propose-time validation by inserting patch directly (simulates legacy proposals).
+    const patch = await db.createPlaybookPatch({
+      id: `pp_${Date.now()}`,
+      kind: 'update',
+      playbookId: playbook.id,
+      opsJson: JSON.stringify([
+        {
+          op: 'amend_item',
+          section: 'Steps',
+          anchor: '- Missing anchor.',
+          text: '- Nope.',
+        },
+      ]),
+      rationale: 'test',
+      source: 'ide',
+      sourceRef: null,
+      evidenceJson: null,
+    });
 
     await expect(patchManager.accept(patch.id)).rejects.toBeInstanceOf(PatchConflictError);
     const stale = await db.getPlaybookPatch(patch.id);

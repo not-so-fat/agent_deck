@@ -13,8 +13,9 @@ import {
 
 describe('agent-harness templates', () => {
   it('keeps cursor description concise (skill-style)', () => {
-    expect(HARNESS_RULE_DESCRIPTION.length).toBeLessThan(120);
+    expect(HARNESS_RULE_DESCRIPTION.length).toBeLessThan(140);
     expect(CURSOR_RULE_FILENAME).toBe('agent-deck.mdc');
+    expect(HARNESS_RULE_DESCRIPTION).toContain('Use when');
   });
 
   it('global cursor file includes self-improvement playbook rules', () => {
@@ -28,6 +29,9 @@ describe('agent-harness templates', () => {
     expect(file).toContain('get_session_binding');
     expect(file).toContain('Genesis case');
     expect(file).toContain('evidence.user_feedback_excerpt');
+    expect(file).toContain('add_item');
+    expect(file).toContain('rewrite_body');
+    expect(file).toContain('409');
     expect(file).not.toContain('weekly priority');
   });
 

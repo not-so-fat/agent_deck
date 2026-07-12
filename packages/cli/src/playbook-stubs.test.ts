@@ -37,23 +37,26 @@ describe('playbook-stubs', () => {
 
   it('builds cursor stub with triggers in description and pointer body', () => {
     const file = buildCursorStubFile(playbook);
-    expect(file).toContain('description: check inbox, triage candidates');
+    expect(file).toContain('description: Use when the user asks about check inbox, triage candidates');
+    expect(file).toContain('get_playbook("pb_hiring_inbox")');
     expect(file).toContain('alwaysApply: false');
     expect(file).toContain(`${STUB_MARKER_START_PREFIX} pb_hiring_inbox -->`);
-    expect(file).toContain('get_playbook("pb_hiring_inbox")');
-    expect(file).toContain('propose_playbook_patch');
+    expect(file).toContain('add_item');
+    expect(file).toContain('rewrite_body');
     expect(file).toContain(STUB_MARKER_END);
     expect(file).not.toContain('weekly priority');
   });
 
   it('falls back to title when triggers are empty', () => {
-    expect(buildStubDescription({ ...playbook, triggers: [] })).toBe('Hiring Inbox');
+    expect(buildStubDescription({ ...playbook, triggers: [] })).toBe(
+      'Use when the user asks about Hiring Inbox. Call get_playbook("pb_hiring_inbox") before improvising.',
+    );
   });
 
   it('builds claude skill stub with name frontmatter', () => {
     const file = buildClaudeStubFile(playbook);
     expect(file).toContain('name: agent-deck-hiring-inbox');
-    expect(file).toContain('description: check inbox, triage candidates');
+    expect(file).toContain('description: Use when the user asks about check inbox, triage candidates');
   });
 
   it('sync creates stubs and removes retired playbooks', () => {
@@ -101,6 +104,7 @@ describe('playbook-stubs', () => {
       'utf8',
     );
     expect(content).toContain('new trigger');
+    expect(content).toContain('Use when the user asks about');
   });
 
   it('writes and reads use manifest', () => {

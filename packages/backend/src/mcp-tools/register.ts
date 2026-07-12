@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { countDeckCards, formatDisplayLine } from '@agent-deck/shared';
+import { countDeckCards, formatDisplayLine, PatchOpSchema } from '@agent-deck/shared';
 import { resolveDeckBindingSource } from '../mcp-session-binding';
 import { executeListCollection, executeManageDeckCard } from './deck-card-ops';
 import { McpToolProfile, profileIncludes } from './profile';
@@ -232,21 +232,16 @@ function registerRuntimeTools(host: McpToolHost): void {
   r('propose_playbook_patch', {
     title: 'Propose Playbook Patch',
     description:
-      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal (item deltas preferred). Use after fixing output when the user corrected you.',
+      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal. Prefer add_item to Gotchas/Checklist; amend_item/remove_item only for exact list lines (- prefix); rewrite_body for prose edits.',
     inputSchema: {
       kind: z.enum(['create', 'update', 'merge', 'retire']),
       playbook_id: z.string().optional(),
       ops: z
-        .array(
-          z.object({
-            op: z.string(),
-            section: z.string().optional(),
-            text: z.string().optional(),
-            anchor: z.string().optional(),
-            triggers: z.array(z.string()).optional(),
-          }),
-        )
-        .optional(),
+        .array(PatchOpSchema)
+        .optional()
+        .describe(
+          'Item-level ops: add_item | amend_item | remove_item | set_triggers | rewrite_body. List ops target ## sections and exact bullet lines only.',
+        ),
       new_playbook: z
         .object({
           title: z.string(),

@@ -23,6 +23,13 @@ export class PatchConflictError extends Error {
   }
 }
 
+export class PatchNoChangeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PatchNoChangeError';
+  }
+}
+
 export class PatchManager {
   constructor(
     private db: DatabaseManager,
@@ -74,6 +81,26 @@ export class PatchManager {
     }
 
     const ops = parseOps(validated.ops ?? []);
+    if (ops.length === 0) {
+      throw new Error('ops is required and must not be empty for update patches');
+    }
+
+    const dryRun = applyPatchOps(
+      { body: playbook.body, triggers: playbook.triggers },
+      ops,
+    );
+    if (!dryRun.ok) {
+      throw new PatchConflictError(dryRun.conflict);
+    }
+    const bodyUnchanged = dryRun.value.body === playbook.body;
+    const triggersUnchanged =
+      JSON.stringify(dryRun.value.triggers) === JSON.stringify(playbook.triggers);
+    if (bodyUnchanged && triggersUnchanged) {
+      throw new PatchNoChangeError(
+        'Patch ops resolve but produce no change. amend_item/remove_item anchors must match exact list lines; use rewrite_body for prose edits.',
+      );
+    }
+
     return this.db.createPlaybookPatch({
       id: this.newPatchId(),
       kind: validated.kind,

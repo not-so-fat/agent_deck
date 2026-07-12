@@ -8,7 +8,8 @@
 
 ```bash
 npm run dev:all
-node .temporal/scripts/seed-dev-learning-loop.mjs
+# Optional: seed a visual diff demo proposal
+bash .temporal/scripts/seed-pr-handoff-proposal.sh
 AGENT_DECK_DEV=1 npm run agent-deck:dev -- use dev --mcp-port 3001 --client both
 ```
 
@@ -18,7 +19,7 @@ Restart Cursor / Claude Code so MCP reloads **`:3001`**. Dashboard: http://local
 |-------|----------|
 | `.cursor/mcp.json` | `"url": "http://127.0.0.1:3001/mcp"` |
 | `.agent-deck/use.json` | `deckId` for dev deck in `~/.agent-deck/dev` |
-| `.cursor/rules/agent-deck-stubs/` | `pb_dev_smoke_checklist.mdc`, `pb_pr_summary.mdc` with triggers in `description:` |
+| `.cursor/rules/agent-deck-stubs/` | `pb_*.mdc` stubs with `Use when the user asks about…` in `description:` |
 | Session bind | Agent uses `use.json` deckId or you say *"use dev deck"* |
 
 ---
@@ -114,12 +115,62 @@ Restart Cursor / Claude Code so MCP reloads **`:3001`**. Dashboard: http://local
 
 ---
 
+## Scenario H — Propose-time 409 (bad ops rejected)
+
+**Goal:** Invalid or no-op patches fail at **propose**, not as silent empty diffs.
+
+1. With dev stack running, attempt (via agent or curl) `propose_playbook_patch` with `amend_item` on a **prose** line (not a `-` list item).
+2. Expect **409** with message about list-item anchors or `rewrite_body`.
+3. Attempt `set_triggers` with the **same** triggers as the live playbook.
+4. Expect **409** `no change` — proposal is not stored.
+
+**Pass:** no new row in queue for failed proposes; error text is actionable.  
+**Fail signals:** 201 created with identical before/after in preview.
+
+```bash
+# Prose amend (should 409)
+curl -s -X POST http://127.0.0.1:8000/api/playbook-patches \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "kind": "update",
+    "playbook_id": "pb_pr_summary",
+    "ops": [{
+      "op": "amend_item",
+      "section": "Output",
+      "anchor": "- 3 bullets: what changed, why, test plan",
+      "text": "- 4 bullets including risks"
+    }],
+    "rationale": "409 smoke"
+  }' | python3 -m json.tool
+```
+
+---
+
+## Scenario I — Visual diff review (dashboard)
+
+**Goal:** Review queue shows GitHub-style unified diff and explicit empty/error states.
+
+1. Run `bash .temporal/scripts/seed-pr-handoff-proposal.sh` (or accept an existing `rewrite_body` proposal).
+2. Open http://localhost:3000/playbook-patches — select the proposal.
+3. Confirm **Detail** panel:
+   - Narrow proposals list, wide detail column
+   - **Your correction** evidence above the diff
+   - Unified diff with red `-` / green `+` rows (not side-by-side full bodies)
+   - **Your decision** cluster below the diff (Accept, then Reject + reason)
+4. For a legacy no-op proposal (if any): amber **No change detected** banner; Accept disabled.
+5. For a stale/broken preview: red **Preview failed** banner with 409 message.
+
+**Pass:** changed lines are obvious at a glance; empty/error states are explicit.  
+**Fail signals:** two identical full-text columns; Accept enabled with no diff rows.
+
+---
+
 ## Quick API smoke (no IDE)
 
 ```bash
-# Propose update (dashboard)
+# Propose update (agent client — propose does not require dashboard header)
 curl -s -X POST http://127.0.0.1:8000/api/playbook-patches \
-  -H 'Content-Type: application/json' -H 'x-agent-deck-client: dashboard' \
+  -H 'Content-Type: application/json' \
   -d '{
     "kind": "update",
     "playbook_id": "pb_pr_summary",

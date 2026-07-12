@@ -88,6 +88,25 @@ describe('applyPatchOps', () => {
     expect(result.value.body).toBe('# New\n\nOne gotcha only.');
   });
 
+  it('rejects amend_item on prose lines', () => {
+    const body = `## After merge
+
+The Chronicle UI git pill reflects the live checkout branch.
+`;
+    const ops: PatchOp[] = [
+      {
+        op: 'amend_item',
+        section: 'After merge',
+        anchor: 'The Chronicle UI git pill reflects the live checkout branch.',
+        text: 'Any UI/status indicator that reflects the live checkout branch.',
+      },
+    ];
+    const result = applyPatchOps({ body, triggers: [] }, ops);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.conflict).toMatch(/list item line/i);
+  });
+
   it('returns conflict when anchor is missing (all-or-nothing)', () => {
     const ops: PatchOp[] = [
       { op: 'add_item', section: 'Gotchas', text: 'New gotcha.' },

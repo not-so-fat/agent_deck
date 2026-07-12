@@ -1,0 +1,133 @@
+import Fastify from 'fastify';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  AGENT_DECK_AGENT_CLIENT,
+  AGENT_DECK_CLIENT_HEADER,
+  AGENT_DECK_DASHBOARD_CLIENT,
+} from '@agent-deck/shared';
+import { DatabaseManager } from '../models/database';
+import { PlaybookManager } from '../playbooks/playbook-manager';
+import { PatchManager } from '../playbooks/patch-manager';
+import { registerPlaybookPatchRoutes } from './playbook-patches';
+
+const dashboardHeaders = {
+  [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_DASHBOARD_CLIENT,
+};
+const agentHeaders = {
+  [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
+};
+
+describe('playbook-patches routes', () => {
+  let dbPath: string;
+  let db: DatabaseManager;
+  let playbookManager: PlaybookManager;
+  let patchManager: PatchManager;
+  let app: ReturnType<typeof Fastify>;
+  let playbookId: string;
+
+  beforeEach(async () => {
+    dbPath = path.join(os.tmpdir(), `agent-deck-patch-routes-${Date.now()}.db`);
+    db = new DatabaseManager(dbPath);
+    playbookManager = new PlaybookManager(db);
+    patchManager = new PatchManager(db, playbookManager);
+    const playbook = await playbookManager.create({
+      title: 'PR summary',
+      body: '## Gotchas\n- Keep it short.\n',
+      triggers: ['summarize PR'],
+    });
+    playbookId = playbook.id;
+
+    app = Fastify();
+    app.decorate('db', db);
+    app.decorate('playbookManager', playbookManager);
+    app.decorate('patchManager', patchManager);
+    await app.register(registerPlaybookPatchRoutes, { prefix: '/api/playbook-patches' });
+  });
+
+  afterEach(async () => {
+    await app.close();
+    db.close();
+    fs.rmSync(dbPath, { force: true });
+  });
+
+  it('returns 409 when propose ops do not resolve', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/playbook-patches',
+      headers: agentHeaders,
+      payload: {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [
+          {
+            op: 'amend_item',
+            section: 'Gotchas',
+            anchor: '- This line does not exist.',
+            text: '- Nope.',
+          },
+        ],
+        rationale: 'test anchor miss',
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toMatch(/anchor/i);
+  });
+
+  it('returns 409 when propose ops produce no change', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/playbook-patches',
+      headers: agentHeaders,
+      payload: {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [{ op: 'set_triggers', triggers: ['summarize PR'] }],
+        rationale: 'noop',
+      },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toMatch(/no change/i);
+  });
+
+  it('creates a proposal and serves preview for dashboard', async () => {
+    const proposed = await app.inject({
+      method: 'POST',
+      url: '/api/playbook-patches',
+      headers: agentHeaders,
+      payload: {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'Include Test plan section' }],
+        rationale: 'User correction',
+        evidence: {
+          failure_summary: 'Missed test plan',
+          user_feedback_excerpt: 'you missed Test plan',
+        },
+      },
+    });
+    expect(proposed.statusCode).toBe(201);
+    const patchId = proposed.json().data.id as string;
+
+    const preview = await app.inject({
+      method: 'GET',
+      url: `/api/playbook-patches/${patchId}/preview`,
+      headers: dashboardHeaders,
+    });
+    expect(preview.statusCode).toBe(200);
+    const data = preview.json().data;
+    expect(data.after.body).toContain('Include Test plan section');
+    expect(data.before.body).not.toContain('Include Test plan section');
+  });
+
+  it('rejects list without dashboard client', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/playbook-patches?status=proposed',
+      headers: agentHeaders,
+    });
+    expect(response.statusCode).toBe(403);
+  });
+});

@@ -5,11 +5,12 @@ import {
   RejectPlaybookPatchSchema,
   type PatchPreview,
   type PlaybookPatch,
+  type PlaybookPatchSource,
   AGENT_DECK_CLIENT_HEADER,
 } from '@agent-deck/shared';
 import { requireDashboardClient } from '../lib/client-scope';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
-import { PatchConflictError } from '../playbooks/patch-manager';
+import { PatchConflictError, PatchNoChangeError } from '../playbooks/patch-manager';
 
 function patchAffectsStubs(patch: PlaybookPatch): boolean {
   if (patch.kind === 'create') {
@@ -23,19 +24,47 @@ function patchAffectsStubs(patch: PlaybookPatch): boolean {
   }
 }
 
+function headerValue(request: { headers: Record<string, unknown> }, name: string): string | undefined {
+  const value = request.headers[name];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function resolvePatchProvenance(request: {
+  headers: Record<string, unknown>;
+}): { source: PlaybookPatchSource; sourceRef: string | null } {
+  const client = headerValue(request, AGENT_DECK_CLIENT_HEADER);
+  if (client?.toLowerCase() === 'dealer') {
+    return {
+      source: 'dealer',
+      sourceRef: headerValue(request, 'x-agent-deck-source-ref') ?? null,
+    };
+  }
+  return {
+    source: 'ide',
+    sourceRef: headerValue(request, 'x-mcp-session-id') ?? null,
+  };
+}
+
 export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
     try {
       const body = ProposePlaybookPatchSchema.parse(request.body);
       const deckId = await resolveAgentDeckId(request, fastify.db).catch(() => null);
+      const { source, sourceRef } = resolvePatchProvenance(request);
       const patch = await fastify.patchManager.propose(
         body,
-        'ide',
-        request.headers['x-mcp-session-id']?.toString() ?? null,
+        source,
+        sourceRef,
         deckId ?? undefined,
       );
       return reply.status(201).send({ success: true, data: patch } satisfies ApiResponse<PlaybookPatch>);
     } catch (error) {
+      if (error instanceof PatchConflictError || error instanceof PatchNoChangeError) {
+        return reply.status(409).send({
+          success: false,
+          error: error.message,
+        } satisfies ApiResponse);
+      }
       const status = error instanceof AgentDeckContextError ? 400 : 400;
       return reply.status(status).send({
         success: false,
