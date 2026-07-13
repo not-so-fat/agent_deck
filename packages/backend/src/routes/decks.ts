@@ -1,12 +1,15 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { 
+import {
   CreateDeckInput, 
   UpdateDeckInput,
   AddServiceToDeckInput,
   RemoveServiceFromDeckInput,
   ReorderDeckServicesInput,
   ApiResponse,
-  Deck
+  Deck,
+  DeckListEntry,
+  PlaybookSummary,
+  countDeckCards,
 } from '@agent-deck/shared';
 import {
   applyDeckScope,
@@ -17,6 +20,8 @@ import {
   requireBoundDeckScope,
 } from '../lib/bound-deck-scope';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
+import { resolveDeckRef } from '../lib/deck-resolve';
+import { triggerWarningsForDeck } from '../playbooks/stub-workspace-sync';
 import { CredentialManager } from '../vault/credential-manager';
 
 async function enrichDecksWithCredentialSecrets(
@@ -100,6 +105,21 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
       }
 
       const decks = await fastify.db.getAllDecks();
+
+      if (scope === 'agent') {
+        const list: DeckListEntry[] = decks.map((deck) => ({
+          id: deck.id,
+          name: deck.name,
+          isActive: deck.isActive,
+          cardCounts: countDeckCards(deck),
+        }));
+
+        return reply.send({
+          success: true,
+          data: list,
+        } satisfies ApiResponse<DeckListEntry[]>);
+      }
+
       const decksWithSecrets = await enrichDecksWithCredentialSecrets(
         fastify.credentialManager,
         decks,
@@ -162,7 +182,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
   // Get deck by ID
   fastify.get<DeckIdRequest>('/:id', async (request, reply) => {
     try {
-      const deck = await fastify.db.getDeck(request.params.id);
+      const deck = await resolveDeckRef(fastify.db, request.params.id);
       
       if (!deck) {
         const response: ApiResponse = {
@@ -191,10 +211,14 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
         [deck],
       );
       const scopedDeck = applyDeckScope(deckWithSecrets, scope, visibleDeckId);
+      const playbookSummaries = await fastify.playbookManager.listSummariesForDeck(deck.id);
 
-      const response: ApiResponse<Deck> = {
+      const response: ApiResponse<Omit<Deck, 'playbooks'> & { playbooks: PlaybookSummary[] }> = {
         success: true,
-        data: scopedDeck,
+        data: {
+          ...scopedDeck,
+          playbooks: playbookSummaries,
+        },
       };
 
       return reply.send(response);
@@ -516,6 +540,15 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
           position: request.body.position,
         });
 
+        const playbook = await fastify.playbookManager.get(request.body.playbookId);
+        const trigger_warnings = playbook
+          ? await triggerWarningsForDeck(fastify.playbookManager, request.params.id, {
+              id: playbook.id,
+              title: playbook.title,
+              triggers: playbook.triggers,
+            })
+          : [];
+
         fastify.broadcastDeckUpdate({
           deckId: request.params.id,
           action: 'updated',
@@ -525,6 +558,7 @@ export async function registerDeckRoutes(fastify: FastifyInstance) {
         return reply.send({
           success: true,
           message: 'Playbook added to deck successfully',
+          data: { trigger_warnings },
         } satisfies ApiResponse);
       } catch (error) {
         const scoped = boundDeckScopeResponse(error);

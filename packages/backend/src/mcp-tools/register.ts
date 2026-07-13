@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { countDeckCards, formatDisplayLine, PatchOpSchema } from '@agent-deck/shared';
+import type { StubBindSyncResult } from '../playbooks/stub-sync';
 import { resolveDeckBindingSource } from '../mcp-session-binding';
 import { executeListCollection, executeManageDeckCard } from './deck-card-ops';
 import { McpToolProfile, profileIncludes } from './profile';
@@ -20,6 +21,10 @@ export type McpToolHost = {
   fetchDeck(deckId: string): Promise<{ id: string; name: string }>;
   buildBindingPayload(sessionId: string): Promise<Record<string, unknown>>;
   registerLiveDisplay(sessionId: string): Promise<void>;
+  syncWorkspaceOnBind(
+    workspaceRoot: string,
+    deck: { id: string; name: string },
+  ): Promise<StubBindSyncResult | null>;
   sessionBinding: {
     getBinding(sessionId: string): {
       workspaceRoot?: string;
@@ -54,27 +59,51 @@ function registerRuntimeTools(host: McpToolHost): void {
   r('bind_workspace', {
     title: 'Bind Workspace',
     description:
-      'Bind this MCP session to a workspace root and deck. Use get_decks to list deck ids.',
+      'Bind this MCP session to a workspace root and deck. deckId accepts a UUID or exact deck name. Use get_decks to list decks.',
     inputSchema: {
       workspaceRoot: z.string(),
-      deckId: z.string().uuid(),
+      deckId: z.string().min(1),
     },
   }, async ({ workspaceRoot, deckId }) => {
     try {
       const sessionId = host.getSessionId();
       host.sessionBinding.setWorkspace(sessionId, workspaceRoot);
       const deck = await host.fetchDeck(deckId);
-      host.sessionBinding.setDeckId(sessionId, deckId);
+      host.sessionBinding.setDeckId(sessionId, deck.id);
+      let stubSync: StubBindSyncResult | null = null;
+      try {
+        stubSync = await host.syncWorkspaceOnBind(workspaceRoot, deck);
+      } catch {
+        stubSync = null;
+      }
       await host.registerLiveDisplay(sessionId);
       const payload = await host.buildBindingPayload(sessionId);
+      const response: Record<string, unknown> = {
+        ...payload,
+        deck_name: deck.name,
+        message: 'Session bound to deck.',
+      };
+      if (stubSync) {
+        response.stubs = {
+          created: stubSync.stubs.cursor.created + stubSync.stubs.claude.created,
+          updated: stubSync.stubs.cursor.updated + stubSync.stubs.claude.updated,
+          removed: stubSync.stubs.cursor.removed + stubSync.stubs.claude.removed,
+          cursor: stubSync.stubs.cursor,
+          claude: stubSync.stubs.claude,
+          host_reload_required: stubSync.host_reload_required,
+        };
+        if (stubSync.manifestPath) {
+          response.manifestPath = stubSync.manifestPath;
+        }
+        if (stubSync.host_reload_required) {
+          response.stub_sync_note =
+            'Restart the IDE host so skill/rule discovery reloads stub changes.';
+        }
+      }
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify({
-            ...payload,
-            deck_name: deck.name,
-            message: 'Session bound to deck.',
-          }, null, 2),
+          text: JSON.stringify(response, null, 2),
         }],
       };
     } catch (error) {
@@ -86,22 +115,45 @@ function registerRuntimeTools(host: McpToolHost): void {
     title: 'Switch Bound Deck',
     description:
       'Switch the deck for this MCP session only. Use when multiple agent sessions share the same workspace path.',
-    inputSchema: { deckId: z.string().uuid() },
+    inputSchema: { deckId: z.string().min(1) },
   }, async ({ deckId }) => {
     try {
       const sessionId = host.getSessionId();
+      const snapshot = host.sessionBinding.getBinding(sessionId);
       const deck = await host.fetchDeck(deckId);
-      host.sessionBinding.setDeckId(sessionId, deckId);
+      host.sessionBinding.setDeckId(sessionId, deck.id);
+      const workspaceRoot = snapshot.workspaceRoot;
+      let stubSync: StubBindSyncResult | null = null;
+      if (workspaceRoot) {
+        try {
+          stubSync = await host.syncWorkspaceOnBind(workspaceRoot, deck);
+        } catch {
+          stubSync = null;
+        }
+      }
       await host.registerLiveDisplay(sessionId);
       const payload = await host.buildBindingPayload(sessionId);
+      const response: Record<string, unknown> = {
+        ...payload,
+        deck_name: deck.name,
+        message: 'Session deck switched. Other sessions are unchanged.',
+      };
+      if (stubSync) {
+        response.stubs = {
+          created: stubSync.stubs.cursor.created + stubSync.stubs.claude.created,
+          updated: stubSync.stubs.cursor.updated + stubSync.stubs.claude.updated,
+          removed: stubSync.stubs.cursor.removed + stubSync.stubs.claude.removed,
+          host_reload_required: stubSync.host_reload_required,
+        };
+        if (stubSync.host_reload_required) {
+          response.stub_sync_note =
+            'Restart the IDE host so skill/rule discovery reloads stub changes.';
+        }
+      }
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify({
-            ...payload,
-            deck_name: deck.name,
-            message: 'Session deck switched. Other sessions are unchanged.',
-          }, null, 2),
+          text: JSON.stringify(response, null, 2),
         }],
       };
     } catch (error) {
@@ -280,7 +332,13 @@ function registerRuntimeTools(host: McpToolHost): void {
           evidence,
         }),
       });
-      return host.toolResult(patch);
+      const triggerWarnings = patch?.conflictsJson
+        ? JSON.parse(patch.conflictsJson as string)
+        : [];
+      return host.toolResult({
+        ...patch,
+        trigger_warnings: triggerWarnings,
+      });
     } catch (error) {
       return host.toolError(error);
     }
@@ -738,6 +796,7 @@ export function listToolNamesForProfile(profile: McpToolProfile): string[] {
     fetchDeck: async () => ({ id: 'deck', name: 'stub' }),
     buildBindingPayload: async () => ({}),
     registerLiveDisplay: async () => {},
+    syncWorkspaceOnBind: async () => null,
     sessionBinding: {
       getBinding: () => ({}),
       setWorkspace: () => {},

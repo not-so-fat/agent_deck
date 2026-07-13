@@ -56,4 +56,22 @@ describe('sanitizeServiceForAgent', () => {
     expect(sanitized.localEnv).toBeUndefined();
     expect(sanitized.headers).toEqual({ 'X-Custom': 'ok' });
   });
+
+  it('strips common API-key style headers', () => {
+    const service: Service = {
+      id: 'svc-2',
+      name: 'API',
+      type: 'mcp',
+      url: 'https://example.com/mcp',
+      health: 'healthy',
+      cardColor: '#000',
+      isConnected: true,
+      registeredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      headers: { 'X-Api-Key': 'secret', 'X-Trace': 'ok' },
+    };
+
+    const sanitized = sanitizeServiceForAgent(service);
+    expect(sanitized.headers).toEqual({ 'X-Trace': 'ok' });
+  });
 });

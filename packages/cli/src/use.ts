@@ -129,7 +129,13 @@ export async function runUse(parsed: UseOptions): Promise<UseResult | { error: s
     return { error: 'deck name or id is required' };
   }
 
-  const deck = await admin.resolveDeck(deckRef);
+  let deck = await admin.resolveDeck(deckRef);
+  if (!deck && parsed.refresh) {
+    const manifest = readUseManifest(parsed.workspaceRoot);
+    if (manifest?.deckName) {
+      deck = await admin.resolveDeck(manifest.deckName);
+    }
+  }
   if (!deck) {
     return { error: `Deck not found: ${deckRef}` };
   }

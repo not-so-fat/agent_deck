@@ -5,6 +5,7 @@ import type { PlaybookPatch } from "@agent-deck/shared";
 import { patchPreviewHasChanges } from "@/lib/patch-preview";
 import {
   acceptPlaybookPatch,
+  formatPatchDeckNames,
   getPlaybookPatchPreview,
   listPlaybookPatches,
   rejectPlaybookPatch,
@@ -14,6 +15,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { PlaybookPatchDiff } from "@/components/playbook-patch-diff";
+import {
+  PlaybookPatchTriggerConflicts,
+  parseTriggerConflicts,
+} from "@/components/playbook-patch-trigger-conflicts";
 import { ArrowLeft } from "lucide-react";
 
 function parseEvidence(patch: PlaybookPatch) {
@@ -83,8 +88,8 @@ export default function PlaybookPatchesPage() {
   });
 
   return (
-    <div className="min-h-dvh bg-gray-950 text-gray-100">
-      <header className="border-b border-gray-800 px-4 py-4 sm:px-6">
+    <div className="flex min-h-dvh flex-col bg-gray-950 text-gray-100">
+      <header className="shrink-0 border-b border-gray-800 px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center gap-3">
           <Link href="/">
             <Button variant="ghost" size="sm" className="text-gray-300">
@@ -97,8 +102,8 @@ export default function PlaybookPatchesPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid min-w-0 max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)] lg:items-start">
-        <section className="min-w-0">
+      <main className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-4 py-6 sm:px-6 lg:min-h-0 lg:grid-cols-[minmax(18rem,20rem)_minmax(0,1fr)] lg:items-stretch lg:overflow-hidden">
+        <section className="min-w-0 lg:min-h-0 lg:overflow-y-auto">
           <h2 className="mb-3 text-sm font-medium text-gray-400">Proposals</h2>
           {isLoading && <p className="text-sm text-gray-500">Loading…</p>}
           {!isLoading && patches.length === 0 && (
@@ -116,13 +121,23 @@ export default function PlaybookPatchesPage() {
                       : "border-gray-800 bg-gray-900/50 hover:border-gray-700"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">
-                      {patch.kind === "create"
-                        ? `NEW: ${JSON.parse(patch.opsJson).title ?? "playbook"}`
-                        : patch.playbookId}
-                    </span>
-                    <Badge variant="outline">{patch.kind}</Badge>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="block font-medium leading-snug">
+                        {patch.kind === "create" ? `New: ${patch.displayTitle}` : patch.displayTitle}
+                      </span>
+                      {patch.playbookId && patch.kind !== "create" && (
+                        <span className="mt-0.5 block truncate font-mono text-xs text-gray-600">
+                          {patch.playbookId}
+                        </span>
+                      )}
+                      {formatPatchDeckNames(patch.deckNames) && (
+                        <span className="mt-1 block text-xs text-gray-500">
+                          Decks: {formatPatchDeckNames(patch.deckNames)}
+                        </span>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="shrink-0">{patch.kind}</Badge>
                   </div>
                   <p className="mt-1 line-clamp-2 text-sm text-gray-400">{patch.rationale}</p>
                   <p className="mt-1 text-xs text-gray-600">
@@ -134,14 +149,14 @@ export default function PlaybookPatchesPage() {
           </ul>
         </section>
 
-        <section className="min-w-0">
-          <h2 className="mb-3 text-sm font-medium text-gray-400">Detail</h2>
+        <section className="flex min-w-0 flex-col lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          <h2 className="mb-3 shrink-0 text-sm font-medium text-gray-400">Detail</h2>
           {!selected && (
             <p className="text-sm text-gray-500">Select a proposal to preview the diff.</p>
           )}
           {selected && (
-            <div className="flex max-h-[calc(100dvh-8rem)] min-h-0 flex-col overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50">
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+            <div className="flex flex-col overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50 lg:min-h-0 lg:flex-1">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
                 <div className="min-w-0 space-y-4">
                   <p className="text-sm leading-relaxed text-gray-300">{selected.rationale}</p>
                   {(() => {
@@ -161,6 +176,13 @@ export default function PlaybookPatchesPage() {
                       </div>
                     );
                   })()}
+                  {(() => {
+                    const storedConflicts = parseTriggerConflicts(selected.conflictsJson);
+                    const previewConflicts = preview?.trigger_conflicts ?? [];
+                    const conflicts =
+                      previewConflicts.length > 0 ? previewConflicts : storedConflicts;
+                    return <PlaybookPatchTriggerConflicts conflicts={conflicts} />;
+                  })()}
                   {previewLoading && <p className="text-sm text-gray-500">Loading preview…</p>}
                   {previewError && (
                     <div className="rounded-md border border-rose-500/50 bg-rose-500/10 p-3 text-sm text-rose-100">
@@ -177,7 +199,7 @@ export default function PlaybookPatchesPage() {
                 </div>
               </div>
 
-              <div className="shrink-0 space-y-4 border-t border-gray-800 bg-gray-900/95 p-4 backdrop-blur-sm sm:p-5">
+              <div className="relative z-10 shrink-0 space-y-4 border-t border-gray-800 bg-gray-950 p-4 shadow-[0_-16px_32px_rgba(0,0,0,0.55)] sm:p-5">
                 <h3 className="text-sm font-medium text-gray-400">Your decision</h3>
                 <Button
                   variant="gold"
@@ -187,7 +209,7 @@ export default function PlaybookPatchesPage() {
                 >
                   Accept
                 </Button>
-                <div className="space-y-2 rounded-md border border-gray-800 bg-gray-950/60 p-3">
+                <div className="space-y-2 rounded-md border border-gray-800 bg-gray-900/80 p-3">
                   <Textarea
                     placeholder="Rejection reason (required)"
                     value={rejectReason}

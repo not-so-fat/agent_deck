@@ -188,4 +188,41 @@ describe('PatchManager', () => {
     expect(rejected?.status).toBe('rejected');
     expect(rejected?.rejectionReason).toBe('Too broad');
   });
+
+  it('persists trigger conflicts on genesis propose and syncs stubs on accept', async () => {
+    const existing = await playbookManager.create({
+      title: 'Existing',
+      body: '## Gotchas\n- one\n',
+      triggers: ['master-detail layout', 'human gate UI'],
+    });
+    await playbookManager.addToDeck({ deckId, playbookId: existing.id });
+
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-deck-patch-stub-'));
+    await db.upsertDeckWorkspace(workspace, deckId);
+
+    const patch = await patchManager.propose(
+      {
+        kind: 'create',
+        new_playbook: {
+          title: 'UI principle',
+          body: '## Gotchas\n- split panes\n',
+          triggers: ['master-detail layout', 'split-pane UI'],
+          deck_id: deckId,
+        },
+        rationale: 'Genesis with overlapping triggers.',
+      },
+      'ide',
+      null,
+    );
+
+    expect(patch.conflictsJson).toBeTruthy();
+    const conflicts = JSON.parse(patch.conflictsJson!);
+    expect(conflicts.length).toBeGreaterThan(0);
+
+    await patchManager.accept(patch.id);
+
+    const cursorStubDir = path.join(workspace, '.cursor', 'rules', 'agent-deck-stubs');
+    expect(fs.existsSync(cursorStubDir)).toBe(true);
+    fs.rmSync(workspace, { recursive: true, force: true });
+  });
 });

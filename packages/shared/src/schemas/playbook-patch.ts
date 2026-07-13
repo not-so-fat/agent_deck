@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { PlaybookIdSchema } from './playbook';
+import { PlaybookIdSchema, PlaybookTriggersSchema } from './playbook';
+import type { TriggerConflict } from '../utils/trigger-hygiene';
 
 export const PlaybookPatchIdSchema = z
   .string()
@@ -40,7 +41,7 @@ export const RemoveItemOpSchema = z.object({
 
 export const SetTriggersOpSchema = z.object({
   op: z.literal('set_triggers').describe('Replace the playbook trigger phrases'),
-  triggers: z.array(z.string()).describe('New trigger list'),
+  triggers: PlaybookTriggersSchema.describe('New trigger list'),
 });
 
 export const RewriteBodyOpSchema = z.object({
@@ -66,7 +67,9 @@ export const PatchOpSchema = z.discriminatedUnion('op', [
 export const CreatePlaybookPatchFieldsSchema = z.object({
   title: z.string().min(1),
   body: z.string().default(''),
-  triggers: z.array(z.string()).min(1, 'Genesis playbooks need at least one trigger'),
+  triggers: PlaybookTriggersSchema.refine((triggers) => triggers.length > 0, {
+    message: 'Genesis playbooks need at least one trigger',
+  }),
   deck_id: z.string().uuid(),
   exec: z.string().optional(),
   skill: z.string().optional(),
@@ -100,10 +103,17 @@ export type PlaybookPatch = {
   source: z.infer<typeof PlaybookPatchSourceSchema>;
   sourceRef: string | null;
   evidenceJson: string | null;
+  conflictsJson: string | null;
   status: z.infer<typeof PlaybookPatchStatusSchema>;
   rejectionReason: string | null;
   createdAt: string;
   resolvedAt: string | null;
+};
+
+/** Dashboard list row — human title + decks referencing the playbook. */
+export type PlaybookPatchListItem = PlaybookPatch & {
+  displayTitle: string;
+  deckNames: string[];
 };
 
 export type PlaybookVersion = {
@@ -128,4 +138,5 @@ export type PlaybookEvent = {
 export type PatchPreview = {
   before: { title: string; body: string; triggers: string[] };
   after: { title: string; body: string; triggers: string[] };
+  trigger_conflicts?: TriggerConflict[];
 };

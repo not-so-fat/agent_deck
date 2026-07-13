@@ -1,8 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { ApiResponse, DeckCardCountsSchema, DeckDisplaySourceSchema } from '@agent-deck/shared';
+import {
+  ApiResponse,
+  DeckCardCountsSchema,
+  DeckDisplaySourceSchema,
+  countDeckCards,
+} from '@agent-deck/shared';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
-import { isDashboardClient, requireAgentClient } from '../lib/client-scope';
+import { applyDeckScope, isDashboardClient, requireAgentClient } from '../lib/client-scope';
 import { resolveDeckDisplay } from '../scope/display';
 
 const LiveDisplayBodySchema = z.object({
@@ -18,6 +23,11 @@ const LiveDisplayBodySchema = z.object({
 
 const LiveDisplayTouchSchema = z.object({
   at: z.string().datetime().optional(),
+});
+
+const DeckWorkspaceBodySchema = z.object({
+  workspaceRoot: z.string().min(1),
+  deckId: z.string().uuid(),
 });
 
 export async function registerScopeRoutes(fastify: FastifyInstance) {
@@ -39,9 +49,19 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
         } satisfies ApiResponse);
       }
 
+      const credentials = deck.credentials
+        ? await fastify.credentialManager.applySecretStatus(deck.credentials)
+        : [];
+      const deckWithSecrets = { ...deck, credentials };
+      const scoped = applyDeckScope(deckWithSecrets, 'agent', deckId);
+      const playbookSummaries = await fastify.playbookManager.listSummariesForDeck(deckId);
+
       return reply.send({
         success: true,
-        data: deck,
+        data: {
+          ...scoped,
+          playbooks: playbookSummaries,
+        },
       } satisfies ApiResponse);
     } catch (error) {
       const status = error instanceof AgentDeckContextError ? 400 : 500;
@@ -149,6 +169,27 @@ export async function registerScopeRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.post('/deck-workspace', async (request, reply) => {
+    try {
+      requireAgentClient(request);
+      const parsed = DeckWorkspaceBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          success: false,
+          error: parsed.error.issues.map((issue) => issue.message).join('; '),
+        } satisfies ApiResponse);
+      }
+
+      await fastify.db.upsertDeckWorkspace(parsed.data.workspaceRoot, parsed.data.deckId);
+      return reply.send({ success: true } satisfies ApiResponse);
+    } catch (error) {
+      return reply.status(403).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Forbidden',
+      } satisfies ApiResponse);
+    }
+  });
 
   fastify.get('/bindings', async (_request, reply) => {
     const data = fastify.liveDisplayRegistry.list().map((entry) => ({

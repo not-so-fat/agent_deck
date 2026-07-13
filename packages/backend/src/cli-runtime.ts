@@ -172,3 +172,12 @@ export function createCliExportImport() {
 export type CliExportImport = ReturnType<typeof createCliExportImport>;
 
 export { PlaybookDependencyError, ExportBundleError, ImportBundleError };
+
+export {
+  syncPlaybookStubs,
+  readUseManifest,
+  writeUseManifest,
+  healUseManifest,
+  type StubSyncResult,
+  type PlaybookStubInput,
+} from './playbooks/stub-sync';

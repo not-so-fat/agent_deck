@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.4.3 — 2026-07-12
+
+### Stub lifecycle sync
+
+- **Bind/switch:** MCP `bind_workspace` and `switch_bound_deck` sync thin Cursor/Claude trigger stubs to the workspace; records path in `deck_workspaces` for later heals
+- **Patch accept:** when triggers/title change on create, `set_triggers`, or retire, stubs refresh on all recorded workspaces
+- **`agent-deck use --refresh`:** deck resolve by name when `deckId` is stale; `bind_workspace` accepts deck name or UUID
+- **Slug collisions:** disambiguate stub filenames with playbook id suffix when titles slug to the same name
+- Opt out with `AGENT_DECK_STUB_SYNC=off`
+
+### Trigger conflict detection
+
+- **Normalize + detect:** exact, subsumes, and overlap warnings on playbook create/update, deck link, and `propose_playbook_patch`
+- **Patch review:** dashboard shows trigger conflict panel; preview recomputes `trigger_conflicts`; MCP returns `trigger_warnings`
+
+### Scope & performance
+
+- **`GET /api/scope/deck`:** playbook summaries only; wider secret-header stripping on scoped deck payloads
+- **`get_decks` MCP:** metadata-only deck list for agents
+- **Deck hydration:** batch JOIN loaders for `getDeck` / `getAllDecks` / `getActiveDeck` (fixes N+1)
+
+### After upgrade
+
+- Re-run `agent-deck use --refresh` (or bind in IDE) so stubs match deck triggers
+- Re-run `agent-deck setup --client cursor|claude` if harness wording changed
+
 ## 1.4.2 — 2026-07-12
 
 ### CLI daemon mode

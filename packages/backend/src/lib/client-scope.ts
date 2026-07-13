@@ -9,15 +9,26 @@ import {
 
 export type ClientScope = 'dashboard' | 'agent';
 
-function stripAuthorizationHeader(
+const SECRET_HEADER_NAMES = new Set([
+  'authorization',
+  'x-api-key',
+  'api-key',
+  'x-auth-token',
+  'x-access-token',
+]);
+
+function stripSecretHeaders(
   headers?: Record<string, string> | null,
 ): Record<string, string> | undefined {
   if (!headers) {
     return undefined;
   }
   const next = { ...headers };
-  delete next.Authorization;
-  delete next.authorization;
+  for (const key of Object.keys(next)) {
+    if (SECRET_HEADER_NAMES.has(key.toLowerCase())) {
+      delete next[key];
+    }
+  }
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
@@ -29,12 +40,12 @@ export function sanitizeServiceForAgent(service: Service): Service {
     oauthAccessToken: undefined,
     oauthRefreshToken: undefined,
     oauthState: undefined,
-    headers: stripAuthorizationHeader(service.headers),
+    headers: stripSecretHeaders(service.headers),
     localEnv: undefined,
   };
 }
 
-function sanitizeDeckForAgent(deck: Deck): Deck {
+export function sanitizeDeckForAgent(deck: Deck): Deck {
   return {
     ...deck,
     services: deck.services?.map(sanitizeServiceForAgent) ?? [],

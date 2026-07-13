@@ -3,10 +3,10 @@ import {
   PatchOpSchema,
   ProposePlaybookPatchInput,
   ProposePlaybookPatchSchema,
-  type CreatePlaybookPatchFields,
   type PatchOp,
   type PatchPreview,
   type PlaybookPatch,
+  type PlaybookPatchListItem,
   type PlaybookPatchSource,
   generateShortId,
   derivePlaybookDefaults,
@@ -15,6 +15,12 @@ import {
 import { DatabaseManager } from '../models/database';
 import { PlaybookManager } from './playbook-manager';
 import { applyPatchOps } from './apply-patch-ops';
+import {
+  parseTriggerConflicts,
+  patchTouchesStubSurface,
+  syncStubsForDeck,
+  triggerWarningsForPlaybookDecks,
+} from './stub-workspace-sync';
 
 export class PatchConflictError extends Error {
   constructor(message: string) {
@@ -60,6 +66,16 @@ export class PatchManager {
       if (!fields.deck_id) {
         throw new Error('deck_id is required for create patches');
       }
+      const conflicts = await triggerWarningsForPlaybookDecks(
+        this.db,
+        this.playbookManager,
+        {
+          id: '__new__',
+          title: fields.title,
+          triggers: fields.triggers,
+        },
+        [fields.deck_id],
+      );
       return this.db.createPlaybookPatch({
         id: this.newPatchId(),
         kind: 'create',
@@ -69,6 +85,7 @@ export class PatchManager {
         source,
         sourceRef,
         evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
+        conflictsJson: conflicts.length > 0 ? JSON.stringify(conflicts) : null,
       });
     }
 
@@ -101,6 +118,12 @@ export class PatchManager {
       );
     }
 
+    const conflicts = await triggerWarningsForPlaybookDecks(this.db, this.playbookManager, {
+      id: playbook.id,
+      title: playbook.title,
+      triggers: dryRun.value.triggers,
+    });
+
     return this.db.createPlaybookPatch({
       id: this.newPatchId(),
       kind: validated.kind,
@@ -110,6 +133,7 @@ export class PatchManager {
       source,
       sourceRef,
       evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
+      conflictsJson: conflicts.length > 0 ? JSON.stringify(conflicts) : null,
     });
   }
 
@@ -119,6 +143,16 @@ export class PatchManager {
 
     if (patch.kind === 'create') {
       const fields = CreatePlaybookPatchFieldsSchema.parse(JSON.parse(patch.opsJson));
+      const triggerConflicts = await triggerWarningsForPlaybookDecks(
+        this.db,
+        this.playbookManager,
+        {
+          id: '__new__',
+          title: fields.title,
+          triggers: fields.triggers,
+        },
+        [fields.deck_id],
+      );
       return {
         before: { title: '', body: '', triggers: [] },
         after: {
@@ -126,6 +160,7 @@ export class PatchManager {
           body: fields.body,
           triggers: fields.triggers,
         },
+        trigger_conflicts: triggerConflicts,
       };
     }
 
@@ -142,6 +177,12 @@ export class PatchManager {
       throw new PatchConflictError(result.conflict);
     }
 
+    const triggerConflicts = await triggerWarningsForPlaybookDecks(this.db, this.playbookManager, {
+      id: playbook.id,
+      title: playbook.title,
+      triggers: result.value.triggers,
+    });
+
     return {
       before: {
         title: playbook.title,
@@ -153,7 +194,28 @@ export class PatchManager {
         body: result.value.body,
         triggers: result.value.triggers,
       },
+      trigger_conflicts: triggerConflicts,
     };
+  }
+
+  private async syncStubSurfaceForPatch(patch: PlaybookPatch): Promise<void> {
+    if (!patchTouchesStubSurface(patch)) {
+      return;
+    }
+
+    const deckIds = new Set<string>();
+    if (patch.kind === 'create') {
+      const fields = CreatePlaybookPatchFieldsSchema.parse(JSON.parse(patch.opsJson));
+      deckIds.add(fields.deck_id);
+    } else if (patch.playbookId) {
+      for (const deckId of await this.db.listDeckIdsForPlaybook(patch.playbookId)) {
+        deckIds.add(deckId);
+      }
+    }
+
+    for (const deckId of deckIds) {
+      await syncStubsForDeck(this.db, this.playbookManager, deckId);
+    }
   }
 
   async accept(patchId: string): Promise<PlaybookPatch> {
@@ -181,6 +243,7 @@ export class PatchManager {
       await this.playbookManager.addToDeck({ deckId: fields.deck_id, playbookId: created.id });
       await this.snapshotVersion(created, patchId, 'agent');
       const updated = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+      await this.syncStubSurfaceForPatch(patch);
       return updated!;
     }
 
@@ -217,6 +280,7 @@ export class PatchManager {
     }
     await this.snapshotVersion(updatedPlaybook, patchId, 'agent');
     const accepted = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+    await this.syncStubSurfaceForPatch(patch);
     return accepted!;
   }
 
@@ -231,6 +295,38 @@ export class PatchManager {
 
   async list(status?: PlaybookPatch['status']): Promise<PlaybookPatch[]> {
     return this.db.listPlaybookPatches(status);
+  }
+
+  async listForReview(status?: PlaybookPatch['status']): Promise<PlaybookPatchListItem[]> {
+    const patches = await this.db.listPlaybookPatches(status);
+    return Promise.all(patches.map((patch) => this.enrichListItem(patch)));
+  }
+
+  parseStoredTriggerConflicts(patch: PlaybookPatch) {
+    return parseTriggerConflicts(patch.conflictsJson);
+  }
+
+  private async enrichListItem(patch: PlaybookPatch): Promise<PlaybookPatchListItem> {
+    if (patch.kind === 'create') {
+      const fields = CreatePlaybookPatchFieldsSchema.parse(JSON.parse(patch.opsJson));
+      const deck = await this.db.getDeck(fields.deck_id);
+      return {
+        ...patch,
+        displayTitle: fields.title,
+        deckNames: deck ? [deck.name] : [],
+      };
+    }
+
+    const playbook = patch.playbookId ? await this.db.getPlaybook(patch.playbookId) : null;
+    const deckNames = patch.playbookId
+      ? await this.db.listDeckNamesForPlaybook(patch.playbookId)
+      : [];
+
+    return {
+      ...patch,
+      displayTitle: playbook?.title ?? patch.playbookId ?? 'Unknown playbook',
+      deckNames,
+    };
   }
 
   async snapshotVersion(

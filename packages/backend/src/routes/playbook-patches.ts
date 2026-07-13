@@ -5,24 +5,13 @@ import {
   RejectPlaybookPatchSchema,
   type PatchPreview,
   type PlaybookPatch,
+  type PlaybookPatchListItem,
   type PlaybookPatchSource,
   AGENT_DECK_CLIENT_HEADER,
 } from '@agent-deck/shared';
 import { requireDashboardClient } from '../lib/client-scope';
 import { AgentDeckContextError, resolveAgentDeckId } from '../lib/agent-deck-context';
 import { PatchConflictError, PatchNoChangeError } from '../playbooks/patch-manager';
-
-function patchAffectsStubs(patch: PlaybookPatch): boolean {
-  if (patch.kind === 'create') {
-    return true;
-  }
-  try {
-    const ops = JSON.parse(patch.opsJson) as Array<{ op?: string }>;
-    return ops.some((op) => op.op === 'set_triggers' || op.op === 'set_title');
-  } catch {
-    return false;
-  }
-}
 
 function headerValue(request: { headers: Record<string, unknown> }, name: string): string | undefined {
   const value = request.headers[name];
@@ -76,8 +65,8 @@ export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { status?: PlaybookPatch['status'] } }>('/', async (request, reply) => {
     try {
       requireDashboardClient(request);
-      const patches = await fastify.patchManager.list(request.query.status);
-      return reply.send({ success: true, data: patches } satisfies ApiResponse<PlaybookPatch[]>);
+      const patches = await fastify.patchManager.listForReview(request.query.status);
+      return reply.send({ success: true, data: patches } satisfies ApiResponse<PlaybookPatchListItem[]>);
     } catch (error) {
       return reply.status(403).send({
         success: false,
@@ -109,13 +98,9 @@ export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
     try {
       requireDashboardClient(request);
       const patch = await fastify.patchManager.accept(request.params.id);
-      const stubsRefreshRecommended = patchAffectsStubs(patch);
       return reply.send({
         success: true,
         data: patch,
-        message: stubsRefreshRecommended
-          ? 'Stub triggers may have changed — run agent-deck use --refresh in workspaces using this deck.'
-          : undefined,
       } satisfies ApiResponse<PlaybookPatch>);
     } catch (error) {
       if (error instanceof PatchConflictError) {

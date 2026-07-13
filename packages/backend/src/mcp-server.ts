@@ -17,6 +17,14 @@ import {
 } from './mcp-session-binding';
 import { registerMcpTools } from './mcp-tools/register';
 import { McpToolProfile, resolveMcpToolProfile } from './mcp-tools/profile';
+import {
+  healUseManifest,
+  isStubSyncEnabled,
+  stubSyncChanged,
+  syncPlaybookStubs,
+  type StubBindSyncResult,
+  type PlaybookStubInput,
+} from './playbooks/stub-sync';
 
 const agentClientHeaders = {
   [AGENT_DECK_CLIENT_HEADER]: AGENT_DECK_AGENT_CLIENT,
@@ -258,6 +266,31 @@ export class AgentDeckMCPServer {
     );
   }
 
+  private async syncWorkspaceOnBind(
+    workspaceRoot: string,
+    deck: { id: string; name: string },
+  ): Promise<StubBindSyncResult | null> {
+    if (!isStubSyncEnabled()) {
+      return null;
+    }
+
+    const summaries = (await this.callBackendAPI('/api/playbooks/summaries')) as PlaybookStubInput[];
+    const stubs = syncPlaybookStubs(workspaceRoot, summaries ?? []);
+    const manifestPath = healUseManifest(workspaceRoot, deck);
+
+    await this.callBackendAPI('/api/scope/deck-workspace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceRoot, deckId: deck.id }),
+    });
+
+    return {
+      stubs,
+      host_reload_required: stubSyncChanged(stubs),
+      manifestPath,
+    };
+  }
+
   private setupTools() {
     registerMcpTools({
       registerTool: (name, config, handler) => this.registerTool(name, config, handler),
@@ -269,6 +302,7 @@ export class AgentDeckMCPServer {
       fetchDeck: (deckId) => this.fetchDeck(deckId),
       buildBindingPayload: (sessionId) => this.buildBindingPayload(sessionId),
       registerLiveDisplay: (sessionId) => this.registerLiveDisplay(sessionId),
+      syncWorkspaceOnBind: (workspaceRoot, deck) => this.syncWorkspaceOnBind(workspaceRoot, deck),
       sessionBinding: this.sessionBinding,
       badgeBySession: this.badgeBySession,
       backendUrl: this.backendUrl,

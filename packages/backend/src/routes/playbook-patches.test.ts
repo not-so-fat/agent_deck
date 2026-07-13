@@ -130,4 +130,32 @@ describe('playbook-patches routes', () => {
     });
     expect(response.statusCode).toBe(403);
   });
+
+  it('lists proposed patches with display title and deck names', async () => {
+    const deck = await db.createDeck({ name: 'Product demo', isActive: false });
+    await playbookManager.addToDeck({ deckId: deck.id, playbookId });
+
+    const proposed = await app.inject({
+      method: 'POST',
+      url: '/api/playbook-patches',
+      headers: agentHeaders,
+      payload: {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'Include Test plan section' }],
+        rationale: 'User correction',
+      },
+    });
+    expect(proposed.statusCode).toBe(201);
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/api/playbook-patches?status=proposed',
+      headers: dashboardHeaders,
+    });
+    expect(list.statusCode).toBe(200);
+    const rows = list.json().data as Array<{ displayTitle: string; deckNames: string[] }>;
+    expect(rows[0]?.displayTitle).toBe('PR summary');
+    expect(rows[0]?.deckNames).toEqual(['Product demo']);
+  });
 });

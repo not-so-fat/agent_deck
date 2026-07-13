@@ -155,6 +155,8 @@ export class DatabaseManager {
 
     // Deck description was never shown in UI — drop from existing DBs.
     this.dropColumnIfExists('decks', 'description');
+
+    this.addColumnIfMissing('playbook_patches', 'conflicts_json', 'TEXT');
   }
 
   private dropColumnIfExists(tableName: string, columnName: string): void {
@@ -350,6 +352,16 @@ export class DatabaseManager {
         FOREIGN KEY (playbook_id) REFERENCES playbooks (id) ON DELETE CASCADE
       )
     `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS deck_workspaces (
+        workspace_root TEXT NOT NULL,
+        deck_id TEXT NOT NULL,
+        last_bound_at TEXT NOT NULL,
+        PRIMARY KEY (workspace_root, deck_id),
+        FOREIGN KEY (deck_id) REFERENCES decks (id) ON DELETE CASCADE
+      )
+    `);
   }
 
   hasAnyServices(): boolean {
@@ -391,16 +403,7 @@ export class DatabaseManager {
   }
 
   async getDeckCredentialsForDeck(deckId: string): Promise<Credential[]> {
-    const stmt = this.db.prepare(`
-      SELECT c.*, dc.position
-      FROM deck_credentials dc
-      JOIN credentials c ON c.id = dc.credential_id
-      WHERE dc.deck_id = ?
-      ORDER BY dc.position ASC
-    `);
-
-    const rows = stmt.all(deckId) as any[];
-    return rows.map((row) => this.mapCredentialRow(row));
+    return this.loadCredentialsForDecks([deckId]).get(deckId) ?? [];
   }
 
   // Service operations
@@ -723,100 +726,124 @@ export class DatabaseManager {
     return deck;
   }
 
-  async getDeck(id: string): Promise<Deck | null> {
-    const stmt = this.db.prepare('SELECT * FROM decks WHERE id = ?');
-    const row = stmt.get(id) as any;
-    
-    if (!row) return null;
-    
-    const deckServices = await this.getDeckServices(id);
-    const services: Service[] = [];
-    
-    for (const deckService of deckServices) {
-      const service = await this.getService(deckService.serviceId);
-      if (service) {
-        services.push(service);
-      }
+  private hydrateDecks(rows: any[]): Deck[] {
+    if (rows.length === 0) {
+      return [];
     }
 
-    const credentials = await this.getDeckCredentialsForDeck(id);
-    const playbooks = await this.getDeckPlaybooksForDeck(id);
-    
-    return {
+    const deckIds = rows.map((row) => row.id as string);
+    const servicesByDeck = this.loadServicesForDecks(deckIds);
+    const credentialsByDeck = this.loadCredentialsForDecks(deckIds);
+    const playbooksByDeck = this.loadPlaybooksForDecks(deckIds);
+
+    return rows.map((row) => ({
       id: row.id,
       name: row.name,
       isActive: Boolean(row.is_active),
-      services,
-      credentials,
-      playbooks,
+      services: servicesByDeck.get(row.id) ?? [],
+      credentials: credentialsByDeck.get(row.id) ?? [],
+      playbooks: playbooksByDeck.get(row.id) ?? [],
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-    };
+    }));
+  }
+
+  private loadServicesForDecks(deckIds: string[]): Map<string, Service[]> {
+    const result = new Map<string, Service[]>();
+    if (deckIds.length === 0) {
+      return result;
+    }
+
+    const placeholders = deckIds.map(() => '?').join(', ');
+    const rows = this.db.prepare(`
+      SELECT ds.deck_id, s.*
+      FROM deck_services ds
+      INNER JOIN services s ON s.id = ds.service_id
+      WHERE ds.deck_id IN (${placeholders})
+      ORDER BY ds.deck_id ASC, ds.position ASC
+    `).all(...deckIds) as any[];
+
+    for (const row of rows) {
+      const deckId = row.deck_id as string;
+      const services = result.get(deckId) ?? [];
+      services.push(this.mapServiceRow(row));
+      result.set(deckId, services);
+    }
+
+    return result;
+  }
+
+  private loadCredentialsForDecks(deckIds: string[]): Map<string, Credential[]> {
+    const result = new Map<string, Credential[]>();
+    if (deckIds.length === 0) {
+      return result;
+    }
+
+    const placeholders = deckIds.map(() => '?').join(', ');
+    const rows = this.db.prepare(`
+      SELECT dc.deck_id, c.*
+      FROM deck_credentials dc
+      INNER JOIN credentials c ON c.id = dc.credential_id
+      WHERE dc.deck_id IN (${placeholders})
+      ORDER BY dc.deck_id ASC, dc.position ASC
+    `).all(...deckIds) as any[];
+
+    for (const row of rows) {
+      const deckId = row.deck_id as string;
+      const credentials = result.get(deckId) ?? [];
+      credentials.push(this.mapCredentialRow(row));
+      result.set(deckId, credentials);
+    }
+
+    return result;
+  }
+
+  private loadPlaybooksForDecks(deckIds: string[]): Map<string, Playbook[]> {
+    const result = new Map<string, Playbook[]>();
+    if (deckIds.length === 0) {
+      return result;
+    }
+
+    const placeholders = deckIds.map(() => '?').join(', ');
+    const rows = this.db.prepare(`
+      SELECT dp.deck_id, p.*
+      FROM deck_playbooks dp
+      INNER JOIN playbooks p ON p.id = dp.playbook_id
+      WHERE dp.deck_id IN (${placeholders})
+      ORDER BY dp.deck_id ASC, dp.position ASC
+    `).all(...deckIds) as any[];
+
+    for (const row of rows) {
+      const deckId = row.deck_id as string;
+      const playbooks = result.get(deckId) ?? [];
+      playbooks.push(this.mapPlaybookRow(row));
+      result.set(deckId, playbooks);
+    }
+
+    return result;
+  }
+
+  async getDeck(id: string): Promise<Deck | null> {
+    const row = this.db.prepare('SELECT * FROM decks WHERE id = ?').get(id) as any;
+    if (!row) {
+      return null;
+    }
+
+    return this.hydrateDecks([row])[0];
   }
 
   async getAllDecks(): Promise<Deck[]> {
-    const stmt = this.db.prepare('SELECT * FROM decks ORDER BY created_at DESC');
-    const rows = stmt.all() as any[];
-    
-    const decks: Deck[] = [];
-    for (const row of rows) {
-      const deckServices = await this.getDeckServices(row.id);
-      const services: Service[] = [];
-      
-      for (const deckService of deckServices) {
-        const service = await this.getService(deckService.serviceId);
-        if (service) {
-          services.push(service);
-        }
-      }
-
-      const credentials = await this.getDeckCredentialsForDeck(row.id);
-      const playbooks = await this.getDeckPlaybooksForDeck(row.id);
-      
-      decks.push({
-        id: row.id,
-        name: row.name,
-        isActive: Boolean(row.is_active),
-        services,
-        credentials,
-        playbooks,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      });
-    }
-    
-    return decks;
+    const rows = this.db.prepare('SELECT * FROM decks ORDER BY created_at DESC').all() as any[];
+    return this.hydrateDecks(rows);
   }
 
   async getActiveDeck(): Promise<Deck | null> {
-    const stmt = this.db.prepare('SELECT * FROM decks WHERE is_active = 1 LIMIT 1');
-    const row = stmt.get() as any;
-    
-    if (!row) return null;
-    
-    const deckServices = await this.getDeckServices(row.id);
-    const services: Service[] = [];
-    
-    for (const deckService of deckServices) {
-      const service = await this.getService(deckService.serviceId);
-      if (service) {
-        services.push(service);
-      }
+    const row = this.db.prepare('SELECT * FROM decks WHERE is_active = 1 LIMIT 1').get() as any;
+    if (!row) {
+      return null;
     }
 
-    const credentials = await this.getDeckCredentialsForDeck(row.id);
-    const playbooks = await this.getDeckPlaybooksForDeck(row.id);
-    
-    return {
-      id: row.id,
-      name: row.name,
-      isActive: Boolean(row.is_active),
-      services,
-      credentials,
-      playbooks,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return this.hydrateDecks([row])[0];
   }
 
   async updateDeck(id: string, input: UpdateDeckInput): Promise<Deck | null> {
@@ -1280,15 +1307,7 @@ export class DatabaseManager {
   }
 
   async getDeckPlaybooksForDeck(deckId: string): Promise<Playbook[]> {
-    const rows = this.db.prepare(`
-      SELECT p.*, dp.position
-      FROM deck_playbooks dp
-      JOIN playbooks p ON p.id = dp.playbook_id
-      WHERE dp.deck_id = ?
-      ORDER BY dp.position ASC
-    `).all(deckId) as any[];
-
-    return rows.map((row) => this.mapPlaybookRow(row));
+    return this.loadPlaybooksForDecks([deckId]).get(deckId) ?? [];
   }
 
   async addPlaybookToDeck(input: AddPlaybookToDeckInput): Promise<void> {
@@ -1333,6 +1352,62 @@ export class DatabaseManager {
     }));
   }
 
+  async listDeckNamesForPlaybook(playbookId: string): Promise<string[]> {
+    const rows = this.db.prepare(`
+      SELECT d.name
+      FROM deck_playbooks dp
+      JOIN decks d ON d.id = dp.deck_id
+      WHERE dp.playbook_id = ?
+      ORDER BY d.name ASC
+    `).all(playbookId) as Array<{ name: string }>;
+
+    return rows.map((row) => row.name);
+  }
+
+  async upsertDeckWorkspace(workspaceRoot: string, deckId: string): Promise<void> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO deck_workspaces (workspace_root, deck_id, last_bound_at)
+      VALUES (@workspace_root, @deck_id, @last_bound_at)
+      ON CONFLICT(workspace_root, deck_id) DO UPDATE SET
+        last_bound_at = excluded.last_bound_at
+    `).run({
+      workspace_root: workspaceRoot,
+      deck_id: deckId,
+      last_bound_at: now,
+    });
+  }
+
+  async listDeckWorkspaces(deckId: string): Promise<Array<{ workspaceRoot: string; lastBoundAt: string }>> {
+    const rows = this.db.prepare(`
+      SELECT workspace_root, last_bound_at
+      FROM deck_workspaces
+      WHERE deck_id = ?
+      ORDER BY last_bound_at DESC
+    `).all(deckId) as Array<{ workspace_root: string; last_bound_at: string }>;
+
+    return rows.map((row) => ({
+      workspaceRoot: row.workspace_root,
+      lastBoundAt: row.last_bound_at,
+    }));
+  }
+
+  async removeDeckWorkspace(workspaceRoot: string, deckId: string): Promise<void> {
+    this.db.prepare(`
+      DELETE FROM deck_workspaces
+      WHERE workspace_root = ? AND deck_id = ?
+    `).run(workspaceRoot, deckId);
+  }
+
+  async listDeckIdsForPlaybook(playbookId: string): Promise<string[]> {
+    const rows = this.db.prepare(`
+      SELECT deck_id
+      FROM deck_playbooks
+      WHERE playbook_id = ?
+    `).all(playbookId) as Array<{ deck_id: string }>;
+    return rows.map((row) => row.deck_id);
+  }
+
   private mapPlaybookPatchRow(row: any): PlaybookPatch {
     return {
       id: row.id,
@@ -1343,6 +1418,7 @@ export class DatabaseManager {
       source: row.source,
       sourceRef: row.source_ref ?? null,
       evidenceJson: row.evidence_json ?? null,
+      conflictsJson: row.conflicts_json ?? null,
       status: row.status,
       rejectionReason: row.rejection_reason ?? null,
       createdAt: row.created_at,
@@ -1359,15 +1435,16 @@ export class DatabaseManager {
     source: PlaybookPatch['source'];
     sourceRef: string | null;
     evidenceJson: string | null;
+    conflictsJson?: string | null;
   }): Promise<PlaybookPatch> {
     const now = new Date().toISOString();
     this.db.prepare(`
       INSERT INTO playbook_patches (
         id, kind, playbook_id, ops_json, rationale, source, source_ref,
-        evidence_json, status, created_at
+        evidence_json, conflicts_json, status, created_at
       ) VALUES (
         @id, @kind, @playbook_id, @ops_json, @rationale, @source, @source_ref,
-        @evidence_json, 'proposed', @created_at
+        @evidence_json, @conflicts_json, 'proposed', @created_at
       )
     `).run({
       id: input.id,
@@ -1378,6 +1455,7 @@ export class DatabaseManager {
       source: input.source,
       source_ref: input.sourceRef,
       evidence_json: input.evidenceJson,
+      conflicts_json: input.conflictsJson ?? null,
       created_at: now,
     });
     return (await this.getPlaybookPatch(input.id))!;

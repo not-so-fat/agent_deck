@@ -51,6 +51,15 @@ export const StatusLinePayloadSchema = z.object({
 
 export type DeckDisplaySource = z.infer<typeof DeckDisplaySourceSchema>;
 export type DeckCardCounts = z.infer<typeof DeckCardCountsSchema>;
+
+export const DeckListEntrySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  isActive: z.boolean(),
+  cardCounts: DeckCardCountsSchema,
+});
+
+export type DeckListEntry = z.infer<typeof DeckListEntrySchema>;
 export type LiveBinding = z.infer<typeof LiveBindingSchema>;
 export type DeckDisplay = z.infer<typeof DeckDisplaySchema>;
 export type StatusLinePayload = z.infer<typeof StatusLinePayloadSchema>;

@@ -8,3 +8,4 @@ export * from './collection-warnings';
 export * from './oauth-session';
 export * from './local-mcp-manifest';
 export * from './agent-deck-home';
+export * from './trigger-hygiene';

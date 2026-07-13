@@ -1,4 +1,20 @@
 import { z } from 'zod';
+import { normalizeTriggers } from '../utils/trigger-hygiene';
+
+export const PlaybookTriggersSchema = z
+  .array(z.string())
+  .transform((triggers, ctx) => {
+    try {
+      return normalizeTriggers(triggers);
+    } catch (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: error instanceof Error ? error.message : 'Invalid triggers',
+      });
+      return z.NEVER;
+    }
+  })
+  .default([]);
 
 export const PlaybookIdSchema = z
   .string()
@@ -8,7 +24,7 @@ export const PlaybookSchema = z.object({
   id: PlaybookIdSchema,
   title: z.string().min(1, 'Title is required'),
   body: z.string().default(''),
-  triggers: z.array(z.string()).default([]),
+  triggers: PlaybookTriggersSchema,
   dependsOnCredentialIds: z.array(z.string()).default([]),
   dependsOnServiceIds: z.array(z.string()).default([]),
   exec: z.string().optional(),
@@ -21,7 +37,7 @@ export const CreatePlaybookSchema = z.object({
   id: PlaybookIdSchema.optional(),
   title: z.string().min(1, 'Title is required'),
   body: z.string().default(''),
-  triggers: z.array(z.string()).default([]),
+  triggers: PlaybookTriggersSchema,
   dependsOnCredentialIds: z.array(z.string()).default([]),
   dependsOnServiceIds: z.array(z.string()).default([]),
   exec: z.string().optional(),

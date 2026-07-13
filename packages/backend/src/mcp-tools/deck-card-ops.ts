@@ -78,12 +78,19 @@ export async function executeManageDeckCard(
     if (input.position !== undefined) {
       body.position = input.position;
     }
-    await backend.callBackendAPI(`/api/decks/${deckId}/${segment}`, {
+    const response = await backend.callBackendAPI(`/api/decks/${deckId}/${segment}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
-    return { success: true, deck_id: deckId, action, card_type: cardType, card_id: cardId };
+    }) as { trigger_warnings?: unknown[] } | undefined;
+    return {
+      success: true,
+      deck_id: deckId,
+      action,
+      card_type: cardType,
+      card_id: cardId,
+      ...(cardType === 'playbook' ? { trigger_warnings: response?.trigger_warnings ?? [] } : {}),
+    };
   }
 
   await backend.callBackendAPI(`/api/decks/${deckId}/${segment}`, {

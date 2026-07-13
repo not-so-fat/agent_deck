@@ -20,6 +20,7 @@ import {
   requirePlaybookOnBoundDeck,
 } from '../lib/bound-deck-scope';
 import { PlaybookDependencyError } from '../playbooks/playbook-manager';
+import { triggerWarningsForDeck } from '../playbooks/stub-workspace-sync';
 import { playbookEventSource } from './playbook-patches';
 import { generateId } from '@agent-deck/shared';
 
@@ -184,9 +185,18 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
         }
       }
 
+      const trigger_warnings = await triggerWarningsForDeck(
+        fastify.playbookManager,
+        deckId,
+        { id: playbook.id, title: playbook.title, triggers: playbook.triggers },
+      );
+
       return reply
         .status(201)
-        .send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+        .send({
+          success: true,
+          data: { ...playbook, trigger_warnings },
+        } satisfies ApiResponse<PlaybookWithDependencies & { trigger_warnings?: unknown }>);
     } catch (error) {
       if (error instanceof AgentDeckContextError) {
         return reply.status(400).send({
@@ -231,7 +241,16 @@ export async function registerPlaybookRoutes(fastify: FastifyInstance) {
       }
       await fastify.patchManager.snapshotVersion(playbook, null, 'user');
 
-      return reply.send({ success: true, data: playbook } satisfies ApiResponse<PlaybookWithDependencies>);
+      const trigger_warnings = await triggerWarningsForDeck(
+        fastify.playbookManager,
+        deckId,
+        { id: playbook.id, title: playbook.title, triggers: playbook.triggers },
+      );
+
+      return reply.send({
+        success: true,
+        data: { ...playbook, trigger_warnings },
+      } satisfies ApiResponse<PlaybookWithDependencies & { trigger_warnings?: unknown }>);
     } catch (error) {
       if (error instanceof AgentDeckContextError) {
         return reply.status(400).send({
