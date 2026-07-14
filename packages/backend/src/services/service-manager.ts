@@ -27,6 +27,7 @@ import {
   classifyMcpErrorCode,
   resolveMcpErrorMessage,
 } from '../lib/mcp-connection-error';
+import { normalizeServiceToolResult } from '../lib/normalize-service-tool-result';
 
 interface A2AManifest {
   endpoints?: Record<string, A2AEndpoint>;
@@ -388,10 +389,11 @@ export class ServiceManager {
           validatedInput.toolName,
           validatedInput.arguments
         );
-        return {
-          success: true,
-          result: result,
-        };
+        return normalizeServiceToolResult({
+          result,
+          service,
+          toolName: validatedInput.toolName,
+        });
       } else if (service.type === 'a2a') {
         const result = await this.callA2ATool(service, validatedInput.toolName, validatedInput.arguments || {});
         return {

@@ -11,6 +11,7 @@ export interface ServiceToolErrorDetails {
   tool_name?: string;
   cause: string;
   phase: 'connect' | 'discoverTools' | 'callTool';
+  hint?: string;
 }
 
 function errorMessage(err: unknown): string {

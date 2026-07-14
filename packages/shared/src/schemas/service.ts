@@ -78,6 +78,7 @@ export const ServiceToolErrorDetailsSchema = z.object({
   tool_name: z.string().optional(),
   cause: z.string(),
   phase: z.enum(['connect', 'discoverTools', 'callTool']),
+  hint: z.string().optional(),
 });
 
 export const ServiceCallResultSchema = z.object({

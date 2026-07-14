@@ -405,6 +405,37 @@ describe('ServiceManager', () => {
       });
     });
 
+    it('should surface in-band Slack file_not_found with Connect hint', async () => {
+      const serviceId = '123e4567-e89b-12d3-a456-426614174000';
+      const service = {
+        id: serviceId,
+        name: 'Slack',
+        type: 'mcp',
+        url: 'https://mcp.slack.com/mcp',
+      };
+
+      const callInput: ServiceCallInput = {
+        serviceId,
+        toolName: 'slack_read_file',
+        arguments: { file_id: 'F123' },
+      };
+
+      mockDbManager.getService.mockResolvedValue(service);
+      mockMCPClientManager.callTool.mockResolvedValue({
+        isError: true,
+        content: [{ type: 'text', text: 'execution_failed: file_not_found' }],
+      });
+
+      const result = await serviceManager.callServiceTool(callInput);
+
+      expect(result.success).toBe(false);
+      expect(result.error_code).toBe('MCP_TOOL_ERROR');
+      expect(result.error).toBe('file_not_found');
+      expect(result.details?.hint).toMatch(/Slack Connect/i);
+      expect(mockMCPClientManager.invalidateClient).not.toHaveBeenCalled();
+      expect(mockDbManager.updateServiceStatus).not.toHaveBeenCalled();
+    });
+
     it('should propagate MCP tool errors with structured details', async () => {
       const serviceId = '123e4567-e89b-12d3-a456-426614174000';
       const service = {

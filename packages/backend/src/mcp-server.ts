@@ -246,11 +246,11 @@ export class AgentDeckMCPServer {
   }
 
   private toolResult(data: unknown) {
-    return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
   }
 
   private toolError(error: unknown) {
-    return { content: [{ type: "text" as const, text: JSON.stringify({ error: String(error) }, null, 2) }] };
+    return { content: [{ type: "text" as const, text: JSON.stringify({ error: String(error) }) }] };
   }
 
   /** Avoid TS2589 when registering many MCP tools (SDK overload recursion). */

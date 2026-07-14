@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.4 — 2026-07-14
+
+### Service tool proxy
+
+- **In-band MCP errors:** `callServiceTool` treats remote `isError` / `file_not_found` as `success: false` with `MCP_TOOL_ERROR` (no longer disguised as success)
+- **Slack Connect hint:** Slack services get an actionable `details.hint` on `file_not_found` (retry won't help; ask for re-upload)
+- **Binary / oversized spill:** payloads that look binary or serialize to ≥48 KB write to `~/.agent-deck/tool-results/` and return `{ spilled, path, mimeType, size }`
+- **Compact tool JSON:** MCP `toolResult` no longer pretty-prints (drops per-call whitespace tax)
+
 ## 1.4.3 — 2026-07-12
 
 ### Stub lifecycle sync

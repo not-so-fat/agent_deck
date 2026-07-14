@@ -104,6 +104,8 @@ export interface ServiceToolErrorDetails {
   tool_name?: string;
   cause: string;
   phase: 'connect' | 'discoverTools' | 'callTool';
+  /** Actionable guidance for known tool failures (e.g. Slack Connect file_not_found). */
+  hint?: string;
 }
 
 export interface ServiceCallResult {
