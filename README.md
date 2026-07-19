@@ -144,7 +144,7 @@ Port conflicts: `agent-deck status` · `agent-deck start --force`
 
 ## Documentation
 
-**Index:** [docs/README.md](docs/README.md)
+**Index:** [docs/README.md](docs/README.md) · **Security:** [SECURITY.md](SECURITY.md)
 
 | Guide | Description |
 |-------|-------------|
@@ -155,6 +155,7 @@ Port conflicts: `agent-deck status` · `agent-deck start --force`
 | [Playbooks vs Cursor skills](docs/PLAYBOOKS_AND_SKILLS.md) | Deck playbooks vs Cursor skills |
 | [Export / import](docs/PRD_EXPORT_IMPORT.md) | Portable layout bundles |
 | [Deck display](docs/PRD_DECK_DISPLAY.md) | Terminal status line |
+| [Codex / Claude plugin](docs/CODEX_PLUGIN.md) | Marketplace packaging (HOL / Codex / Claude Code) |
 | [Architecture](docs/ARCHITECTURE.md) | SQLite, Keychain, components |
 | [Development](docs/DEVELOPMENT.md) | Contributors |
 | [Publishing](docs/PUBLISHING.md) | npm release |
@@ -166,9 +167,13 @@ Port conflicts: `agent-deck status` · `agent-deck start --force`
 | **GitHub** | Demo GIF, this README |
 | **npm** | `npm install -g @agent-deck/cli` |
 | **MCP Registry** | `server.json` — [Publishing](docs/PUBLISHING.md) |
+| **Codex marketplace** | `.codex-plugin/` + HOL listing (pending awesome-codex-plugins PR after green CI) — [CODEX_PLUGIN.md](docs/CODEX_PLUGIN.md) |
+| **Claude Code** | `/plugin marketplace add` via `.claude-plugin/` |
+| **Cursor** | `agent-deck setup --client cursor` |
 
 ## What's next
 
-- Cursor plugin packaging (rules / MCP bundle)
+- Open HOL [awesome-codex-plugins](https://github.com/hashgraph-online/awesome-codex-plugins) README PR once scanner CI is green on `main`
+- Optional: stdio MCP transport (`agent-deck mcp --stdio`) for on-demand plugin start
 - Passthrough for downstream MCP Apps
 - Smarter deck recommendations

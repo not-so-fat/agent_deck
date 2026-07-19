@@ -23,6 +23,9 @@ const targets = [
   'packages/cli/package.json',
   'apps/agent-deck/package.json',
   'server.json',
+  '.codex-plugin/plugin.json',
+  '.claude-plugin/plugin.json',
+  '.claude-plugin/marketplace.json',
 ];
 
 for (const relativePath of targets) {
@@ -40,6 +43,31 @@ for (const relativePath of targets) {
       }
     }
     fs.writeFileSync(filePath, `${JSON.stringify(serverJson, null, 2)}\n`);
+    console.log(`Updated ${relativePath} -> ${version}`);
+    continue;
+  }
+
+  if (
+    relativePath === '.codex-plugin/plugin.json' ||
+    relativePath === '.claude-plugin/plugin.json'
+  ) {
+    const pluginJson = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    pluginJson.version = version;
+    fs.writeFileSync(filePath, `${JSON.stringify(pluginJson, null, 2)}\n`);
+    console.log(`Updated ${relativePath} -> ${version}`);
+    continue;
+  }
+
+  if (relativePath === '.claude-plugin/marketplace.json') {
+    const marketplace = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (Array.isArray(marketplace.plugins)) {
+      for (const plugin of marketplace.plugins) {
+        if (plugin && typeof plugin === 'object') {
+          plugin.version = version;
+        }
+      }
+    }
+    fs.writeFileSync(filePath, `${JSON.stringify(marketplace, null, 2)}\n`);
     console.log(`Updated ${relativePath} -> ${version}`);
     continue;
   }

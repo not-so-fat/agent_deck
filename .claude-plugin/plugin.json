@@ -1,0 +1,19 @@
+{
+  "name": "agent-deck",
+  "version": "1.4.4",
+  "description": "Decks of MCP tools, keys, and self-improving playbooks that bind per-workspace.",
+  "author": {
+    "name": "not-so-fat",
+    "url": "https://github.com/not-so-fat"
+  },
+  "homepage": "https://github.com/not-so-fat/agent-deck",
+  "repository": "https://github.com/not-so-fat/agent-deck",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "playbooks",
+    "agent-context"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

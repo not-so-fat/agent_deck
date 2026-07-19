@@ -1,0 +1,25 @@
+# HOL / Codex plugin-scanner config for the monorepo.
+# Scan the repo for marketplace compliance, but ignore product surfaces that
+# are not part of the installed plugin bundle (see .codexignore).
+
+[scanner]
+profile = "default"
+ignore_paths = [
+  "apps/**",
+  "packages/**",
+  "scripts/**",
+  "docs/**",
+  "misc/**",
+  "logs/**",
+  ".temporal/**",
+  "node_modules/**",
+  "coverage/**",
+  "dist/**",
+  "build/**",
+  ".turbo/**",
+  "venv/**",
+]
+
+[rules]
+# Keep secrets/dynamic-exec rules on for plugin-facing files (skills, manifests, root MCP).
+disabled = []

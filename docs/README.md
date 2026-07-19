@@ -33,6 +33,7 @@
 | [PLAYBOOKS_AND_SKILLS.md](./PLAYBOOKS_AND_SKILLS.md) | Playbooks vs Cursor skills |
 | [MONOREPO_SCOPE.md](./MONOREPO_SCOPE.md) | Session binding in monorepos |
 | [PUBLISHING.md](./PUBLISHING.md) | npm release, distribution |
+| [CODEX_PLUGIN.md](./CODEX_PLUGIN.md) | Codex / Claude / HOL marketplace packaging |
 
 ## Proposed features
 
