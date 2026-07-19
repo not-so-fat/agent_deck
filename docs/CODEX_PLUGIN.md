@@ -85,13 +85,14 @@ Modeled on live marketplace entries (e.g. `changelog-forge`):
   "license": "MIT",
   "keywords": ["mcp", "playbooks", "agent-context", "codex-plugin"],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Agent Deck",
     "shortDescription": "Decks of tools, keys, and self-improving playbooks.",
     "longDescription": "Bind a deck to your workspace and every session starts with the right MCP tools, credentials, and task playbooks — and playbooks learn from your corrections via a review queue.",
     "developerName": "not-so-fat",
     "category": "Productivity",
-    "capabilities": ["Interactive"],
+    "capabilities": ["Read", "Write"],
     "websiteURL": "https://github.com/not-so-fat/agent-deck",
     "privacyPolicyURL": "https://github.com/not-so-fat/agent-deck/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/not-so-fat/agent-deck/blob/main/LICENSE",
@@ -101,6 +102,8 @@ Modeled on live marketplace entries (e.g. `changelog-forge`):
   }
 }
 ```
+
+`mcpServers` must be declared (path to root `.mcp.json`). Omit it and ChatGPT desktop shows **Failed to load plugin connection**. Prefer `Read`/`Write` capabilities over `Interactive` unless you also ship an `.app.json` connector.
 
 Version: add `.codex-plugin/plugin.json` to `scripts/sync-versions.mjs` so it tracks the package version.
 

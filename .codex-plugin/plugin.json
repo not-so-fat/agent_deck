@@ -16,6 +16,7 @@
     "codex-plugin"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Agent Deck",
     "shortDescription": "Decks of tools, keys, and self-improving playbooks.",
@@ -23,7 +24,8 @@
     "developerName": "not-so-fat",
     "category": "Productivity",
     "capabilities": [
-      "Interactive"
+      "Read",
+      "Write"
     ],
     "websiteURL": "https://github.com/not-so-fat/agent-deck",
     "privacyPolicyURL": "https://github.com/not-so-fat/agent-deck/blob/main/SECURITY.md",

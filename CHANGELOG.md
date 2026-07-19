@@ -5,6 +5,7 @@
 ### Codex / Claude plugin packaging
 
 - **Option A at monorepo root:** `.codex-plugin/plugin.json`, root `skills/` (setup / session / playbooks stubs), `.codexignore`, `assets/icon.svg`, `SECURITY.md`
+- **Codex desktop connect:** declare `mcpServers: "./.mcp.json"` in the Codex manifest; use `Read`/`Write` capabilities (not `Interactive`) so Plugins UI does not expect a missing app connector
 - **Claude Code:** `.claude-plugin/plugin.json` + `marketplace.json` sharing the same skills and `.mcp.json` (port 1110)
 - **HOL scanner:** `.plugin-scanner.toml` ignore paths for product surfaces; `.github/workflows/hol-plugin-scanner.yml`; SHA-pinned Actions in `ci.yml`; Dependabot for npm + Actions
 - **Version sync:** `scripts/sync-versions.mjs` also updates Codex/Claude plugin manifests
