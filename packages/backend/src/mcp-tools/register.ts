@@ -345,11 +345,15 @@ function registerRuntimeTools(host: McpToolHost): void {
             'Feedback signal logged (no patch). Unreviewed backlog is curated from the dashboard (copy prompt → paste here with signal_ids).',
         });
       }
-      const triggerWarnings = result?.conflictsJson
-        ? JSON.parse(result.conflictsJson as string)
+      const patch = result?.patch ?? result;
+      const triggerWarnings = patch?.conflictsJson
+        ? JSON.parse(patch.conflictsJson as string)
         : [];
       return host.toolResult({
-        ...result,
+        ...patch,
+        kind: result?.kind,
+        // Null when curation submit (signal_ids) — no new signal row.
+        signal_id: result?.signal?.id ?? null,
         trigger_warnings: triggerWarnings,
       });
     } catch (error) {

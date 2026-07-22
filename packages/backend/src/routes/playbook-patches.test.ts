@@ -109,7 +109,14 @@ describe('playbook-patches routes', () => {
       },
     });
     expect(proposed.statusCode).toBe(201);
-    const patchId = proposed.json().data.id as string;
+    const body = proposed.json().data as {
+      kind: string;
+      patch: { id: string };
+      signal: { id: string } | null;
+    };
+    expect(body.kind).toBe('update');
+    expect(body.signal?.id).toMatch(/^fs_/);
+    const patchId = body.patch.id;
 
     const preview = await app.inject({
       method: 'GET',

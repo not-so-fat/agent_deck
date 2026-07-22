@@ -200,6 +200,8 @@ export default function PlaybookPatchesPage() {
       setSelectedId(null);
       void queryClient.invalidateQueries({ queryKey: ["/api/playbook-patches"] });
       void queryClient.invalidateQueries({ queryKey: ["/api/playbooks"] });
+      // Stale-conflict accept reopens linked signals — refresh badge/backlog.
+      void queryClient.invalidateQueries({ queryKey: ["/api/feedback-signals"] });
     },
     onError: (error: Error) => {
       toast({ title: "Accept failed", description: error.message, variant: "destructive" });

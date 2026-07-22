@@ -47,17 +47,12 @@ export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
         sourceRef,
         deckId ?? undefined,
       );
-      if (result.kind === 'signal_only') {
-        return reply.status(201).send({
-          success: true,
-          data: result,
-        } satisfies ApiResponse<ProposePlaybookPatchResult>);
-      }
+      // Always return ProposePlaybookPatchResult so agents see linked signal ids
+      // (callBackendAPI unwraps .data and would drop a top-level meta.signalId).
       return reply.status(201).send({
         success: true,
-        data: result.patch,
-        meta: result.signal ? { signalId: result.signal.id } : undefined,
-      } satisfies ApiResponse<PlaybookPatch> & { meta?: { signalId: string } });
+        data: result,
+      } satisfies ApiResponse<ProposePlaybookPatchResult>);
     } catch (error) {
       if (error instanceof PatchConflictError || error instanceof PatchNoChangeError) {
         return reply.status(409).send({
