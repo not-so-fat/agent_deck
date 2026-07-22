@@ -3,11 +3,14 @@ import {
   PatchOpSchema,
   ProposePlaybookPatchInput,
   ProposePlaybookPatchSchema,
+  type FeedbackSignal,
+  type FeedbackSignalSource,
   type PatchOp,
   type PatchPreview,
   type PlaybookPatch,
   type PlaybookPatchListItem,
   type PlaybookPatchSource,
+  type ProposePlaybookPatchResult,
   generateShortId,
   derivePlaybookDefaults,
   generateId,
@@ -36,6 +39,10 @@ export class PatchNoChangeError extends Error {
   }
 }
 
+function toSignalSource(source: PlaybookPatchSource): FeedbackSignalSource {
+  return source === 'dealer' ? 'dealer' : 'ide';
+}
+
 export class PatchManager {
   constructor(
     private db: DatabaseManager,
@@ -46,13 +53,77 @@ export class PatchManager {
     return `pp_${generateShortId()}`;
   }
 
+  private newSignalId(): string {
+    return `fs_${generateShortId()}`;
+  }
+
+  private async writeSignal(input: {
+    source: PlaybookPatchSource;
+    sourceRef: string | null;
+    failureSummary: string;
+    userFeedbackExcerpt: string;
+    correctedOutputHint: string | null;
+    candidatePlaybookId: string | null;
+    candidateDeckId: string | null;
+    linkedPatchId: string | null;
+    status: FeedbackSignal['status'];
+  }): Promise<FeedbackSignal> {
+    return this.db.createFeedbackSignal({
+      id: this.newSignalId(),
+      source: toSignalSource(input.source),
+      sourceRef: input.sourceRef,
+      failureSummary: input.failureSummary,
+      userFeedbackExcerpt: input.userFeedbackExcerpt,
+      correctedOutputHint: input.correctedOutputHint,
+      candidatePlaybookId: input.candidatePlaybookId,
+      candidateDeckId: input.candidateDeckId,
+      linkedPatchId: input.linkedPatchId,
+      status: input.status,
+    });
+  }
+
+  private async linkCuratedSignals(
+    signalIds: string[] | undefined,
+    patchId: string,
+  ): Promise<void> {
+    if (!signalIds || signalIds.length === 0) return;
+    for (const id of signalIds) {
+      const existing = await this.db.getFeedbackSignal(id);
+      if (!existing || existing.status !== 'unreviewed') continue;
+      await this.db.updateFeedbackSignalStatus(id, 'actioned', patchId);
+    }
+  }
+
   async propose(
     input: ProposePlaybookPatchInput,
     source: PlaybookPatchSource,
     sourceRef: string | null,
     deckIdForCreate?: string,
-  ): Promise<PlaybookPatch> {
+  ): Promise<ProposePlaybookPatchResult> {
     const validated = ProposePlaybookPatchSchema.parse(input);
+
+    const evidence = validated.evidence ?? {
+      failure_summary: validated.rationale,
+      user_feedback_excerpt: validated.rationale,
+    };
+
+    if (validated.kind === 'signal_only') {
+      const signal = await this.writeSignal({
+        source,
+        sourceRef,
+        failureSummary: evidence.failure_summary,
+        userFeedbackExcerpt: evidence.user_feedback_excerpt,
+        correctedOutputHint: evidence.corrected_output_hint ?? null,
+        candidatePlaybookId: validated.playbook_id ?? null,
+        candidateDeckId: deckIdForCreate ?? null,
+        linkedPatchId: null,
+        status: 'unreviewed',
+      });
+      return { kind: 'signal_only', signal };
+    }
+
+    const curationSubmit =
+      Array.isArray(validated.signal_ids) && validated.signal_ids.length > 0;
 
     if (validated.kind === 'create') {
       const fieldsInput = validated.new_playbook;
@@ -76,7 +147,8 @@ export class PatchManager {
         },
         [fields.deck_id],
       );
-      return this.db.createPlaybookPatch({
+
+      const patch = await this.db.createPlaybookPatch({
         id: this.newPatchId(),
         kind: 'create',
         playbookId: null,
@@ -87,6 +159,25 @@ export class PatchManager {
         evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
         conflictsJson: conflicts.length > 0 ? JSON.stringify(conflicts) : null,
       });
+
+      if (curationSubmit) {
+        await this.linkCuratedSignals(validated.signal_ids, patch.id);
+        return { kind: 'create', patch, signal: null };
+      }
+
+      const signal = await this.writeSignal({
+        source,
+        sourceRef,
+        failureSummary: evidence.failure_summary,
+        userFeedbackExcerpt: evidence.user_feedback_excerpt,
+        correctedOutputHint: evidence.corrected_output_hint ?? null,
+        candidatePlaybookId: null,
+        candidateDeckId: fields.deck_id,
+        linkedPatchId: null,
+        status: 'unreviewed',
+      });
+      const linked = await this.db.updateFeedbackSignalStatus(signal.id, 'actioned', patch.id);
+      return { kind: 'create', patch, signal: linked! };
     }
 
     if (!validated.playbook_id) {
@@ -124,7 +215,7 @@ export class PatchManager {
       triggers: dryRun.value.triggers,
     });
 
-    return this.db.createPlaybookPatch({
+    const patch = await this.db.createPlaybookPatch({
       id: this.newPatchId(),
       kind: validated.kind,
       playbookId: validated.playbook_id,
@@ -135,6 +226,25 @@ export class PatchManager {
       evidenceJson: validated.evidence ? JSON.stringify(validated.evidence) : null,
       conflictsJson: conflicts.length > 0 ? JSON.stringify(conflicts) : null,
     });
+
+    if (curationSubmit) {
+      await this.linkCuratedSignals(validated.signal_ids, patch.id);
+      return { kind: validated.kind, patch, signal: null };
+    }
+
+    const signal = await this.writeSignal({
+      source,
+      sourceRef,
+      failureSummary: evidence.failure_summary,
+      userFeedbackExcerpt: evidence.user_feedback_excerpt,
+      correctedOutputHint: evidence.corrected_output_hint ?? null,
+      candidatePlaybookId: validated.playbook_id,
+      candidateDeckId: deckIdForCreate ?? null,
+      linkedPatchId: null,
+      status: 'unreviewed',
+    });
+    const linked = await this.db.updateFeedbackSignalStatus(signal.id, 'actioned', patch.id);
+    return { kind: validated.kind, patch, signal: linked! };
   }
 
   async preview(patchId: string): Promise<PatchPreview | null> {
@@ -257,6 +367,7 @@ export class PatchManager {
         'rejected',
         'Target playbook was deleted',
       );
+      await this.db.reopenSignalsForPatch(patchId);
       throw new Error('Target playbook was deleted');
     }
 
@@ -267,6 +378,7 @@ export class PatchManager {
     );
     if (!result.ok) {
       await this.db.updatePlaybookPatchStatus(patchId, 'stale');
+      await this.db.reopenSignalsForPatch(patchId);
       throw new PatchConflictError(result.conflict);
     }
 
@@ -290,7 +402,9 @@ export class PatchManager {
     if (patch.status !== 'proposed') {
       throw new Error(`Patch is not proposed (status=${patch.status})`);
     }
-    return this.db.updatePlaybookPatchStatus(patchId, 'rejected', reason);
+    const updated = await this.db.updatePlaybookPatchStatus(patchId, 'rejected', reason);
+    await this.db.reopenSignalsForPatch(patchId);
+    return updated;
   }
 
   async list(status?: PlaybookPatch['status']): Promise<PlaybookPatch[]> {

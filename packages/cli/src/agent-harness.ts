@@ -36,9 +36,13 @@ Deck playbooks are task recipes — thin trigger stubs from \`agent-deck use\` p
 
 **Genesis case** (no playbook covered the task): before ending, \`propose_playbook_patch { kind: "create", new_playbook: { title, triggers, body with one gotcha } }\` — a few lines is the right size.
 
+**Defer when unsure** (\`kind: "signal_only"\`): if the correction is plausible but not yet clearly generalizable (edge case, one-off, or needs sibling corrections before the lesson is clear), call \`propose_playbook_patch { kind: "signal_only", evidence, rationale }\` — logs the signal with no patch proposal. Prefer immediate \`update\`/\`create\` when the lesson is clear.
+
+**Curate from a pasted dashboard prompt:** when the user pastes a curation prompt copied from the Playbook review queue (unreviewed feedback → Copy for agent), group the signals, then \`propose_playbook_patch\` with consolidated ops and \`signal_ids\` of consumed rows. Do not invent a list-feedback MCP tool — backlog browse/discard is dashboard-only.
+
 **Explicit user-directed playbook edits** ("fix the playbook to say X"): \`update_playbook\` — they already reviewed.
 
-Tell the user in one line: proposal filed — review in dashboard **Playbook patches** (unified diff).
+Tell the user in one line that a proposal was filed (or a signal was logged for later dashboard curation); review happens in the dashboard.
 
 **How to shape proposals:** generalize project-specific names but keep concrete gotchas; place lessons in Checklist/Gotchas; use \`rewrite_body\` only when structure cannot absorb the lesson.
 

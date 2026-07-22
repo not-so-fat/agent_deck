@@ -24,6 +24,9 @@ import {
   PlaybookPatch,
   PlaybookVersion,
   PlaybookEvent,
+  FeedbackSignal,
+  FeedbackSignalSource,
+  FeedbackSignalStatus,
 } from '@agent-deck/shared';
 import { 
   serializeForDatabase, 
@@ -354,6 +357,25 @@ export class DatabaseManager {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS feedback_signals (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        source_ref TEXT,
+        failure_summary TEXT NOT NULL,
+        user_feedback_excerpt TEXT NOT NULL,
+        corrected_output_hint TEXT,
+        candidate_playbook_id TEXT,
+        candidate_deck_id TEXT,
+        linked_patch_id TEXT,
+        status TEXT NOT NULL DEFAULT 'unreviewed',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (candidate_playbook_id) REFERENCES playbooks (id) ON DELETE SET NULL,
+        FOREIGN KEY (candidate_deck_id) REFERENCES decks (id) ON DELETE SET NULL,
+        FOREIGN KEY (linked_patch_id) REFERENCES playbook_patches (id) ON DELETE SET NULL
+      )
+    `);
+
+    this.db.exec(`
       CREATE TABLE IF NOT EXISTS deck_workspaces (
         workspace_root TEXT NOT NULL,
         deck_id TEXT NOT NULL,
@@ -382,6 +404,9 @@ export class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_playbook_patches_status ON playbook_patches(status);
       CREATE INDEX IF NOT EXISTS idx_playbook_versions_playbook ON playbook_versions(playbook_id);
       CREATE INDEX IF NOT EXISTS idx_playbook_events_playbook ON playbook_events(playbook_id);
+      CREATE INDEX IF NOT EXISTS idx_feedback_signals_status ON feedback_signals(status);
+      CREATE INDEX IF NOT EXISTS idx_feedback_signals_playbook ON feedback_signals(candidate_playbook_id);
+      CREATE INDEX IF NOT EXISTS idx_feedback_signals_linked_patch ON feedback_signals(linked_patch_id);
     `);
   }
 
@@ -1583,6 +1608,146 @@ export class DatabaseManager {
       .prepare('SELECT COUNT(*) as count FROM playbook_events WHERE playbook_id = ? AND event = ?')
       .get(playbookId, event) as { count: number };
     return row.count;
+  }
+
+  private mapFeedbackSignalRow(row: any): FeedbackSignal {
+    return {
+      id: row.id,
+      source: row.source as FeedbackSignalSource,
+      sourceRef: row.source_ref ?? null,
+      failureSummary: row.failure_summary,
+      userFeedbackExcerpt: row.user_feedback_excerpt,
+      correctedOutputHint: row.corrected_output_hint ?? null,
+      candidatePlaybookId: row.candidate_playbook_id ?? null,
+      candidateDeckId: row.candidate_deck_id ?? null,
+      linkedPatchId: row.linked_patch_id ?? null,
+      status: row.status as FeedbackSignalStatus,
+      createdAt: row.created_at,
+    };
+  }
+
+  async createFeedbackSignal(input: {
+    id: string;
+    source: FeedbackSignalSource;
+    sourceRef: string | null;
+    failureSummary: string;
+    userFeedbackExcerpt: string;
+    correctedOutputHint: string | null;
+    candidatePlaybookId: string | null;
+    candidateDeckId: string | null;
+    linkedPatchId: string | null;
+    status: FeedbackSignalStatus;
+  }): Promise<FeedbackSignal> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO feedback_signals (
+        id, source, source_ref, failure_summary, user_feedback_excerpt,
+        corrected_output_hint, candidate_playbook_id, candidate_deck_id,
+        linked_patch_id, status, created_at
+      ) VALUES (
+        @id, @source, @source_ref, @failure_summary, @user_feedback_excerpt,
+        @corrected_output_hint, @candidate_playbook_id, @candidate_deck_id,
+        @linked_patch_id, @status, @created_at
+      )
+    `).run({
+      id: input.id,
+      source: input.source,
+      source_ref: input.sourceRef,
+      failure_summary: input.failureSummary,
+      user_feedback_excerpt: input.userFeedbackExcerpt,
+      corrected_output_hint: input.correctedOutputHint,
+      candidate_playbook_id: input.candidatePlaybookId,
+      candidate_deck_id: input.candidateDeckId,
+      linked_patch_id: input.linkedPatchId,
+      status: input.status,
+      created_at: now,
+    });
+    return (await this.getFeedbackSignal(input.id))!;
+  }
+
+  async getFeedbackSignal(id: string): Promise<FeedbackSignal | null> {
+    const row = this.db.prepare('SELECT * FROM feedback_signals WHERE id = ?').get(id) as any;
+    return row ? this.mapFeedbackSignalRow(row) : null;
+  }
+
+  async listFeedbackSignals(filter?: {
+    status?: FeedbackSignalStatus;
+    candidatePlaybookId?: string;
+    candidateDeckId?: string;
+  }): Promise<FeedbackSignal[]> {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (filter?.status) {
+      clauses.push('status = @status');
+      params.status = filter.status;
+    }
+    if (filter?.candidatePlaybookId) {
+      clauses.push('candidate_playbook_id = @candidate_playbook_id');
+      params.candidate_playbook_id = filter.candidatePlaybookId;
+    }
+    if (filter?.candidateDeckId) {
+      clauses.push('candidate_deck_id = @candidate_deck_id');
+      params.candidate_deck_id = filter.candidateDeckId;
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const rows = this.db
+      .prepare(`SELECT * FROM feedback_signals ${where} ORDER BY created_at ASC`)
+      .all(params) as any[];
+    return rows.map((row) => this.mapFeedbackSignalRow(row));
+  }
+
+  async countFeedbackSignals(filter?: {
+    status?: FeedbackSignalStatus;
+    playbookId?: string;
+  }): Promise<number> {
+    const clauses: string[] = [];
+    const params: Record<string, string> = {};
+    if (filter?.status) {
+      clauses.push('status = @status');
+      params.status = filter.status;
+    }
+    if (filter?.playbookId) {
+      clauses.push('candidate_playbook_id = @playbook_id');
+      params.playbook_id = filter.playbookId;
+    }
+    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const row = this.db
+      .prepare(`SELECT COUNT(*) as count FROM feedback_signals ${where}`)
+      .get(params) as { count: number };
+    return row.count;
+  }
+
+  async updateFeedbackSignalStatus(
+    id: string,
+    status: FeedbackSignalStatus,
+    linkedPatchId: string | null | undefined = undefined,
+  ): Promise<FeedbackSignal | null> {
+    if (linkedPatchId === undefined) {
+      const result = this.db
+        .prepare('UPDATE feedback_signals SET status = @status WHERE id = @id')
+        .run({ id, status });
+      if (result.changes === 0) return null;
+    } else {
+      const result = this.db
+        .prepare(
+          'UPDATE feedback_signals SET status = @status, linked_patch_id = @linked_patch_id WHERE id = @id',
+        )
+        .run({ id, status, linked_patch_id: linkedPatchId });
+      if (result.changes === 0) return null;
+    }
+    return this.getFeedbackSignal(id);
+  }
+
+  /** Reopen signals that were linked to a rejected patch (back to unreviewed). */
+  async reopenSignalsForPatch(patchId: string): Promise<number> {
+    const result = this.db
+      .prepare(
+        `UPDATE feedback_signals
+         SET status = 'unreviewed', linked_patch_id = NULL
+         WHERE linked_patch_id = ? AND status = 'actioned'`,
+      )
+      .run(patchId);
+    return result.changes;
   }
 
   // Cleanup

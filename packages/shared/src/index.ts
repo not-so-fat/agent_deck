@@ -5,6 +5,7 @@ export * from './schemas/credential';
 export * from './schemas/oauth';
 export * from './schemas/playbook';
 export * from './schemas/playbook-patch';
+export * from './schemas/feedback-signal';
 export * from './schemas/deck-display';
 export * from './schemas/export-bundle';
 

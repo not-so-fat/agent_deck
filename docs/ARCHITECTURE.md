@@ -130,6 +130,7 @@ High level:
 - **API shape:** `{ success, data?, error? }`
 - **Real-time:** WebSocket ` /api/ws/events` for dashboard
 - **Session bind:** in-memory per MCP session — `McpSessionBindingStore`
+- **No backend LLM calls:** reasoning stays in external agents (Claude Code, Cursor, Codex, agent-dealer) — see [decisions/no-backend-llm-boundary.md](./decisions/no-backend-llm-boundary.md)
 
 ---
 

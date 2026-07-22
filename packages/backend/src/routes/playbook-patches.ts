@@ -7,6 +7,7 @@ import {
   type PlaybookPatch,
   type PlaybookPatchListItem,
   type PlaybookPatchSource,
+  type ProposePlaybookPatchResult,
   AGENT_DECK_CLIENT_HEADER,
 } from '@agent-deck/shared';
 import { requireDashboardClient } from '../lib/client-scope';
@@ -40,13 +41,23 @@ export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
       const body = ProposePlaybookPatchSchema.parse(request.body);
       const deckId = await resolveAgentDeckId(request, fastify.db).catch(() => null);
       const { source, sourceRef } = resolvePatchProvenance(request);
-      const patch = await fastify.patchManager.propose(
+      const result = await fastify.patchManager.propose(
         body,
         source,
         sourceRef,
         deckId ?? undefined,
       );
-      return reply.status(201).send({ success: true, data: patch } satisfies ApiResponse<PlaybookPatch>);
+      if (result.kind === 'signal_only') {
+        return reply.status(201).send({
+          success: true,
+          data: result,
+        } satisfies ApiResponse<ProposePlaybookPatchResult>);
+      }
+      return reply.status(201).send({
+        success: true,
+        data: result.patch,
+        meta: result.signal ? { signalId: result.signal.id } : undefined,
+      } satisfies ApiResponse<PlaybookPatch> & { meta?: { signalId: string } });
     } catch (error) {
       if (error instanceof PatchConflictError || error instanceof PatchNoChangeError) {
         return reply.status(409).send({

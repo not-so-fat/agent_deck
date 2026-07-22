@@ -11,6 +11,7 @@ import {
   runServiceCommand,
 } from './collection-admin';
 import { runExportCommand, runImportCommand } from './export-import';
+import { runImportFeedbackSignalsCommand } from './import-feedback-signals';
 import { runDebugMcp } from './debug-mcp';
 import { runDoctor, runStart } from './start';
 import { runSetup, shouldStartAfterSetup } from './setup';
@@ -58,6 +59,7 @@ function printUsage() {
   agent-deck export all --output <path>
   agent-deck export deck <uuid> --output <path>
   agent-deck import <path>
+  agent-deck import-feedback-signals <transcript-dir> [--backend-url URL] [--output <path>]
   agent-deck exec [--deck DECK_ID] [--connections cred_a,cred_b] [--dry-run] -- <command...>`);
 }
 
@@ -323,6 +325,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runExportCommand(rest);
     case 'import':
       return runImportCommand(rest);
+    case 'import-feedback-signals':
+      return runImportFeedbackSignalsCommand(rest);
     case 'exec':
       return runExec(rest);
     default:

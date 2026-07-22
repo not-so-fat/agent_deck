@@ -284,9 +284,9 @@ function registerRuntimeTools(host: McpToolHost): void {
   r('propose_playbook_patch', {
     title: 'Propose Playbook Patch',
     description:
-      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal. Prefer add_item to Gotchas/Checklist; amend_item/remove_item only for exact list lines (- prefix); rewrite_body for prose edits.',
+      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal (or kind=signal_only to log without proposing). Prefer add_item to Gotchas/Checklist. Use signal_only when not yet generalizable. When curating accumulated feedback, pass signal_ids of consumed unreviewed signals.',
     inputSchema: {
-      kind: z.enum(['create', 'update', 'merge', 'retire']),
+      kind: z.enum(['create', 'update', 'merge', 'retire', 'signal_only']),
       playbook_id: z.string().optional(),
       ops: z
         .array(PatchOpSchema)
@@ -311,11 +311,15 @@ function registerRuntimeTools(host: McpToolHost): void {
           corrected_output_hint: z.string().optional(),
         })
         .optional(),
+      signal_ids: z
+        .array(z.string())
+        .optional()
+        .describe('Unreviewed feedback signal ids to mark actioned when submitting a curated patch'),
     },
-  }, async ({ kind, playbook_id, ops, new_playbook, rationale, evidence }) => {
+  }, async ({ kind, playbook_id, ops, new_playbook, rationale, evidence, signal_ids }) => {
     try {
       const deckId = await host.getBoundDeckId();
-      const patch = await host.callBackendAPI('/api/playbook-patches', {
+      const result = await host.callBackendAPI('/api/playbook-patches', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -330,13 +334,22 @@ function registerRuntimeTools(host: McpToolHost): void {
             : undefined,
           rationale,
           evidence,
+          signal_ids,
         }),
       });
-      const triggerWarnings = patch?.conflictsJson
-        ? JSON.parse(patch.conflictsJson as string)
+      if (result?.kind === 'signal_only') {
+        return host.toolResult({
+          kind: 'signal_only',
+          signal: result.signal,
+          message:
+            'Feedback signal logged (no patch). Unreviewed backlog is curated from the dashboard (copy prompt → paste here with signal_ids).',
+        });
+      }
+      const triggerWarnings = result?.conflictsJson
+        ? JSON.parse(result.conflictsJson as string)
         : [];
       return host.toolResult({
-        ...patch,
+        ...result,
         trigger_warnings: triggerWarnings,
       });
     } catch (error) {

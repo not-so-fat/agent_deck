@@ -6,13 +6,24 @@ export const PlaybookPatchIdSchema = z
   .string()
   .regex(/^pp_[a-z0-9_]+$/, 'Patch id must match pp_<slug>');
 
+/** Stored on `playbook_patches` rows — never includes signal_only. */
 export const PlaybookPatchKindSchema = z.enum(['create', 'update', 'merge', 'retire']);
+
+/** Propose MCP/API kinds — includes signal_only (no patch row). */
+export const ProposePlaybookPatchKindSchema = z.enum([
+  'create',
+  'update',
+  'merge',
+  'retire',
+  'signal_only',
+]);
 
 export const PlaybookPatchStatusSchema = z.enum(['proposed', 'accepted', 'rejected', 'stale']);
 
 export const PlaybookPatchSourceSchema = z.enum(['ide', 'dealer', 'hook', 'harvester']);
 
 export type PlaybookPatchSource = z.infer<typeof PlaybookPatchSourceSchema>;
+export type ProposePlaybookPatchKind = z.infer<typeof ProposePlaybookPatchKindSchema>;
 
 export const PatchEvidenceSchema = z.object({
   failure_summary: z.string().min(1),
@@ -75,14 +86,49 @@ export const CreatePlaybookPatchFieldsSchema = z.object({
   skill: z.string().optional(),
 });
 
-export const ProposePlaybookPatchSchema = z.object({
-  kind: PlaybookPatchKindSchema,
-  playbook_id: PlaybookIdSchema.optional(),
-  ops: z.array(PatchOpSchema).optional(),
-  new_playbook: CreatePlaybookPatchFieldsSchema.optional(),
-  rationale: z.string().min(1),
-  evidence: PatchEvidenceSchema.optional(),
-});
+export const ProposePlaybookPatchSchema = z
+  .object({
+    kind: ProposePlaybookPatchKindSchema,
+    playbook_id: PlaybookIdSchema.optional(),
+    ops: z.array(PatchOpSchema).optional(),
+    new_playbook: CreatePlaybookPatchFieldsSchema.optional(),
+    rationale: z.string().min(1),
+    evidence: PatchEvidenceSchema.optional(),
+    /** When submitting a curated revision, mark these unreviewed signals actioned + linked. */
+    signal_ids: z.array(z.string().regex(/^fs_[a-z0-9_]+$/)).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.kind === 'signal_only') {
+      if (!val.evidence) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'evidence is required for signal_only',
+          path: ['evidence'],
+        });
+      }
+      if (val.ops !== undefined && val.ops.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'ops must not be set for signal_only',
+          path: ['ops'],
+        });
+      }
+      if (val.new_playbook !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'new_playbook must not be set for signal_only',
+          path: ['new_playbook'],
+        });
+      }
+      if (val.signal_ids !== undefined && val.signal_ids.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'signal_ids must not be set for signal_only',
+          path: ['signal_ids'],
+        });
+      }
+    }
+  });
 
 export const RejectPlaybookPatchSchema = z.object({
   reason: z.string().min(1),
@@ -109,6 +155,22 @@ export type PlaybookPatch = {
   createdAt: string;
   resolvedAt: string | null;
 };
+
+/** Result of propose when kind is signal_only (no playbook_patches row). */
+export type ProposeSignalOnlyResult = {
+  kind: 'signal_only';
+  signal: import('./feedback-signal').FeedbackSignal;
+};
+
+/** Result of propose when a patch row was created. */
+export type ProposePatchResult = {
+  kind: Exclude<ProposePlaybookPatchKind, 'signal_only'>;
+  patch: PlaybookPatch;
+  /** Null when this was a curation submit (`signal_ids` present) — no new signal row. */
+  signal: import('./feedback-signal').FeedbackSignal | null;
+};
+
+export type ProposePlaybookPatchResult = ProposeSignalOnlyResult | ProposePatchResult;
 
 /** Dashboard list row — human title + decks referencing the playbook. */
 export type PlaybookPatchListItem = PlaybookPatch & {

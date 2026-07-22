@@ -28,6 +28,10 @@ describe('agent-harness templates', () => {
     expect(file).toContain('Session opener');
     expect(file).toContain('get_session_binding');
     expect(file).toContain('Genesis case');
+    expect(file).toContain('signal_only');
+    expect(file).toContain('signal_ids');
+    expect(file).toContain('Copy for agent');
+    expect(file).not.toContain('list_feedback_signals');
     expect(file).toContain('evidence.user_feedback_excerpt');
     expect(file).toContain('add_item');
     expect(file).toContain('rewrite_body');

@@ -152,5 +152,6 @@ CLAUDE.md / .mdc templates and PLAYBOOKS_AND_SKILLS.md / AGENT_HARNESS.md update
 ## Out of scope (later sub-projects)
 
 - **A′ per-deck endpoint + trigger stubs** — see [architecture revisit spec](./2026-07-11-architecture-revisit-triggering-learning-loop.md) (§3c connection model: one URL per workspace). Ships after or alongside proposal queue; learning-loop telemetry feeds stub curation.
-- Stop-hook capture, transcript harvester, automated curation pass (producers into this same queue).
+- Stop-hook capture and transcript harvester as live producers into this same queue (schema already reserves `source: hook | harvester`).
+- **Curation / feedback accumulation** — owned by [PRD_FEEDBACK_ACCUMULATION.md](../../PRD_FEEDBACK_ACCUMULATION.md): durable `feedback_signals` via MCP propose/`signal_only`; dashboard backlog (copy for agent / discard) → consolidated `propose_playbook_patch` with `signal_ids` (same review queue; no backend LLM; no list/discard MCP tools). Backfill CLI covers historical Claude Code transcripts; live Stop-hook / harvester producers remain later.
 - D4 memory cards — but `kind` column and create-ops shape deliberately leave room for `kind: memory` proposals.

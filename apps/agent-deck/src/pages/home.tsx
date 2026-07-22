@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Settings, Layers, Bolt, Server, KeyRound, BookOpen, Copy, Plus, Filter, AlertTriangle, LayoutGrid, Download, Upload, GitPullRequest } from "lucide-react";
 import { Link } from "wouter";
 import { listPlaybookPatches } from "@/lib/playbook-patches";
+import { getFeedbackSignalCount } from "@/lib/feedback-signals";
 import AgentDeckLogo from "@/assets/AgentDeckLogo3.png";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,6 +56,11 @@ export default function Home() {
   const { data: proposedPatches = [] } = useQuery({
     queryKey: ["/api/playbook-patches", "proposed"],
     queryFn: () => listPlaybookPatches("proposed"),
+  });
+
+  const { data: unreviewedSignalCount = 0 } = useQuery({
+    queryKey: ["/api/feedback-signals/count", "unreviewed"],
+    queryFn: () => getFeedbackSignalCount(),
   });
 
   const handleExportAll = async () => {
@@ -320,6 +326,14 @@ export default function Home() {
                   {proposedPatches.length > 0 && (
                     <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-black">
                       {proposedPatches.length}
+                    </span>
+                  )}
+                  {unreviewedSignalCount > 0 && (
+                    <span
+                      className="ml-1 rounded-full bg-sky-500/90 px-2 py-0.5 text-xs font-semibold text-black"
+                      title="Unreviewed feedback signals"
+                    >
+                      {unreviewedSignalCount} signals
                     </span>
                   )}
                 </Button>

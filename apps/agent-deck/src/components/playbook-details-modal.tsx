@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getPlaybookFetchCount } from "@/lib/playbook-patches";
+import { getFeedbackSignalCount } from "@/lib/feedback-signals";
 import { AlertTriangle } from "lucide-react";
 
 interface PlaybookDetailsModalProps {
@@ -29,6 +30,12 @@ export default function PlaybookDetailsModal({
   const { data: fetchCount } = useQuery({
     queryKey: [`/api/playbooks/${playbookId}/events/count`],
     queryFn: () => getPlaybookFetchCount(playbookId!),
+    enabled: open && Boolean(playbookId),
+  });
+
+  const { data: unreviewedSignals } = useQuery({
+    queryKey: ["/api/feedback-signals/count", playbookId],
+    queryFn: () => getFeedbackSignalCount(playbookId!),
     enabled: open && Boolean(playbookId),
   });
 
@@ -61,8 +68,19 @@ export default function PlaybookDetailsModal({
             {typeof fetchCount === "number" && (
               <p className="text-xs text-gray-500">
                 Fetched {fetchCount} time{fetchCount === 1 ? "" : "s"} (undertriggering signal)
+                {typeof unreviewedSignals === "number" && unreviewedSignals > 0
+                  ? ` · ${unreviewedSignals} unreviewed feedback signal${unreviewedSignals === 1 ? "" : "s"}`
+                  : null}
               </p>
             )}
+            {typeof fetchCount !== "number" &&
+              typeof unreviewedSignals === "number" &&
+              unreviewedSignals > 0 && (
+                <p className="text-xs text-gray-500">
+                  {unreviewedSignals} unreviewed feedback signal
+                  {unreviewedSignals === 1 ? "" : "s"}
+                </p>
+              )}
 
             {playbook.triggers.length > 0 && (
               <div>
