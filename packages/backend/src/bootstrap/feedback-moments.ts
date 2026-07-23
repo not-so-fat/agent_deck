@@ -29,6 +29,7 @@ function nextReedit(lines: unknown[], startIndex: number, touchedPaths: string[]
     return undefined;
   }
 
+  // F2.1: only the next tool-using assistant line counts; unrelated tools stop the scan.
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     if (!isAssistantLine(lines[index])) {
       continue;
@@ -54,7 +55,10 @@ export function extractFeedbackMoments(events: unknown[]): FeedbackMoment[] {
 
     if (isAssistantLine(event)) {
       const summary = summarizeAssistantAction(event);
-      precedingAction = summary.toolNames.length > 0 ? { summary, index } : undefined;
+      // Keep last tool action across prose-only assistant lines until the next tool_use.
+      if (summary.toolNames.length > 0) {
+        precedingAction = { summary, index };
+      }
       continue;
     }
 
