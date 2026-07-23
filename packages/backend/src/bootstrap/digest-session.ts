@@ -132,6 +132,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
   // Transcript lines may lack timestamps; epoch placeholders keep digestion deterministic.
   const digest = {
     schemaVersion: 1 as const,
+    host: 'claude' as const,
     sessionId,
     workspaceRoot,
     ...(workspaceLabel ? { workspaceLabel } : {}),
@@ -256,6 +257,7 @@ function truncateArrayStringFields(digest: SessionDigest, delta: number): Sessio
 function minimalUnknownDigest(turnCount = 0): SessionDigest {
   return {
     schemaVersion: 1,
+    host: 'claude',
     sessionId: 'unknown',
     workspaceRoot: '',
     startedAt: EPOCH_ISO,
@@ -375,6 +377,7 @@ function finalizeDigest(digest: unknown): SessionDigest {
   const d = isRecord(digest) ? digest : {};
   const coerced = SessionDigestSchema.safeParse({
     schemaVersion: 1,
+    host: d.host === 'cursor' || d.host === 'claude' ? d.host : 'claude',
     sessionId: typeof d.sessionId === 'string' ? d.sessionId : 'unknown',
     workspaceRoot: typeof d.workspaceRoot === 'string' ? d.workspaceRoot : '',
     ...(typeof d.workspaceLabel === 'string' ? { workspaceLabel: d.workspaceLabel } : {}),

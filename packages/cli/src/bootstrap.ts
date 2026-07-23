@@ -1,7 +1,12 @@
 import { getCliPackageRoot } from './paths';
 
+type BootstrapHostOption = 'claude' | 'cursor' | 'all';
+
 type BootstrapOptions = {
   projectsDir?: string;
+  claudeProjectsDir?: string;
+  cursorProjectsDir?: string;
+  host?: BootstrapHostOption;
   outDir?: string;
   workspace?: string;
   since?: string;
@@ -15,6 +20,7 @@ type BootstrapResult = {
   latestPointerPath: string;
   manifest: {
     totalSessions: number;
+    hosts: { claude: number; cursor: number };
     workspaces: unknown[];
   };
   warning?: string;
@@ -35,9 +41,9 @@ function getBootstrapRuntime(): BootstrapRuntime {
 
 function printBootstrapUsage(): void {
   console.log(`Usage:
-  agent-deck bootstrap [--workspace <path>] [--since <date>] [--limit <n>] [--out <dir>]
+  agent-deck bootstrap [--host claude|cursor|all] [--workspace <path>] [--since <date>] [--limit <n>] [--out <dir>]
 
-Mine local Claude Code session history into playbook-proposal digests (offline).`);
+Mine local Claude Code and/or Cursor agent session history into playbook-proposal digests (offline).`);
 }
 
 function parseBootstrapArgs(
@@ -76,6 +82,19 @@ function parseBootstrapArgs(
         break;
       case '--projects-dir':
         options.projectsDir = value;
+        options.claudeProjectsDir = value;
+        break;
+      case '--claude-projects-dir':
+        options.claudeProjectsDir = value;
+        break;
+      case '--cursor-projects-dir':
+        options.cursorProjectsDir = value;
+        break;
+      case '--host':
+        if (value !== 'claude' && value !== 'cursor' && value !== 'all') {
+          return { ok: false, error: `Invalid --host: ${value} (expected claude|cursor|all)` };
+        }
+        options.host = value;
         break;
       default:
         return { ok: false, error: `Unknown argument: ${arg}` };
@@ -98,8 +117,9 @@ export async function runBootstrapCommand(args: string[]): Promise<number> {
   try {
     const { runBootstrap, formatBootstrapOutput } = getBootstrapRuntime();
     const result = runBootstrap(parsed.options);
+    const hosts = result.manifest.hosts ?? { claude: 0, cursor: 0 };
     console.log(
-      `Bootstrap mined ${result.manifest.totalSessions} sessions across ${result.manifest.workspaces.length} workspaces.`,
+      `Bootstrap mined ${result.manifest.totalSessions} sessions across ${result.manifest.workspaces.length} workspaces (claude=${hosts.claude} cursor=${hosts.cursor}).`,
     );
     console.log(`Output: ${result.outDir}`);
     console.log(`Manifest: ${result.manifestPath}`);

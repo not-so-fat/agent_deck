@@ -41,6 +41,8 @@ describe('bootstrap CLI', () => {
     vi.spyOn(os, 'homedir').mockReturnValue(homeDir);
 
     const code = await runBootstrapCommand([
+      '--host',
+      'claude',
       '--projects-dir',
       projectsDir,
       '--out',
@@ -54,6 +56,7 @@ describe('bootstrap CLI', () => {
     expect(fs.readdirSync(path.join(outDir, 'digests')).length).toBeGreaterThanOrEqual(1);
 
     const stdout = log.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(stdout).toContain('claude=1 cursor=0');
     expect(stdout).toContain('--- agent-deck bootstrap handoff ---');
     expect(stdout).toContain('--- end handoff ---');
     expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain(

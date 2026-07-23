@@ -61,7 +61,7 @@ function printUsage() {
   agent-deck export deck <uuid> --output <path>
   agent-deck import <path>
   agent-deck import-feedback-signals <transcript-dir> [--backend-url URL] [--output <path>]
-  agent-deck bootstrap [--workspace <path>] [--since <date>] [--limit <n>] [--out <dir>]
+  agent-deck bootstrap [--host claude|cursor|all] [--workspace <path>] [--since <date>] [--limit <n>] [--out <dir>]
     Mine local Claude Code session history into playbook-proposal digests (offline).
   agent-deck exec [--deck DECK_ID] [--connections cred_a,cred_b] [--dry-run] -- <command...>`);
 }

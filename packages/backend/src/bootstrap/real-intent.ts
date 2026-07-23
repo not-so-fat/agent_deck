@@ -1,5 +1,6 @@
 type TranscriptLine = {
   type?: unknown;
+  role?: unknown;
   isSidechain?: unknown;
   toolUseResult?: unknown;
   message?: {
@@ -35,12 +36,36 @@ export function isRealUserIntent(line: unknown): boolean {
   }
 
   const transcriptLine = line as TranscriptLine;
+  if (transcriptLine.isSidechain === true) {
+    return false;
+  }
+  if (Object.prototype.hasOwnProperty.call(transcriptLine, 'toolUseResult')) {
+    return false;
+  }
+
   const text = extractUserText(transcriptLine);
-  return (
-    transcriptLine.type === 'user' &&
-    transcriptLine.isSidechain !== true &&
-    !Object.prototype.hasOwnProperty.call(transcriptLine, 'toolUseResult') &&
-    text !== null &&
-    text.trim().length > 0
-  );
+  if (text === null || text.trim().length === 0) {
+    return false;
+  }
+
+  const messageRole = isRecord(transcriptLine.message) ? transcriptLine.message.role : undefined;
+  const isUser =
+    transcriptLine.type === 'user' ||
+    transcriptLine.role === 'user' ||
+    messageRole === 'user';
+  if (!isUser) {
+    return false;
+  }
+
+  // Cursor control lines (turn_ended, etc.) must not count even if they carry a message blob.
+  if (
+    typeof transcriptLine.type === 'string' &&
+    transcriptLine.type !== 'user' &&
+    transcriptLine.type !== 'assistant' &&
+    transcriptLine.role !== 'user'
+  ) {
+    return false;
+  }
+
+  return true;
 }

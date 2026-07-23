@@ -52,18 +52,22 @@ export function summarizeAssistantAction(line: unknown): AssistantActionSummary 
 
     toolNames.push(block.name);
     const input = isRecord(block.input) ? block.input : {};
-    if (block.name === 'Bash' && typeof input.command === 'string') {
-      bashCommands.push(input.command);
+    if (block.name === 'Bash' || block.name === 'Shell') {
+      if (typeof input.command === 'string') {
+        bashCommands.push(input.command);
+      }
     }
     if (block.name === 'Skill' && typeof input.skill === 'string' && input.skill.trim()) {
       skills.push(input.skill.trim());
     }
-    if (
-      (block.name === 'Edit' || block.name === 'Write') &&
-      typeof input.file_path === 'string' &&
-      input.file_path.trim()
-    ) {
-      filePaths.push(input.file_path);
+    const filePath =
+      typeof input.file_path === 'string' && input.file_path.trim()
+        ? input.file_path
+        : typeof input.path === 'string' && input.path.trim()
+          ? input.path
+          : null;
+    if ((block.name === 'Edit' || block.name === 'Write' || block.name === 'StrReplace') && filePath) {
+      filePaths.push(filePath);
     }
   }
 

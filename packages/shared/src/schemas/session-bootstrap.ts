@@ -4,6 +4,8 @@ export const PolarityHintSchema = z.enum(['negative', 'positive', 'mixed', 'unkn
 
 export const OutcomeSignalSchema = z.enum(['pr_opened', 'committed', 'unknown']);
 
+export const BootstrapHostSchema = z.enum(['claude', 'cursor']);
+
 export const FeedbackMomentSchema = z
   .object({
     agentAction: z.string().max(400),
@@ -60,6 +62,8 @@ export const OutcomeSchema = z
 export const SessionDigestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    /** Missing on pre-M2b digests — treat as claude (PRD §12 compat). */
+    host: BootstrapHostSchema.default('claude'),
     sessionId: z.string(),
     workspaceRoot: z.string(),
     workspaceLabel: z.string().optional(),
@@ -88,6 +92,13 @@ export const BootstrapWorkspaceSchema = z
   })
   .strict();
 
+export const BootstrapHostCountsSchema = z
+  .object({
+    claude: z.number().int().min(0),
+    cursor: z.number().int().min(0),
+  })
+  .strict();
+
 export const BootstrapManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -95,12 +106,16 @@ export const BootstrapManifestSchema = z
     digestDir: z.string(),
     guideRef: z.string(),
     totalSessions: z.number().int().min(0),
+    /** Missing on pre-M2b manifests — default zeros. */
+    hosts: BootstrapHostCountsSchema.default({ claude: 0, cursor: 0 }),
     workspaces: z.array(BootstrapWorkspaceSchema),
   })
   .strict();
 
 export type PolarityHint = z.infer<typeof PolarityHintSchema>;
 export type OutcomeSignal = z.infer<typeof OutcomeSignalSchema>;
+export type BootstrapHost = z.infer<typeof BootstrapHostSchema>;
 export type FeedbackMoment = z.infer<typeof FeedbackMomentSchema>;
 export type SessionDigest = z.infer<typeof SessionDigestSchema>;
 export type BootstrapManifest = z.infer<typeof BootstrapManifestSchema>;
+export type BootstrapHostCounts = z.infer<typeof BootstrapHostCountsSchema>;

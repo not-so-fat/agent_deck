@@ -3,15 +3,25 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   BootstrapManifestSchema,
+  type BootstrapHost,
   type BootstrapManifest,
   type SessionDigest,
 } from '@agent-deck/shared';
 import { AUTHORING_GUIDE_MARKDOWN } from './authoring-guide';
+import { encodeCursorProjectSlug } from './cursor-project-slug';
+import { digestCursorSession } from './digest-cursor-session';
 import { digestSession } from './digest-session';
+import { enumerateCursorSessions } from './enumerate-cursor';
 import { enumerateSessions } from './enumerate';
 
+export type BootstrapHostOption = BootstrapHost | 'all';
+
 export type BootstrapOptions = {
+  /** @deprecated Prefer claudeProjectsDir — kept for CLI --projects-dir compat (Claude tree). */
   projectsDir?: string;
+  claudeProjectsDir?: string;
+  cursorProjectsDir?: string;
+  host?: BootstrapHostOption;
   outDir?: string;
   bootstrapRoot?: string;
   workspace?: string;
@@ -36,8 +46,17 @@ type DigestRecord = {
 
 export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
   const now = options.now ?? (() => new Date());
-  const projectsDir = path.resolve(
-    options.projectsDir ?? process.env.AGENT_DECK_CLAUDE_PROJECTS_DIR ?? path.join(os.homedir(), '.claude', 'projects'),
+  const host = options.host ?? 'all';
+  const claudeProjectsDir = path.resolve(
+    options.claudeProjectsDir ??
+      options.projectsDir ??
+      process.env.AGENT_DECK_CLAUDE_PROJECTS_DIR ??
+      path.join(os.homedir(), '.claude', 'projects'),
+  );
+  const cursorProjectsDir = path.resolve(
+    options.cursorProjectsDir ??
+      process.env.AGENT_DECK_CURSOR_PROJECTS_DIR ??
+      path.join(os.homedir(), '.cursor', 'projects'),
   );
   const bootstrapRoot = path.resolve(
     options.bootstrapRoot ?? path.join(os.homedir(), '.claude', 'agent-deck', 'bootstrap'),
@@ -51,11 +70,33 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
     throw new Error(`Bootstrap output already exists: ${outDir}`);
   }
 
-  const digests = enumerateSessions(projectsDir)
-    .map(({ sessionId, filePath, mtimeMs }) => ({
-      digest: digestSession(sessionId, readJsonLines(filePath)),
-      mtimeMs,
-    }))
+  const digests: DigestRecord[] = [];
+
+  if (host === 'claude' || host === 'all') {
+    for (const session of enumerateSessions(claudeProjectsDir)) {
+      digests.push({
+        digest: digestSession(session.sessionId, readJsonLines(session.filePath)),
+        mtimeMs: session.mtimeMs,
+      });
+    }
+  }
+
+  if (host === 'cursor' || host === 'all') {
+    const cursorSlug = workspace ? encodeCursorProjectSlug(workspace) : undefined;
+    for (const session of enumerateCursorSessions(cursorProjectsDir)) {
+      if (cursorSlug && session.projectSlug !== cursorSlug) {
+        continue;
+      }
+      digests.push({
+        digest: digestCursorSession(session.sessionId, readJsonLines(session.filePath), session.projectSlug, {
+          ...(workspace && session.projectSlug === cursorSlug ? { workspaceRoot: workspace } : {}),
+        }),
+        mtimeMs: session.mtimeMs,
+      });
+    }
+  }
+
+  const filtered = digests
     .filter(({ digest, mtimeMs }) => matchesFilters(digest, mtimeMs, workspace, since))
     .slice(0, limit);
 
@@ -64,7 +105,7 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
 
   const digestPaths = new Map<SessionDigest, string>();
   const filenameCounts = new Map<string, number>();
-  for (const { digest } of digests) {
+  for (const { digest } of filtered) {
     const filename = uniqueDigestFilename(digest, filenameCounts);
     const digestPath = path.join(digestDir, filename);
     fs.writeFileSync(digestPath, `${JSON.stringify(digest, null, 2)}\n`, 'utf8');
@@ -74,13 +115,19 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
   const guidePath = path.join(outDir, 'authoring-guide.md');
   fs.writeFileSync(guidePath, AUTHORING_GUIDE_MARKDOWN, 'utf8');
 
+  const hosts = {
+    claude: filtered.filter(({ digest }) => digest.host === 'claude').length,
+    cursor: filtered.filter(({ digest }) => digest.host === 'cursor').length,
+  };
+
   const manifest = BootstrapManifestSchema.parse({
     schemaVersion: 1,
     generatedAt: now().toISOString(),
     digestDir,
     guideRef: guidePath,
-    totalSessions: digests.length,
-    workspaces: buildWorkspaces(digests, digestPaths),
+    totalSessions: filtered.length,
+    hosts,
+    workspaces: buildWorkspaces(filtered, digestPaths),
   });
   const manifestPath = path.join(outDir, 'manifest.json');
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
@@ -95,7 +142,9 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
     guidePath,
     latestPointerPath,
     manifest,
-    ...(digests.length < 5 ? { warning: `Only ${digests.length} sessions found; five or more are recommended.` } : {}),
+    ...(filtered.length < 5
+      ? { warning: `Only ${filtered.length} sessions found; five or more are recommended.` }
+      : {}),
   };
 }
 
@@ -170,8 +219,19 @@ function matchesFilters(
   workspace: string | undefined,
   since: number | undefined,
 ): boolean {
-  if (workspace && digest.workspaceRoot !== workspace) {
-    return false;
+  if (workspace) {
+    if (digest.host === 'cursor') {
+      const slug = encodeCursorProjectSlug(workspace);
+      const matches =
+        digest.workspaceRoot === workspace ||
+        digest.workspaceLabel === slug ||
+        digest.workspaceRoot === slug;
+      if (!matches) {
+        return false;
+      }
+    } else if (digest.workspaceRoot !== workspace) {
+      return false;
+    }
   }
 
   return (
@@ -182,7 +242,7 @@ function matchesFilters(
 }
 
 function uniqueDigestFilename(digest: SessionDigest, counts: Map<string, number>): string {
-  const base = `${sanitizeFilename(digest.workspaceLabel || path.basename(digest.workspaceRoot) || 'unknown')}__${sanitizeFilename(digest.sessionId)}`;
+  const base = `${digest.host}__${sanitizeFilename(digest.workspaceLabel || path.basename(digest.workspaceRoot) || 'unknown')}__${sanitizeFilename(digest.sessionId)}`;
   const count = counts.get(base) ?? 0;
   counts.set(base, count + 1);
   return `${base}${count === 0 ? '' : `-${count + 1}`}.json`;

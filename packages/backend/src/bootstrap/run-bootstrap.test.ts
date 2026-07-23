@@ -37,6 +37,7 @@ describe('runBootstrap', () => {
     copyFixture(projectsDir, '-Users-x-other', 'feedback-negative.jsonl', 'session-feedback');
 
     const result = runBootstrap({
+      host: 'claude',
       projectsDir,
       bootstrapRoot,
       now: () => new Date('2026-07-22T12:00:00.000Z'),
@@ -51,7 +52,12 @@ describe('runBootstrap', () => {
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
     expect(BootstrapManifestSchema.safeParse(manifest).success).toBe(true);
     expect(manifest.guideRef).toBe(result.guidePath);
-    expect(fs.readFileSync(result.guidePath, 'utf8')).toContain('pb_session_bootstrap_authoring');
+    expect(manifest.hosts).toEqual({ claude: 2, cursor: 0 });
+    expect(fs.readFileSync(result.guidePath, 'utf8')).toContain('encodeCursorProjectSlug');
+    const digest = JSON.parse(
+      fs.readFileSync(path.join(result.outDir, 'digests', fs.readdirSync(path.join(result.outDir, 'digests'))[0]), 'utf8'),
+    );
+    expect(digest.host).toBe('claude');
     expect(formatHandoffBlock(result)).toBe(
       `--- agent-deck bootstrap handoff ---\n` +
         `1. Load the authoring guide: ${result.guidePath}\n` +
@@ -75,6 +81,7 @@ describe('runBootstrap', () => {
     copyFixture(projectsDir, '-Users-x-proj', 'qa-only.jsonl', 'session-qa');
 
     const result = runBootstrap({
+      host: 'claude',
       projectsDir,
       bootstrapRoot,
       now: () => new Date('2026-07-22T12:00:00.000Z'),
@@ -91,11 +98,13 @@ describe('runBootstrap', () => {
     copyFixture(projectsDir, '-Users-x-proj', 'qa-only.jsonl', 'session-qa');
 
     const first = runBootstrap({
+      host: 'claude',
       projectsDir,
       bootstrapRoot,
       now: () => new Date('2026-07-22T12:00:00.000Z'),
     });
     const second = runBootstrap({
+      host: 'claude',
       projectsDir,
       bootstrapRoot,
       now: () => new Date('2026-07-22T12:00:01.000Z'),
@@ -104,5 +113,42 @@ describe('runBootstrap', () => {
     expect(second.outDir).not.toBe(first.outDir);
     expect(fs.existsSync(first.outDir)).toBe(true);
     expect(fs.readFileSync(path.join(bootstrapRoot, 'latest'), 'utf8')).toBe(`${second.outDir}\n`);
+  });
+
+  it('mines cursor agent-transcripts with --host cursor and workspace slug match', () => {
+    const cursorProjects = makeTempDir('cursor-projects-');
+    const bootstrapRoot = makeTempDir('agent-deck-bootstrap-');
+    const workspace = '/Users/x/proj';
+    const slug = 'Users-x-proj';
+    const sessionDir = path.join(
+      cursorProjects,
+      slug,
+      'agent-transcripts',
+      '11111111-2222-3333-4444-555555555555',
+    );
+    fs.mkdirSync(path.join(sessionDir, 'subagents'), { recursive: true });
+    fs.copyFileSync(
+      path.join(__dirname, 'fixtures', 'cursor-with-tools.jsonl'),
+      path.join(sessionDir, '11111111-2222-3333-4444-555555555555.jsonl'),
+    );
+    fs.writeFileSync(path.join(sessionDir, 'subagents', 'sub.jsonl'), '{"role":"user"}\n');
+
+    const result = runBootstrap({
+      host: 'cursor',
+      cursorProjectsDir: cursorProjects,
+      claudeProjectsDir: makeTempDir('empty-claude-'),
+      bootstrapRoot,
+      workspace,
+      now: () => new Date('2026-07-22T13:00:00.000Z'),
+    });
+
+    expect(result.manifest.totalSessions).toBe(1);
+    expect(result.manifest.hosts).toEqual({ claude: 0, cursor: 1 });
+    const digests = fs.readdirSync(path.join(result.outDir, 'digests'));
+    expect(digests).toHaveLength(1);
+    const digest = JSON.parse(fs.readFileSync(path.join(result.outDir, 'digests', digests[0]), 'utf8'));
+    expect(digest.host).toBe('cursor');
+    expect(digest.workspaceRoot).toBe(workspace);
+    expect(digest.feedbackMoments.length).toBeGreaterThanOrEqual(1);
   });
 });

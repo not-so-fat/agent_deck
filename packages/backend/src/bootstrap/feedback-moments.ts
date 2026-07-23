@@ -12,7 +12,12 @@ type AssistantAction = {
 };
 
 function isAssistantLine(line: unknown): boolean {
-  return typeof line === 'object' && line !== null && (line as { type?: unknown }).type === 'assistant';
+  if (typeof line !== 'object' || line === null) {
+    return false;
+  }
+  const record = line as { type?: unknown; role?: unknown; message?: { role?: unknown } };
+  const messageRole = record.message && typeof record.message === 'object' ? record.message.role : undefined;
+  return record.type === 'assistant' || record.role === 'assistant' || messageRole === 'assistant';
 }
 
 function timestampFor(line: unknown): string | undefined {
