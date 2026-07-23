@@ -5,6 +5,9 @@ import { extractFeedbackMoments } from './feedback-moments';
 import { extractUserText, isRealUserIntent } from './real-intent';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
+const DIGEST_BYTE_BUDGET = 4096;
+const MIN_INTENT_TEXT_LENGTH = 40;
+const MIN_COMMAND_TEXT_LENGTH = 20;
 
 type TranscriptLine = {
   type?: unknown;
@@ -148,10 +151,146 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
   return finalizeDigest(digest);
 }
 
+function digestByteLength(digest: unknown): number {
+  return Buffer.byteLength(JSON.stringify(digest), 'utf8');
+}
+
+function trimArrayField<K extends keyof SessionDigest>(
+  digest: SessionDigest,
+  field: K,
+): SessionDigest {
+  const items = digest[field];
+  if (!Array.isArray(items) || items.length === 0) {
+    return digest;
+  }
+
+  return { ...digest, [field]: items.slice(0, items.length - 1) } as SessionDigest;
+}
+
+function shortenIntentTexts(digest: SessionDigest, nextLength: number): SessionDigest {
+  return {
+    ...digest,
+    intents: digest.intents.map((intent) => ({
+      ...intent,
+      text: intent.text.slice(0, nextLength),
+    })),
+  };
+}
+
+function shortenCommands(digest: SessionDigest, nextLength: number): SessionDigest {
+  return {
+    ...digest,
+    commands: digest.commands.map((command) => ({
+      ...command,
+      command: command.command.slice(0, nextLength),
+    })),
+  };
+}
+
+function shortenFeedbackMoments(digest: SessionDigest, delta: number): SessionDigest {
+  return {
+    ...digest,
+    feedbackMoments: digest.feedbackMoments.map((moment) => ({
+      ...moment,
+      agentAction: moment.agentAction.slice(0, Math.max(40, moment.agentAction.length - delta)),
+      userReaction: moment.userReaction.slice(0, Math.max(40, moment.userReaction.length - delta)),
+      ...(moment.followupChange
+        ? {
+            followupChange: moment.followupChange.slice(
+              0,
+              Math.max(20, moment.followupChange.length - delta),
+            ),
+          }
+        : {}),
+    })),
+  };
+}
+
+function enforceByteBudget(digest: SessionDigest): SessionDigest {
+  let current = digest;
+  if (digestByteLength(current) <= DIGEST_BYTE_BUDGET) {
+    return current;
+  }
+
+  const arrayFields: Array<keyof SessionDigest> = [
+    'feedbackMoments',
+    'topFiles',
+    'skills',
+    'tools',
+    'commands',
+    'intents',
+  ];
+
+  for (let guard = 0; guard < 500 && digestByteLength(current) > DIGEST_BYTE_BUDGET; guard += 1) {
+    let changed = false;
+
+    for (const field of arrayFields) {
+      if (digestByteLength(current) <= DIGEST_BYTE_BUDGET) {
+        break;
+      }
+
+      const items = current[field];
+      if (Array.isArray(items) && items.length > 0) {
+        current = trimArrayField(current, field);
+        changed = true;
+      }
+    }
+
+    const maxIntentLength = current.intents.reduce((max, intent) => Math.max(max, intent.text.length), 0);
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && maxIntentLength > MIN_INTENT_TEXT_LENGTH) {
+      current = shortenIntentTexts(current, Math.max(MIN_INTENT_TEXT_LENGTH, maxIntentLength - 20));
+      changed = true;
+    }
+
+    const maxCommandLength = current.commands.reduce(
+      (max, command) => Math.max(max, command.command.length),
+      0,
+    );
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && maxCommandLength > MIN_COMMAND_TEXT_LENGTH) {
+      current = shortenCommands(current, Math.max(MIN_COMMAND_TEXT_LENGTH, maxCommandLength - 20));
+      changed = true;
+    }
+
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && current.feedbackMoments.length > 0) {
+      current = shortenFeedbackMoments(current, 20);
+      changed = true;
+    }
+
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && current.outcome.evidence) {
+      current = {
+        ...current,
+        outcome: {
+          signal: current.outcome.signal,
+          evidence: current.outcome.evidence.slice(0, Math.max(20, current.outcome.evidence.length - 20)),
+        },
+      };
+      changed = true;
+    }
+
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && current.workspaceLabel !== undefined) {
+      const { workspaceLabel: _workspaceLabel, ...rest } = current;
+      current = rest;
+      changed = true;
+    }
+
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET && current.outcome.evidence !== undefined) {
+      current = { ...current, outcome: { signal: current.outcome.signal } };
+      changed = true;
+    }
+
+    if (!changed) {
+      break;
+    }
+  }
+
+  const parsed = SessionDigestSchema.safeParse(current);
+  return parsed.success ? parsed.data : digest;
+}
+
 function finalizeDigest(digest: unknown): SessionDigest {
   const parsed = SessionDigestSchema.safeParse(digest);
   if (parsed.success) {
-    return parsed.data;
+    return enforceByteBudget(parsed.data);
   }
 
   const d = isRecord(digest) ? digest : {};
@@ -178,7 +317,7 @@ function finalizeDigest(digest: unknown): SessionDigest {
   });
 
   if (coerced.success) {
-    return coerced.data;
+    return enforceByteBudget(coerced.data);
   }
 
   return {
