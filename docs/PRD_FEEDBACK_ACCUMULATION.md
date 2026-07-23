@@ -329,7 +329,7 @@ Example body:
 | OD-1 Re-open discarded signals? | Stay `discarded`; manual reopen later if needed | Eng |
 | OD-2 How should agents group genesis signals (no playbook)? | By `candidateDeckId`, else one unscoped bucket | Eng |
 | OD-3 Unknown / non-linkable `signal_ids` on propose? | Ignore; still create the patch | Eng |
-| OD-4 Count endpoint shape for available-open? | Prefer `?available=1` or field `openAvailable` — pick one in implementation | Eng |
+| OD-4 Count endpoint shape for available-open? | ~~Resolved~~ — `GET /api/feedback-signals/count?available=1`, response field `{ open }` | Eng |
 
 ---
 

@@ -280,6 +280,66 @@ describe('PatchManager', () => {
     expect((await db.getFeedbackSignal(result.signal!.id))?.status).toBe('actioned');
   });
 
+  it('does not let a second curation submit steal a signal already parked in an open proposal', async () => {
+    const playbook = await playbookManager.create({
+      title: 'Test',
+      body: '## Gotchas\n- Keep it short.\n',
+      triggers: [],
+    });
+    const signal = await db.createFeedbackSignal({
+      id: `fs_park_${Date.now()}`,
+      source: 'ide',
+      sourceRef: null,
+      failureSummary: 'shared lesson',
+      userFeedbackExcerpt: 'shared lesson',
+      correctedOutputHint: null,
+      candidatePlaybookId: playbook.id,
+      candidateDeckId: null,
+      linkedPatchId: null,
+      status: 'open',
+    });
+
+    const first = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbook.id,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'First take.' }],
+        rationale: 'First curation pass',
+        signal_ids: [signal.id],
+      },
+      'ide',
+      null,
+    );
+    if (first.kind === 'signal_only') throw new Error('expected patch');
+    expect((await db.getFeedbackSignal(signal.id))?.linkedPatchId).toBe(first.patch.id);
+
+    // A second, unrelated curation submit tries to consume the same still-parked signal.
+    const second = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbook.id,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'Second take.' }],
+        rationale: 'Second curation pass',
+        signal_ids: [signal.id],
+      },
+      'ide',
+      null,
+    );
+    if (second.kind === 'signal_only') throw new Error('expected patch');
+
+    // Second patch is still created (unknown/non-linkable ids don't fail the propose),
+    // but the signal stays parked under the first proposal — not stolen.
+    const stillParked = await db.getFeedbackSignal(signal.id);
+    expect(stillParked?.linkedPatchId).toBe(first.patch.id);
+    expect(stillParked?.status).toBe('open');
+
+    // Once the first proposal is rejected, the signal is free again for a future curation pass.
+    await patchManager.reject(first.patch.id, 'superseded');
+    const freed = await db.getFeedbackSignal(signal.id);
+    expect(freed?.linkedPatchId).toBeNull();
+    expect(freed?.status).toBe('open');
+  });
+
   it('does not mutate immutable signal fields on status update', async () => {
     const created = await db.createFeedbackSignal({
       id: 'fs_immutability_test',
