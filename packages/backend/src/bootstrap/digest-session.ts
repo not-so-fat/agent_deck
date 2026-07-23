@@ -216,10 +216,10 @@ function truncateString(value: string, minLength: number, delta: number): string
 }
 
 function truncateScalarFields(digest: SessionDigest, delta: number): SessionDigest {
+  // Never truncate sessionId / workspaceRoot — they are identity keys used for
+  // --workspace filtering (F1.5). Prefer dropping list payloads instead.
   return {
     ...digest,
-    sessionId: truncateString(digest.sessionId, MIN_SCALAR_TEXT_LENGTH, delta),
-    workspaceRoot: truncateString(digest.workspaceRoot, MIN_SCALAR_TEXT_LENGTH, delta),
     ...(digest.workspaceLabel !== undefined
       ? { workspaceLabel: truncateString(digest.workspaceLabel, MIN_SCALAR_TEXT_LENGTH, delta) }
       : {}),
