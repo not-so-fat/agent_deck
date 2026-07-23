@@ -100,6 +100,7 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
 
   const filtered = digests
     .filter(({ digest, mtimeMs }) => matchesFilters(digest, mtimeMs, workspace, since))
+    .sort((left, right) => right.mtimeMs - left.mtimeMs)
     .slice(0, limit);
 
   const digestDir = path.join(outDir, 'digests');

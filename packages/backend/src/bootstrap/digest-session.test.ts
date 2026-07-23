@@ -155,7 +155,7 @@ describe('digestSession', () => {
     expect(digest.outcome.evidence).toMatch(/git commit/);
   });
 
-  it('extracts skills from command-name tags in user text', () => {
+  it('extracts skills from command-name tags without treating them as intents', () => {
     const digest = digestSession('s', [
       {
         type: 'user',
@@ -164,6 +164,8 @@ describe('digestSession', () => {
     ]);
 
     expect(digest.skills.some((skill) => skill.name === 'foo')).toBe(true);
+    expect(digest.intents).toEqual([]);
+    expect(digest.turnCount).toBe(0);
   });
 
   it('ignores empty user text', () => {

@@ -12,12 +12,28 @@ type TranscriptLine = {
 const CURSOR_USER_QUERY_RE = /<user_query>\s*([\s\S]*?)\s*<\/user_query>/i;
 const CURSOR_TIMESTAMP_RE = /<timestamp>\s*[\s\S]*?\s*<\/timestamp>\s*/gi;
 
-/** Host-injected Cursor user-role lines that are not real human intents. */
-const CURSOR_HOST_INJECTION_PREFIXES = [
+/** Structural Claude / Cursor host chrome — durable, locale-independent. */
+const HOST_INJECTION_TAGS = [
+  '<local-command-caveat>',
+  '<command-name>',
+  '<command-message>',
+  '<local-command-stdout>',
+  '<system-reminder>',
+  '<mcp_meta_tools>',
+] as const;
+
+/**
+ * Supplemental English / host-phrasing prefixes (Cursor injections, session-continue).
+ * Structural tags + Cursor `<user_query>` gate are the durable filters; this list is a safety net.
+ */
+const HOST_INJECTION_PREFIXES = [
   'Briefly inform the user about the task result',
   'The beginning of the above subagent result is already visible to the user',
   'If the available MCP tools do not fully support what the user asked you to do',
-];
+  'This session is being continued from a previous conversation',
+  'Base directory for this skill:',
+  '===== BEGIN SESSION TRANSCRIPT',
+] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -54,14 +70,21 @@ export function unwrapCursorUserEnvelope(raw: string): string {
   return text.trim();
 }
 
-export function isCursorHostInjection(raw: string): boolean {
-  if (raw.includes('<mcp_meta_tools>')) {
+/** Host-injected user-role text for both Claude and Cursor (not a human task intent). */
+export function isHostInjectedUserText(raw: string): boolean {
+  const lowerTags = raw; // tags are ASCII
+  if (HOST_INJECTION_TAGS.some((tag) => lowerTags.includes(tag))) {
     return true;
   }
   const unwrapped = unwrapCursorUserEnvelope(raw);
-  return CURSOR_HOST_INJECTION_PREFIXES.some(
+  return HOST_INJECTION_PREFIXES.some(
     (prefix) => unwrapped.startsWith(prefix) || raw.includes(prefix),
   );
+}
+
+/** @deprecated Prefer isHostInjectedUserText — kept for call-site clarity in Cursor-focused tests. */
+export function isCursorHostInjection(raw: string): boolean {
+  return isHostInjectedUserText(raw);
 }
 
 export function extractUserText(line: unknown): string | null {
@@ -91,12 +114,12 @@ export function isRealUserIntent(line: unknown): boolean {
     return false;
   }
 
-  // Cursor host injections arrive as role:user — drop before unwrap clustering.
-  if (isCursorHostInjection(raw)) {
+  // Shared host-injection gate (Claude slash/hook chrome + Cursor injected role:user).
+  if (isHostInjectedUserText(raw)) {
     return false;
   }
 
-  // Cursor role:user without <user_query> is almost always host chrome (mcp_meta, etc.).
+  // Cursor role:user without <user_query> is almost always host chrome.
   // Real Cursor turns (dated or legacy) wrap the body in <user_query>.
   const messageRole = isRecord(transcriptLine.message) ? transcriptLine.message.role : undefined;
   const looksLikeCursorUser =

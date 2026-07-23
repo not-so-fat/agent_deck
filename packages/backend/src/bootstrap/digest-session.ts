@@ -3,7 +3,7 @@ import { SessionDigestSchema, type SessionDigest } from '@agent-deck/shared';
 import { encodeCursorProjectSlug } from './cursor-project-slug';
 import { deriveOutcome, extractSkillsFromUserText, normalizeBashCommand, summarizeAssistantAction } from './extractors';
 import { extractFeedbackMoments } from './feedback-moments';
-import { extractUserText, isRealUserIntent } from './real-intent';
+import { extractUserText, extractRawUserText, isRealUserIntent } from './real-intent';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
 const DIGEST_BYTE_BUDGET = 4096;
@@ -89,11 +89,16 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
       increment(skillCounts, action.skills);
       increment(fileCounts, action.filePaths);
 
+      // Skills may appear in slash/command-name chrome that is not a real intent (F1.2).
+      const rawUserText = extractRawUserText(line);
+      if (rawUserText) {
+        increment(skillCounts, extractSkillsFromUserText(rawUserText));
+      }
+
       if (isRealUserIntent(line)) {
         turnCount += 1;
         const text = extractUserText(line);
         if (text !== null) {
-          increment(skillCounts, extractSkillsFromUserText(text));
           if (intents.length < 40) {
             intents.push({
               text: text.slice(0, 280),

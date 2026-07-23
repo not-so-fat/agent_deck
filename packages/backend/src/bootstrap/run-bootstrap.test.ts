@@ -180,4 +180,32 @@ describe('runBootstrap', () => {
     expect(digest.feedbackMoments.length).toBe(1);
     expect(digest.feedbackMoments[0].userReaction).not.toContain('Briefly inform');
   });
+
+  it('applies --limit to newest sessions by mtime, not alphabetical path order', () => {
+    const projectsDir = makeTempDir('agent-deck-projects-');
+    const bootstrapRoot = makeTempDir('agent-deck-bootstrap-');
+    // Alphabetically first workspace would win without mtime sort.
+    copyFixture(projectsDir, '-Users-a-old', 'qa-only.jsonl', 'session-old');
+    copyFixture(projectsDir, '-Users-z-new', 'qa-only.jsonl', 'session-new');
+    const oldPath = path.join(projectsDir, '-Users-a-old', 'session-old.jsonl');
+    const newPath = path.join(projectsDir, '-Users-z-new', 'session-new.jsonl');
+    const oldTime = new Date('2020-01-01T00:00:00.000Z');
+    const newTime = new Date('2026-07-22T12:00:00.000Z');
+    fs.utimesSync(oldPath, oldTime, oldTime);
+    fs.utimesSync(newPath, newTime, newTime);
+
+    const result = runBootstrap({
+      host: 'claude',
+      projectsDir,
+      bootstrapRoot,
+      limit: 1,
+      now: () => new Date('2026-07-22T15:00:00.000Z'),
+    });
+
+    expect(result.manifest.totalSessions).toBe(1);
+    const digests = fs.readdirSync(path.join(result.outDir, 'digests'));
+    expect(digests).toHaveLength(1);
+    expect(digests[0]).toContain('session-new');
+    expect(digests[0]).not.toContain('session-old');
+  });
 });
