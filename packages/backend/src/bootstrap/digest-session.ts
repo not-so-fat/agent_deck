@@ -30,6 +30,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
   let startedAt: string | undefined;
   let endedAt: string | undefined;
   let skippedLineCount = 0;
+  let turnCount = 0;
   const intents: SessionDigest['intents'] = [];
 
   for (const line of lines) {
@@ -55,6 +56,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
       }
 
       if (isRealUserIntent(line)) {
+        turnCount += 1;
         const text = extractUserText(line);
         if (text !== null && intents.length < 40) {
           intents.push({
@@ -77,7 +79,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     ...(gitBranch === undefined ? {} : { gitBranch }),
     startedAt: startedAt ?? EPOCH_ISO,
     endedAt: endedAt ?? EPOCH_ISO,
-    turnCount: intents.length,
+    turnCount,
     skippedLineCount,
     intents,
     commands: [],
@@ -88,5 +90,55 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     outcome: { signal: 'unknown' as const },
   };
 
-  return SessionDigestSchema.parse(digest);
+  return finalizeDigest(digest);
+}
+
+function finalizeDigest(digest: unknown): SessionDigest {
+  const parsed = SessionDigestSchema.safeParse(digest);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const d = isRecord(digest) ? digest : {};
+  const coerced = SessionDigestSchema.safeParse({
+    schemaVersion: 1,
+    sessionId: typeof d.sessionId === 'string' ? d.sessionId : 'unknown',
+    workspaceRoot: typeof d.workspaceRoot === 'string' ? d.workspaceRoot : '',
+    ...(typeof d.workspaceLabel === 'string' ? { workspaceLabel: d.workspaceLabel } : {}),
+    ...(d.gitBranch === null || typeof d.gitBranch === 'string' ? { gitBranch: d.gitBranch } : {}),
+    startedAt: typeof d.startedAt === 'string' ? d.startedAt : EPOCH_ISO,
+    endedAt: typeof d.endedAt === 'string' ? d.endedAt : EPOCH_ISO,
+    turnCount:
+      typeof d.turnCount === 'number' && Number.isInteger(d.turnCount) && d.turnCount >= 0 ? d.turnCount : 0,
+    ...(typeof d.skippedLineCount === 'number'
+      ? { skippedLineCount: Math.max(0, Math.floor(d.skippedLineCount)) }
+      : {}),
+    intents: Array.isArray(d.intents) ? d.intents.slice(0, 40) : [],
+    commands: [],
+    tools: [],
+    skills: [],
+    topFiles: [],
+    feedbackMoments: [],
+    outcome: { signal: 'unknown' },
+  });
+
+  if (coerced.success) {
+    return coerced.data;
+  }
+
+  return {
+    schemaVersion: 1,
+    sessionId: 'unknown',
+    workspaceRoot: '',
+    startedAt: EPOCH_ISO,
+    endedAt: EPOCH_ISO,
+    turnCount: 0,
+    intents: [],
+    commands: [],
+    tools: [],
+    skills: [],
+    topFiles: [],
+    feedbackMoments: [],
+    outcome: { signal: 'unknown' },
+  };
 }

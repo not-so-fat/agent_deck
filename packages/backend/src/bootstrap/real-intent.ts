@@ -35,10 +35,12 @@ export function isRealUserIntent(line: unknown): boolean {
   }
 
   const transcriptLine = line as TranscriptLine;
+  const text = extractUserText(transcriptLine);
   return (
     transcriptLine.type === 'user' &&
     transcriptLine.isSidechain !== true &&
     !Object.prototype.hasOwnProperty.call(transcriptLine, 'toolUseResult') &&
-    extractUserText(transcriptLine) !== null
+    text !== null &&
+    text.trim().length > 0
   );
 }

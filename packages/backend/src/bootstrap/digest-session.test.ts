@@ -97,12 +97,25 @@ describe('digestSession', () => {
     expect(JSON.stringify(digestSession('s', lines))).toBe(JSON.stringify(digestSession('s', lines)));
   });
 
-  it('caps intents to the shared schema limit', () => {
+  it('caps intents to the shared schema limit while counting all turns', () => {
     const lines = Array.from({ length: 41 }, (_, index) => ({
       type: 'user',
       message: { role: 'user', content: `request ${index}` },
     }));
 
-    expect(digestSession('s', lines).intents).toHaveLength(40);
+    const digest = digestSession('s', lines);
+
+    expect(digest.turnCount).toBe(41);
+    expect(digest.intents).toHaveLength(40);
+  });
+
+  it('ignores empty user text', () => {
+    const digest = digestSession('s', [
+      { type: 'user', message: { role: 'user', content: '   ' } },
+      { type: 'user', message: { role: 'user', content: 'real request' } },
+    ]);
+
+    expect(digest.turnCount).toBe(1);
+    expect(digest.intents.map((intent) => intent.text)).toEqual(['real request']);
   });
 });
