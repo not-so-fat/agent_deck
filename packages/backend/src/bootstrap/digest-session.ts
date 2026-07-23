@@ -8,6 +8,7 @@ const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
 const DIGEST_BYTE_BUDGET = 4096;
 const MIN_INTENT_TEXT_LENGTH = 40;
 const MIN_COMMAND_TEXT_LENGTH = 20;
+const MIN_SCALAR_TEXT_LENGTH = 20;
 
 type TranscriptLine = {
   type?: unknown;
@@ -206,6 +207,70 @@ function shortenFeedbackMoments(digest: SessionDigest, delta: number): SessionDi
   };
 }
 
+function truncateString(value: string, minLength: number, delta: number): string {
+  if (value.length <= minLength) {
+    return value;
+  }
+
+  return value.slice(0, Math.max(minLength, value.length - delta));
+}
+
+function truncateScalarFields(digest: SessionDigest, delta: number): SessionDigest {
+  return {
+    ...digest,
+    sessionId: truncateString(digest.sessionId, MIN_SCALAR_TEXT_LENGTH, delta),
+    workspaceRoot: truncateString(digest.workspaceRoot, MIN_SCALAR_TEXT_LENGTH, delta),
+    ...(digest.workspaceLabel !== undefined
+      ? { workspaceLabel: truncateString(digest.workspaceLabel, MIN_SCALAR_TEXT_LENGTH, delta) }
+      : {}),
+    ...(digest.gitBranch !== undefined && digest.gitBranch !== null
+      ? { gitBranch: truncateString(digest.gitBranch, MIN_SCALAR_TEXT_LENGTH, delta) }
+      : {}),
+    outcome: digest.outcome.evidence
+      ? {
+          signal: digest.outcome.signal,
+          evidence: truncateString(digest.outcome.evidence, MIN_SCALAR_TEXT_LENGTH, delta),
+        }
+      : digest.outcome,
+  };
+}
+
+function truncateArrayStringFields(digest: SessionDigest, delta: number): SessionDigest {
+  return {
+    ...digest,
+    tools: digest.tools.map((tool) => ({
+      ...tool,
+      name: truncateString(tool.name, MIN_SCALAR_TEXT_LENGTH, delta),
+    })),
+    skills: digest.skills.map((skill) => ({
+      ...skill,
+      name: truncateString(skill.name, MIN_SCALAR_TEXT_LENGTH, delta),
+    })),
+    topFiles: digest.topFiles.map((file) => ({
+      ...file,
+      path: truncateString(file.path, MIN_SCALAR_TEXT_LENGTH, delta),
+    })),
+  };
+}
+
+function minimalUnknownDigest(turnCount = 0): SessionDigest {
+  return {
+    schemaVersion: 1,
+    sessionId: 'unknown',
+    workspaceRoot: '',
+    startedAt: EPOCH_ISO,
+    endedAt: EPOCH_ISO,
+    turnCount,
+    intents: [],
+    commands: [],
+    tools: [],
+    skills: [],
+    topFiles: [],
+    feedbackMoments: [],
+    outcome: { signal: 'unknown' },
+  };
+}
+
 function enforceByteBudget(digest: SessionDigest): SessionDigest {
   let current = digest;
   if (digestByteLength(current) <= DIGEST_BYTE_BUDGET) {
@@ -278,13 +343,27 @@ function enforceByteBudget(digest: SessionDigest): SessionDigest {
       changed = true;
     }
 
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET) {
+      current = truncateScalarFields(current, 20);
+      changed = true;
+    }
+
+    if (digestByteLength(current) > DIGEST_BYTE_BUDGET) {
+      current = truncateArrayStringFields(current, 20);
+      changed = true;
+    }
+
     if (!changed) {
       break;
     }
   }
 
   const parsed = SessionDigestSchema.safeParse(current);
-  return parsed.success ? parsed.data : digest;
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  return minimalUnknownDigest(current.turnCount);
 }
 
 function finalizeDigest(digest: unknown): SessionDigest {
@@ -320,19 +399,5 @@ function finalizeDigest(digest: unknown): SessionDigest {
     return enforceByteBudget(coerced.data);
   }
 
-  return {
-    schemaVersion: 1,
-    sessionId: 'unknown',
-    workspaceRoot: '',
-    startedAt: EPOCH_ISO,
-    endedAt: EPOCH_ISO,
-    turnCount: 0,
-    intents: [],
-    commands: [],
-    tools: [],
-    skills: [],
-    topFiles: [],
-    feedbackMoments: [],
-    outcome: { signal: 'unknown' },
-  };
+  return minimalUnknownDigest();
 }

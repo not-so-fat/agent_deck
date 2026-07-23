@@ -25,4 +25,19 @@ describe('digest size budget (NFR-2)', () => {
     expect(bytes).toBeLessThanOrEqual(4096);
     expect(SessionDigestSchema.safeParse(d).success).toBe(true);
   });
+
+  it('keeps digest ≤ 4096 bytes when workspaceRoot alone is huge', () => {
+    const lines: unknown[] = [
+      {
+        type: 'user',
+        cwd: 'w'.repeat(5000),
+        timestamp: '2024-01-01T00:00:00.000Z',
+        message: { role: 'user', content: 'hi' },
+      },
+    ];
+    const d = digestSession('s', lines);
+    const bytes = Buffer.byteLength(JSON.stringify(d), 'utf8');
+    expect(bytes).toBeLessThanOrEqual(4096);
+    expect(SessionDigestSchema.safeParse(d).success).toBe(true);
+  });
 });

@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 const BOOTSTRAP_DIR = path.join(__dirname);
 
 const BANNED_IMPORT_PATTERN =
-  /^import\s.+from\s['"].*(?:openai|anthropic|@ai-sdk|node-fetch|undici)/i;
+  /^import\s.+from\s['"].*(?:openai|anthropic|@ai-sdk|node-fetch|undici|axios)/i;
+const BANNED_REQUIRE_PATTERN =
+  /require\s*\(\s*['"].*(?:openai|anthropic|@ai-sdk|node-fetch|undici|axios)/i;
 const BANNED_CALL_PATTERN = /(?:^|\s)(?:fetch|axios)\s*\(/i;
 
 describe('bootstrap no-LLM import guard', () => {
@@ -21,7 +23,11 @@ describe('bootstrap no-LLM import guard', () => {
       const lines = fs.readFileSync(filePath, 'utf8').split('\n');
       for (let index = 0; index < lines.length; index += 1) {
         const line = lines[index];
-        if (BANNED_IMPORT_PATTERN.test(line) || BANNED_CALL_PATTERN.test(line)) {
+        if (
+          BANNED_IMPORT_PATTERN.test(line) ||
+          BANNED_REQUIRE_PATTERN.test(line) ||
+          BANNED_CALL_PATTERN.test(line)
+        ) {
           violations.push(`${path.basename(filePath)}:${index + 1}: ${line.trim()}`);
         }
       }
