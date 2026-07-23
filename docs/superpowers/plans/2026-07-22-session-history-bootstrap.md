@@ -4,7 +4,7 @@
 
 **Goal:** Ship `agent-deck bootstrap` — deterministic local parse of `~/.claude/projects` into size-bounded digests + a committed agent handoff that files playbook *proposals* (no backend LLM).
 
-**Architecture:** Pure `digestSession` in `@agent-deck/backend` (no HTTP/model imports). Zod contracts in `@agent-deck/shared` matching PRD §7. Thin CLI enumerates history, writes timestamped digests + manifest + authoring guide into `~/.claude/agent-deck/bootstrap/<ISO>/`, updates a `latest` pointer file, prints a copy-paste handoff. Agent authors via existing `propose_playbook_patch { kind: "create" }`.
+**Architecture:** Pure `digestSession` in `@agent-deck/backend` (no HTTP/model imports). Zod contracts in `@agent-deck/shared` matching PRD §7. Thin CLI enumerates history, writes timestamped digests + manifest + authoring guide into `$AGENT_DECK_HOME/bootstrap/<ISO>/` (default `~/.agent-deck/bootstrap/`), updates a `latest` pointer file, prints a copy-paste handoff. Agent authors via existing `propose_playbook_patch { kind: "create" }`.
 
 **Tech Stack:** TypeScript, Zod, Vitest, npm workspaces (`@agent-deck/shared`, `@agent-deck/backend`, `@agent-deck/cli`). No new runtime deps.
 
@@ -476,8 +476,8 @@ EOF
 ```ts
 export type BootstrapOptions = {
   projectsDir: string;       // default: ~/.claude/projects ; env AGENT_DECK_CLAUDE_PROJECTS_DIR
-  outDir?: string;           // --out; else ~/.claude/agent-deck/bootstrap/<ISO-timestamp>/
-  bootstrapRoot?: string;    // parent of timestamp dirs; default ~/.claude/agent-deck/bootstrap
+  outDir?: string;           // --out; else $AGENT_DECK_HOME/bootstrap/<ISO-timestamp>/
+  bootstrapRoot?: string;    // parent of timestamp dirs; default $AGENT_DECK_HOME/bootstrap
   workspace?: string;        // --workspace absolute path filter (match digest cwd / session cwd)
   since?: string;            // ISO date; filter by session file mtime or first timestamp
   limit?: number;            // max sessions
@@ -509,7 +509,7 @@ export function formatHandoffBlock(result: BootstrapResult): string;
   authoring-guide.md          # copy of AUTHORING_GUIDE_MARKDOWN
   manifest.json
   digests/<workspaceLabel>__<sessionId>.json   # sanitize label for filename
-~/.claude/agent-deck/bootstrap/latest          # pointer FILE containing absolute outDir + newline (not symlink)
+$AGENT_DECK_HOME/bootstrap/latest          # pointer FILE containing absolute outDir + newline (not symlink)
 ```
 
 **Handoff block (F3.5)** — exact shape (stdout must end with this; tests match):

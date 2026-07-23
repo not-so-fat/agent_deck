@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   BootstrapManifestSchema,
+  resolveAgentDeckHome,
   type BootstrapHost,
   type BootstrapManifest,
   type SessionDigest,
@@ -58,8 +59,9 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
       process.env.AGENT_DECK_CURSOR_PROJECTS_DIR ??
       path.join(os.homedir(), '.cursor', 'projects'),
   );
+  // Host-agnostic Agent Deck data root (same home as DB / logs), not under ~/.claude.
   const bootstrapRoot = path.resolve(
-    options.bootstrapRoot ?? path.join(os.homedir(), '.claude', 'agent-deck', 'bootstrap'),
+    options.bootstrapRoot ?? path.join(resolveAgentDeckHome(), 'bootstrap'),
   );
   const outDir = resolveOutDir(options.outDir, bootstrapRoot, now);
   const since = parseSince(options.since);

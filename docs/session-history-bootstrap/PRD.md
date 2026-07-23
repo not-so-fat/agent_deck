@@ -130,7 +130,7 @@ Shared across hosts once a host adapter exposes an ordered stream of (assistant 
 |---|---|---|
 | F3.1 | Enumerate local session files for the selected host(s); default workspace scope = **all projects** under those hosts, `--workspace <path>` narrows (Claude via digest `cwd`; Cursor via slug encode match — F1C.5). | Default run lists every included project with ≥1 session. |
 | F3.1b | `--host claude \| cursor \| all` selects input trees. Default `all`. Env overrides: `AGENT_DECK_CLAUDE_PROJECTS_DIR`, `AGENT_DECK_CURSOR_PROJECTS_DIR`. | Flag matrix covered by tests; absent host tree is skipped with a one-line count of 0 for that host. |
-| F3.2 | Each run writes to a **fresh timestamped dir** `~/.claude/agent-deck/bootstrap/<ISO-timestamp>/` (never overwrites prior runs) and updates a stable `~/.claude/agent-deck/bootstrap/latest` pointer to it. `--out <dir>` overrides. Pointer is a **regular file** (not a symlink); replace any pre-existing symlink. | Two runs produce two dirs; `latest` resolves to the newest; `--out` is honored. |
+| F3.2 | Each run writes to a **fresh timestamped dir** under Agent Deck’s data home: `$AGENT_DECK_HOME/bootstrap/<ISO-timestamp>/` (default `~/.agent-deck/bootstrap/`; monorepo/dev → `~/.agent-deck/dev/bootstrap/`). Never overwrites prior runs; updates a stable `…/bootstrap/latest` pointer. `--out <dir>` overrides. Pointer is a **regular file** (not a symlink); replace any pre-existing symlink. Output is **host-agnostic** — do not nest under `~/.claude` or `~/.cursor`. | Two runs produce two dirs; `latest` resolves to the newest; `--out` is honored; Cursor-only machines never require `~/.claude`. |
 | F3.3 | `--since <date>` / `--limit <n>` / `--workspace <path>` / `--host <…>` bound the run. | Flags reduce the processed set accordingly. |
 | F3.4 | Zero LLM/network calls. | Runs to completion with networking disabled. |
 | F3.5 | **Committed handoff:** stdout ends with a fixed, copy-paste-ready block naming (a) the guide to load (`guideRef`), (b) the absolute manifest path, and (c) the instruction "load the guide, read the manifest, propose playbooks for the bound deck." This is the sole, committed handoff — not an open question. | Running the printed block verbatim in a bound agent session drives it to file proposals (smoke, M3). |
@@ -360,7 +360,7 @@ Used only for `--workspace` selection and authoring-guide match (F1C.5, F4.2). *
 - **Contracts:** Zod in `@agent-deck/shared` mirroring §7 (repo convention); optional JSON Schema files may be generated but Zod is runtime SoT.
 - **Codegen load path:** implementation agent loads this PRD + §7 schemas; repo-specific UI rules stay in project `.cursor/rules/`, never in playbooks.
 - **No-LLM invariant:** CI/test asserts the bootstrap module imports no model/HTTP client (US-1, F3.4).
-- **Privacy / data flow:** parsing is fully local, but digests carry **verbatim `userReaction` excerpts** and enter the user's agent context — so they leave the machine when the (cloud) agent authors proposals. Digest dir remains under `~/.claude/agent-deck/bootstrap/`; no digest is transmitted by Agent Deck itself. State this in the CLI output.
+- **Privacy / data flow:** parsing is fully local, but digests carry **verbatim `userReaction` excerpts** and enter the user's agent context — so they leave the machine when the (cloud) agent authors proposals. Digest dir remains under `$AGENT_DECK_HOME/bootstrap/` (same Agent Deck home as DB/logs); no digest is transmitted by Agent Deck itself. State this in the CLI output.
 
 ## 9. Non-functional requirements
 
@@ -392,7 +392,7 @@ Used only for `--workspace` selection and authoring-guide match (F1C.5, F4.2). *
 
 ## 12. Open decisions
 
-Committed (no longer open): digest location = `~/.claude/agent-deck/bootstrap/<timestamp>/` + `latest` pointer file (F3.2); agent handoff = printed block + `guideRef` (F3.5, F4); history scope default = all projects, `--workspace` narrows (F3.3); one bound deck per run (F4.3); Cursor v1 source = agent-transcript JSONL not SQLite; default `--host all`; never truncate `workspaceRoot`/`sessionId` for byte budget.
+Committed (no longer open): digest location = `$AGENT_DECK_HOME/bootstrap/<timestamp>/` + `latest` pointer file (F3.2; corrected from the Claude-era `~/.claude/agent-deck/bootstrap/` mistake — output must not depend on any host’s config tree); agent handoff = printed block + `guideRef` (F3.5, F4); history scope default = all projects, `--workspace` narrows (F3.3); one bound deck per run (F4.3); Cursor v1 source = agent-transcript JSONL not SQLite; default `--host all`; never truncate `workspaceRoot`/`sessionId` for byte budget.
 
 | Question | Default if undecided | Owner |
 |---|---|---|

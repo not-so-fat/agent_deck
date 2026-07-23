@@ -115,6 +115,30 @@ describe('runBootstrap', () => {
     expect(fs.readFileSync(path.join(bootstrapRoot, 'latest'), 'utf8')).toBe(`${second.outDir}\n`);
   });
 
+  it('defaults bootstrapRoot under AGENT_DECK_HOME, not ~/.claude', () => {
+    const home = makeTempDir('agent-deck-home-');
+    const projectsDir = makeTempDir('agent-deck-projects-');
+    copyFixture(projectsDir, '-Users-x-proj', 'qa-only.jsonl', 'session-qa');
+    const previousHome = process.env.AGENT_DECK_HOME;
+    process.env.AGENT_DECK_HOME = home;
+    try {
+      const result = runBootstrap({
+        host: 'claude',
+        projectsDir,
+        now: () => new Date('2026-07-22T14:00:00.000Z'),
+      });
+      expect(result.outDir.startsWith(path.join(home, 'bootstrap'))).toBe(true);
+      expect(result.outDir.includes(`${path.sep}.claude${path.sep}`)).toBe(false);
+      expect(fs.readFileSync(path.join(home, 'bootstrap', 'latest'), 'utf8')).toBe(`${result.outDir}\n`);
+    } finally {
+      if (previousHome === undefined) {
+        delete process.env.AGENT_DECK_HOME;
+      } else {
+        process.env.AGENT_DECK_HOME = previousHome;
+      }
+    }
+  });
+
   it('mines cursor agent-transcripts with --host cursor and workspace slug match', () => {
     const cursorProjects = makeTempDir('cursor-projects-');
     const bootstrapRoot = makeTempDir('agent-deck-bootstrap-');
