@@ -101,9 +101,11 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     }
   }
 
-  const commands = sortedCounts(commandCounts)
-    .slice(0, 40)
-    .map(({ value: command, count }) => ({ command, count }));
+  const allCommands = sortedCounts(commandCounts).map(({ value: command, count }) => ({
+    command,
+    count,
+  }));
+  const commands = allCommands.slice(0, 40);
   const tools = sortedCounts(toolCounts)
     .slice(0, 40)
     .map(({ value: name, count }) => ({ name, count }));
@@ -132,7 +134,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     skills,
     topFiles,
     feedbackMoments: [],
-    outcome: deriveOutcome(commands),
+    outcome: deriveOutcome(allCommands),
   };
 
   return finalizeDigest(digest);

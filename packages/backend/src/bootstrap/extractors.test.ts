@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { deriveOutcome, normalizeBashCommand, summarizeAssistantAction } from './extractors';
+import {
+  deriveOutcome,
+  extractSkillsFromUserText,
+  normalizeBashCommand,
+  summarizeAssistantAction,
+} from './extractors';
 
 describe('extractors', () => {
   it('summarizes tool calls, paths, commands, and skills', () => {
@@ -28,6 +33,10 @@ describe('extractors', () => {
     expect(normalizeBashCommand('gh pr create --fill')).toBe('gh pr create');
     expect(normalizeBashCommand('npm run test -- --runInBand')).toBe('npm run');
     expect(normalizeBashCommand('npx vitest run')).toBe('npx vitest');
+  });
+
+  it('extracts skill name from command-name tags in user text', () => {
+    expect(extractSkillsFromUserText('use <command-name>foo</command-name>')).toEqual(['foo']);
   });
 
   it('prefers opened PR outcome over committed outcome', () => {

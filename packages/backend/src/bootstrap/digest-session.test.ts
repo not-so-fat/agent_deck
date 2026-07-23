@@ -120,6 +120,51 @@ describe('digestSession', () => {
     expect(digest.intents).toHaveLength(40);
   });
 
+  it('derives outcome from uncapped commands before slicing to 40', () => {
+    const lines = [
+      ...Array.from({ length: 40 }, (_, index) => ({
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              name: 'Bash',
+              input: { command: `cmd-${String(index).padStart(2, '0')} --flag` },
+            },
+          ],
+        },
+      })),
+      {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', name: 'Bash', input: { command: 'git commit -m "late"' } },
+          ],
+        },
+      },
+    ];
+
+    const digest = digestSession('s', lines);
+
+    expect(digest.commands).toHaveLength(40);
+    expect(digest.commands.some((command) => command.command === 'git commit')).toBe(false);
+    expect(digest.outcome.signal).toBe('committed');
+    expect(digest.outcome.evidence).toMatch(/git commit/);
+  });
+
+  it('extracts skills from command-name tags in user text', () => {
+    const digest = digestSession('s', [
+      {
+        type: 'user',
+        message: { role: 'user', content: 'run <command-name>foo</command-name> now' },
+      },
+    ]);
+
+    expect(digest.skills.some((skill) => skill.name === 'foo')).toBe(true);
+  });
+
   it('ignores empty user text', () => {
     const digest = digestSession('s', [
       { type: 'user', message: { role: 'user', content: '   ' } },
