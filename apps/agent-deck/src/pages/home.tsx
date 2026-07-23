@@ -58,8 +58,8 @@ export default function Home() {
     queryFn: () => listPlaybookPatches("proposed"),
   });
 
-  const { data: unreviewedSignalCount = 0 } = useQuery({
-    queryKey: ["/api/feedback-signals/count", "unreviewed"],
+  const { data: openSignalCount = 0 } = useQuery({
+    queryKey: ["/api/feedback-signals/count", "available"],
     queryFn: () => getFeedbackSignalCount(),
   });
 
@@ -319,21 +319,32 @@ export default function Home() {
               {/* Live MCP sessions (replaces editing-deck name/cards chip) */}
               <LiveSessionBadges highlightDeckId={editingDeckId ?? undefined} />
 
+              <Link href="/feedback-signals">
+                <Button variant="outline" size="sm" className="relative border-white/20 bg-white/5 text-[#E8F6F4]">
+                  Feedback
+                  {openSignalCount > 0 && (
+                    <span
+                      className="ml-2 rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{ background: "#C4B643", color: "#0A0A07" }}
+                      title="Open feedback available for curation"
+                    >
+                      {openSignalCount}
+                    </span>
+                  )}
+                </Button>
+              </Link>
+
               <Link href="/playbook-patches">
                 <Button variant="outline" size="sm" className="relative border-white/20 bg-white/5 text-[#E8F6F4]">
                   <GitPullRequest className="mr-2 h-4 w-4" />
                   Review
                   {proposedPatches.length > 0 && (
-                    <span className="ml-2 rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-black">
-                      {proposedPatches.length}
-                    </span>
-                  )}
-                  {unreviewedSignalCount > 0 && (
                     <span
-                      className="ml-1 rounded-full bg-sky-500/90 px-2 py-0.5 text-xs font-semibold text-black"
-                      title="Unreviewed feedback signals"
+                      className="ml-2 rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{ background: "#C4B643", color: "#0A0A07" }}
+                      title="Proposed playbook patches"
                     >
-                      {unreviewedSignalCount} signals
+                      {proposedPatches.length}
                     </span>
                   )}
                 </Button>

@@ -13,10 +13,22 @@ import {
 } from '@agent-deck/shared';
 import { requireDashboardClient } from '../lib/client-scope';
 
-/** Feedback backlog browse/discard/import — dashboard only. Capture stays on MCP propose. */
+function parseBoolQuery(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (value === '1' || value === 'true') return true;
+  if (value === '0' || value === 'false') return false;
+  return undefined;
+}
+
+/** Feedback data browse/discard/import — dashboard only. Capture stays on MCP propose. */
 export async function registerFeedbackSignalRoutes(fastify: FastifyInstance) {
   fastify.get<{
-    Querystring: { status?: string; playbookId?: string; deckId?: string };
+    Querystring: {
+      status?: string;
+      playbookId?: string;
+      deckId?: string;
+      excludeInProposal?: string;
+    };
   }>('/', async (request, reply) => {
     try {
       requireDashboardClient(request);
@@ -28,6 +40,7 @@ export async function registerFeedbackSignalRoutes(fastify: FastifyInstance) {
         status,
         candidatePlaybookId: request.query.playbookId,
         candidateDeckId: request.query.deckId,
+        excludeInProposal: parseBoolQuery(request.query.excludeInProposal),
       });
       return reply.send({
         success: true,
@@ -46,21 +59,35 @@ export async function registerFeedbackSignalRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get<{
-    Querystring: { status?: string; playbookId?: string };
+    Querystring: { status?: string; playbookId?: string; available?: string };
   }>('/count', async (request, reply) => {
     try {
       requireDashboardClient(request);
+      const available = parseBoolQuery(request.query.available);
+      // Badge default: available open (not already in a proposed patch).
+      if (available !== false && !request.query.status) {
+        const open = await fastify.db.countFeedbackSignals({
+          status: 'open',
+          playbookId: request.query.playbookId,
+          excludeInProposal: true,
+        });
+        return reply.send({
+          success: true,
+          data: { open } satisfies FeedbackSignalCount,
+        } satisfies ApiResponse<FeedbackSignalCount>);
+      }
       const status =
         request.query.status === 'actioned' || request.query.status === 'discarded'
           ? request.query.status
-          : 'unreviewed';
-      const unreviewed = await fastify.db.countFeedbackSignals({
+          : 'open';
+      const open = await fastify.db.countFeedbackSignals({
         status,
         playbookId: request.query.playbookId,
+        excludeInProposal: available === true,
       });
       return reply.send({
         success: true,
-        data: { unreviewed } satisfies FeedbackSignalCount,
+        data: { open } satisfies FeedbackSignalCount,
       } satisfies ApiResponse<FeedbackSignalCount>);
     } catch (error) {
       return reply.status(403).send({
@@ -77,7 +104,7 @@ export async function registerFeedbackSignalRoutes(fastify: FastifyInstance) {
       const ids: string[] = [];
       for (const id of body.signalIds) {
         const existing = await fastify.db.getFeedbackSignal(id);
-        if (!existing || existing.status !== 'unreviewed') continue;
+        if (!existing || existing.status !== 'open') continue;
         await fastify.db.updateFeedbackSignalStatus(id, 'discarded', null);
         ids.push(id);
       }
@@ -129,7 +156,7 @@ export async function registerFeedbackSignalRoutes(fastify: FastifyInstance) {
             candidatePlaybookId: item.candidatePlaybookId ?? null,
             candidateDeckId: item.candidateDeckId ?? null,
             linkedPatchId: null,
-            status: 'unreviewed',
+            status: 'open',
           });
           ids.push(created.id);
         } catch (err) {

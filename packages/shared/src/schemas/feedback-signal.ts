@@ -7,7 +7,7 @@ export const FeedbackSignalIdSchema = z
 
 export const FeedbackSignalSourceSchema = z.enum(['ide', 'dealer', 'backfill']);
 
-export const FeedbackSignalStatusSchema = z.enum(['unreviewed', 'actioned', 'discarded']);
+export const FeedbackSignalStatusSchema = z.enum(['open', 'actioned', 'discarded']);
 
 export const FeedbackSignalSchema = z.object({
   id: FeedbackSignalIdSchema,
@@ -28,7 +28,8 @@ export type FeedbackSignalSource = z.infer<typeof FeedbackSignalSourceSchema>;
 export type FeedbackSignalStatus = z.infer<typeof FeedbackSignalStatusSchema>;
 
 export const FeedbackSignalCountSchema = z.object({
-  unreviewed: z.number().int().nonnegative(),
+  /** Count of matching rows; badge uses available-open (see available query). */
+  open: z.number().int().nonnegative(),
 });
 
 export type FeedbackSignalCount = z.infer<typeof FeedbackSignalCountSchema>;
@@ -37,6 +38,11 @@ export const ListFeedbackSignalsQuerySchema = z.object({
   status: FeedbackSignalStatusSchema.optional(),
   playbookId: z.string().optional(),
   deckId: z.string().uuid().optional(),
+  /** When true, omit rows linked to a still-proposed patch. */
+  excludeInProposal: z
+    .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
 });
 
 export type ListFeedbackSignalsQuery = z.infer<typeof ListFeedbackSignalsQuerySchema>;

@@ -8,6 +8,7 @@ import {
   type PlaybookPatchListItem,
   type PlaybookPatchSource,
   type ProposePlaybookPatchResult,
+  type FeedbackSignal,
   AGENT_DECK_CLIENT_HEADER,
 } from '@agent-deck/shared';
 import { requireDashboardClient } from '../lib/client-scope';
@@ -47,12 +48,19 @@ export async function registerPlaybookPatchRoutes(fastify: FastifyInstance) {
         sourceRef,
         deckId ?? undefined,
       );
-      // Always return ProposePlaybookPatchResult so agents see linked signal ids
-      // (callBackendAPI unwraps .data and would drop a top-level meta.signalId).
+      if (result.kind === 'signal_only') {
+        return reply.status(201).send({
+          success: true,
+          data: result,
+        } satisfies ApiResponse<ProposePlaybookPatchResult>);
+      }
+      // Keep `data` a flat PlaybookPatch (top-level `id`/`playbookId`) — agent-dealer's
+      // proposePlaybookPatch adapter reads json.data.id directly and would break otherwise.
+      // `signal` rides alongside as an extra field so MCP can surface signal_id.
       return reply.status(201).send({
         success: true,
-        data: result,
-      } satisfies ApiResponse<ProposePlaybookPatchResult>);
+        data: { ...result.patch, signal: result.signal },
+      } satisfies ApiResponse<PlaybookPatch & { signal: FeedbackSignal | null }>);
     } catch (error) {
       if (error instanceof PatchConflictError || error instanceof PatchNoChangeError) {
         return reply.status(409).send({

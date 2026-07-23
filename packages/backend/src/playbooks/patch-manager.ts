@@ -89,8 +89,10 @@ export class PatchManager {
     if (!signalIds || signalIds.length === 0) return;
     for (const id of signalIds) {
       const existing = await this.db.getFeedbackSignal(id);
-      if (!existing || existing.status !== 'unreviewed') continue;
-      await this.db.updateFeedbackSignalStatus(id, 'actioned', patchId);
+      if (!existing || existing.status !== 'open') continue;
+      if (await this.db.isSignalLinkedToProposedPatch(existing)) continue;
+      // Park only — actioned on accept.
+      await this.db.updateFeedbackSignalStatus(id, 'open', patchId);
     }
   }
 
@@ -117,7 +119,7 @@ export class PatchManager {
         candidatePlaybookId: validated.playbook_id ?? null,
         candidateDeckId: deckIdForCreate ?? null,
         linkedPatchId: null,
-        status: 'unreviewed',
+        status: 'open',
       });
       return { kind: 'signal_only', signal };
     }
@@ -173,11 +175,10 @@ export class PatchManager {
         correctedOutputHint: evidence.corrected_output_hint ?? null,
         candidatePlaybookId: null,
         candidateDeckId: fields.deck_id,
-        linkedPatchId: null,
-        status: 'unreviewed',
+        linkedPatchId: patch.id,
+        status: 'open',
       });
-      const linked = await this.db.updateFeedbackSignalStatus(signal.id, 'actioned', patch.id);
-      return { kind: 'create', patch, signal: linked! };
+      return { kind: 'create', patch, signal };
     }
 
     if (!validated.playbook_id) {
@@ -240,11 +241,10 @@ export class PatchManager {
       correctedOutputHint: evidence.corrected_output_hint ?? null,
       candidatePlaybookId: validated.playbook_id,
       candidateDeckId: deckIdForCreate ?? null,
-      linkedPatchId: null,
-      status: 'unreviewed',
+      linkedPatchId: patch.id,
+      status: 'open',
     });
-    const linked = await this.db.updateFeedbackSignalStatus(signal.id, 'actioned', patch.id);
-    return { kind: validated.kind, patch, signal: linked! };
+    return { kind: validated.kind, patch, signal };
   }
 
   async preview(patchId: string): Promise<PatchPreview | null> {
@@ -353,6 +353,7 @@ export class PatchManager {
       await this.playbookManager.addToDeck({ deckId: fields.deck_id, playbookId: created.id });
       await this.snapshotVersion(created, patchId, 'agent');
       const updated = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+      await this.db.actionSignalsForPatch(patchId);
       await this.syncStubSurfaceForPatch(patch);
       return updated!;
     }
@@ -392,6 +393,7 @@ export class PatchManager {
     }
     await this.snapshotVersion(updatedPlaybook, patchId, 'agent');
     const accepted = await this.db.updatePlaybookPatchStatus(patchId, 'accepted');
+    await this.db.actionSignalsForPatch(patchId);
     await this.syncStubSurfaceForPatch(patch);
     return accepted!;
   }

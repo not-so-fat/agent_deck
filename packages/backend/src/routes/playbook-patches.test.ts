@@ -110,13 +110,13 @@ describe('playbook-patches routes', () => {
     });
     expect(proposed.statusCode).toBe(201);
     const body = proposed.json().data as {
+      id: string;
       kind: string;
-      patch: { id: string };
       signal: { id: string } | null;
     };
     expect(body.kind).toBe('update');
     expect(body.signal?.id).toMatch(/^fs_/);
-    const patchId = body.patch.id;
+    const patchId = body.id;
 
     const preview = await app.inject({
       method: 'GET',
@@ -127,6 +127,28 @@ describe('playbook-patches routes', () => {
     const data = preview.json().data;
     expect(data.after.body).toContain('Include Test plan section');
     expect(data.before.body).not.toContain('Include Test plan section');
+  });
+
+  it('keeps a flat { id, playbookId } response shape for the agent-dealer client contract', async () => {
+    // agent-dealer's proposePlaybookPatch adapter reads json.data.id / .playbookId directly
+    // (packages/server/src/adapters/agent-deck.ts in the sibling agent-dealer repo) and
+    // throws if data.id is missing. Extra fields (e.g. `signal`) are fine; nesting patch
+    // fields under `data.patch` is not — that silently breaks every dealer-sourced proposal.
+    const proposed = await app.inject({
+      method: 'POST',
+      url: '/api/playbook-patches',
+      headers: { [AGENT_DECK_CLIENT_HEADER]: 'dealer', 'x-agent-deck-source-ref': 'run-1' },
+      payload: {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'Dealer-sourced gotcha' }],
+        rationale: 'Reflect proposal',
+      },
+    });
+    expect(proposed.statusCode).toBe(201);
+    const body = proposed.json().data as { id: string; playbookId: string | null };
+    expect(body.id).toMatch(/^pp_/);
+    expect(body.playbookId).toBe(playbookId);
   });
 
   it('rejects list without dashboard client', async () => {

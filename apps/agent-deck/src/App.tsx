@@ -8,6 +8,7 @@ import NotFound from "@/pages/not-found";
 import OAuthCallback from "@/components/oauth-callback";
 import McpTestPage from "@/pages/mcp-test";
 import PlaybookPatchesPage from "@/pages/playbook-patches";
+import FeedbackSignalsPage from "@/pages/feedback-signals";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/oauth/callback" component={OAuthCallback} />
       <Route path="/playbook-patches" component={PlaybookPatchesPage} />
+      <Route path="/feedback-signals" component={FeedbackSignalsPage} />
       <Route path="/mcp-test" component={McpTestPage} />
       <Route component={NotFound} />
     </Switch>

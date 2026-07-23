@@ -178,14 +178,14 @@ describe('PatchManager', () => {
       candidatePlaybookId: playbook.id,
       candidateDeckId: null,
       linkedPatchId: patch.id,
-      status: 'actioned',
+      status: 'open',
     });
 
     await expect(patchManager.accept(patch.id)).rejects.toBeInstanceOf(PatchConflictError);
     const stale = await db.getPlaybookPatch(patch.id);
     expect(stale?.status).toBe('stale');
     const reopened = await db.getFeedbackSignal(signal.id);
-    expect(reopened?.status).toBe('unreviewed');
+    expect(reopened?.status).toBe('open');
     expect(reopened?.linkedPatchId).toBeNull();
   });
 
@@ -212,13 +212,15 @@ describe('PatchManager', () => {
     expect(rejected?.status).toBe('rejected');
     expect(rejected?.rejectionReason).toBe('Too broad');
 
-    const signals = await db.listFeedbackSignals({ status: 'unreviewed' });
+    const signals = await db.listFeedbackSignals({ status: 'open' });
     expect(signals.some((s) => s.userFeedbackExcerpt === 'test' || s.failureSummary === 'test')).toBe(
       true,
     );
+    const linked = signals.find((s) => s.failureSummary === 'test' || s.userFeedbackExcerpt === 'test');
+    expect(linked?.linkedPatchId).toBeNull();
   });
 
-  it('signal_only logs unreviewed signal without a patch row', async () => {
+  it('signal_only logs open signal without a patch row', async () => {
     const playbook = await playbookManager.create({
       title: 'Test',
       body: '## Gotchas\n- Keep it short.\n',
@@ -242,13 +244,13 @@ describe('PatchManager', () => {
 
     expect(result.kind).toBe('signal_only');
     if (result.kind !== 'signal_only') throw new Error('expected signal_only');
-    expect(result.signal.status).toBe('unreviewed');
+    expect(result.signal.status).toBe('open');
     expect(result.signal.linkedPatchId).toBeNull();
     expect(result.signal.candidatePlaybookId).toBe(playbook.id);
     expect(await db.listPlaybookPatches()).toHaveLength(0);
   });
 
-  it('immediate propose writes actioned signal linked to the patch', async () => {
+  it('immediate propose writes open signal linked to the patch; accept marks actioned', async () => {
     const playbook = await playbookManager.create({
       title: 'Test',
       body: '## Gotchas\n- Keep it short.\n',
@@ -270,9 +272,12 @@ describe('PatchManager', () => {
       null,
     );
     if (result.kind === 'signal_only') throw new Error('expected patch');
-    expect(result.signal.status).toBe('actioned');
-    expect(result.signal.linkedPatchId).toBe(result.patch.id);
-    expect(result.signal.failureSummary).toBe('Missed citation');
+    expect(result.signal?.status).toBe('open');
+    expect(result.signal?.linkedPatchId).toBe(result.patch.id);
+    expect(result.signal?.failureSummary).toBe('Missed citation');
+
+    await patchManager.accept(result.patch.id);
+    expect((await db.getFeedbackSignal(result.signal!.id))?.status).toBe('actioned');
   });
 
   it('does not mutate immutable signal fields on status update', async () => {
@@ -286,7 +291,7 @@ describe('PatchManager', () => {
       candidatePlaybookId: null,
       candidateDeckId: deckId,
       linkedPatchId: null,
-      status: 'unreviewed',
+      status: 'open',
     });
     const updated = await db.updateFeedbackSignalStatus(created.id, 'discarded');
     expect(updated?.failureSummary).toBe('original summary');

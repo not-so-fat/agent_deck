@@ -18,7 +18,7 @@ Rejected: agent_deck's role in this ecosystem is capture, storage, and orchestra
 
 Instead: surface the relevant data (dashboard read, MCP read-only tool, REST GET) so a human or an external agent can pull it into their own session and reason over it there, then write results back through existing write/propose endpoints.
 
-**Applied example (feedback-accumulation curation):** batch analysis is not a backend `/analyze` endpoint. It's a dashboard backlog view (list unreviewed `feedback_signals`, discard noise, "Copy for agent") that a human pastes into their IDE agent of choice; that agent drafts consolidated ops itself and submits via the existing `propose_playbook_patch` MCP tool with `signal_ids`. No new MCP list/discard tools were added either — capture/propose stays the only agent-facing surface for this data.
+**Applied example (feedback-accumulation curation):** batch analysis is not a backend `/analyze` endpoint. It's the dashboard Feedback table (`/feedback-signals`: filter open/actioned/discarded by playbook, discard noise, "Copy for agent" with ids) that a human pastes into their IDE agent of choice; that agent drafts consolidated ops itself and submits via the existing `propose_playbook_patch` MCP tool with `signal_ids`. No new MCP list/discard tools were added either — capture/propose stays the only agent-facing surface for this data.
 
 ## Consequences
 

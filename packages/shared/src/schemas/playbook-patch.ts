@@ -94,7 +94,7 @@ export const ProposePlaybookPatchSchema = z
     new_playbook: CreatePlaybookPatchFieldsSchema.optional(),
     rationale: z.string().min(1),
     evidence: PatchEvidenceSchema.optional(),
-    /** When submitting a curated revision, mark these unreviewed signals actioned + linked. */
+    /** When submitting a curated revision, link these open signals to the new patch (actioned on accept). */
     signal_ids: z.array(z.string().regex(/^fs_[a-z0-9_]+$/)).optional(),
   })
   .superRefine((val, ctx) => {
@@ -166,7 +166,7 @@ export type ProposeSignalOnlyResult = {
 export type ProposePatchResult = {
   kind: Exclude<ProposePlaybookPatchKind, 'signal_only'>;
   patch: PlaybookPatch;
-  /** Null when this was a curation submit (`signal_ids` present) — no new signal row. */
+  /** Null when curation submit (`signal_ids`); otherwise new signal still `open` + linked. */
   signal: import('./feedback-signal').FeedbackSignal | null;
 };
 

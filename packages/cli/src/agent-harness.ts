@@ -38,7 +38,7 @@ Deck playbooks are task recipes — thin trigger stubs from \`agent-deck use\` p
 
 **Defer when unsure** (\`kind: "signal_only"\`): if the correction is plausible but not yet clearly generalizable (edge case, one-off, or needs sibling corrections before the lesson is clear), call \`propose_playbook_patch { kind: "signal_only", evidence, rationale }\` — logs the signal with no patch proposal. Prefer immediate \`update\`/\`create\` when the lesson is clear.
 
-**Curate from a pasted dashboard prompt:** when the user pastes a curation prompt copied from the Playbook review queue (unreviewed feedback → Copy for agent), group the signals, then \`propose_playbook_patch\` with consolidated ops and \`signal_ids\` of consumed rows. Do not invent a list-feedback MCP tool — backlog browse/discard is dashboard-only.
+**Curate from a pasted dashboard prompt:** when the user pastes a curation prompt from the Feedback table (\`/feedback-signals\` → Copy for agent; Markdown + YAML list, each row leads with \`id\`), group the signals, then \`propose_playbook_patch\` with consolidated ops and \`signal_ids\` of every consumed id. That links rows (still open) until the patch is accepted. Do not invent a list-feedback MCP tool — browse/discard is dashboard-only.
 
 **Explicit user-directed playbook edits** ("fix the playbook to say X"): \`update_playbook\` — they already reviewed.
 

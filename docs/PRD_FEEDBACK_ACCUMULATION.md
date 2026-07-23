@@ -1,28 +1,32 @@
 ---
 playbooks: pb_ai_codegen_prd, pb_product_principle
+supersedes: brainstorming 2026-07-22 backlog-on-patches UX
+design: docs/superpowers/specs/2026-07-22-feedback-signals-table-redesign.md
 ---
 
 # Playbook feedback accumulation & curation — AI Codegen PRD
 
-**One-liner:** Every agent-detected correction is logged permanently via MCP (`propose_playbook_patch` / `signal_only`) into `feedback_signals`; the dashboard exposes the unreviewed backlog for bulk curation (browse, discard, copy prompt for an IDE agent) — agent_deck never calls an LLM and does not add list/discard MCP tools.
+**One-liner:** Every agent-detected correction is logged permanently via MCP into `feedback_signals`; the dashboard exposes a **playbook-filterable data table** (`open` / `actioned` / `discarded`) so humans review and copy rows (with ids) to an IDE agent that proposes patches — agent_deck never calls an LLM and does not add list/discard MCP tools.
 
-**Status:** Draft · **Codegen load path:** `docs/PRD_FEEDBACK_ACCUMULATION.md` · **Contracts:** `packages/shared/src/schemas/feedback-signal.ts`
+**Status:** Draft (redesign 2026-07-22) · **Codegen load path:** `docs/PRD_FEEDBACK_ACCUMULATION.md` · **UI/lifecycle design:** `docs/superpowers/specs/2026-07-22-feedback-signals-table-redesign.md` · **Contracts:** `packages/shared/src/schemas/feedback-signal.ts`
 
 ---
 
 ## 1. Product overview
 
-Today (`docs/superpowers/specs/2026-07-11-playbook-learning-loop-design.md`, shipped), every agent-detected correction becomes a standalone `playbook_patches` proposal, reviewed in isolation in the dashboard queue. A single correction is often too weak a signal to generalize from well — it may be noise, an edge case, or need two or three siblings before the right lesson is clear. The July 11 spec already named this gap and deferred it as future work ("capture escalation — Stop hook, transcript harvester, curation pass").
+Today (`docs/superpowers/specs/2026-07-11-playbook-learning-loop-design.md`, shipped), every agent-detected correction can become a standalone `playbook_patches` proposal. A single correction is often too weak to generalize from — it may be noise, an edge case, or need siblings before the right lesson is clear.
 
-This PRD closes that gap with a durable capture layer (`feedback_signals`) written through the existing MCP propose path, plus a **dashboard bulk-curation surface**: list/count/discard unreviewed signals and copy a prompt for the IDE agent to paste back as consolidated `propose_playbook_patch` calls (with `signal_ids`). Capture = MCP; backlog analysis = dashboard → agent chat. No Anthropic (or other LLM) SDK in the backend; no dedicated list/discard MCP tools.
+This PRD adds a durable capture layer (`feedback_signals`) written through MCP `propose_playbook_patch` (incl. `signal_only`), plus a **dashboard data-review table** on `/feedback-signals`: filter by playbook and status, discard noise, copy selected rows **including ids** for an IDE agent to paste back as `propose_playbook_patch` with `signal_ids`. Capture = MCP; analysis = dashboard → agent chat. No Anthropic (or other LLM) SDK in the backend; no dedicated list/discard MCP tools.
+
+**Redesign vs first ship:** Feedback is not a bolted-on “unreviewed backlog” on the patches page. It is durable correction **data** for playbook enhancement. Status rename: `unreviewed` → `open`. Propose **links** signals (parks them to avoid duplicate work); **accept** marks `actioned`. Reject/stale clears the link so signals remain a source for new proposals.
 
 **Success criteria:**
 
 | # | Criterion | Target |
 |---|-----------|--------|
 | SC-1 | Every agent-detected correction produces a `feedback_signals` row, whether or not a patch is also drafted immediately | v1 ship |
-| SC-2 | From the dashboard, a user can copy ≥2 unreviewed signals into an IDE agent prompt and get ≥1 consolidated proposal that marks those signals `actioned` via `signal_ids` | v1 ship |
-| SC-3 | Nav/dashboard shows unreviewed-signal count so backlog is visible before the user starts bulk curation | v1 ship |
+| SC-2 | From `/feedback-signals`, a user can filter by playbook, copy ≥2 open signals (ids included) into an IDE agent prompt, and get ≥1 consolidated proposal that **links** those `signal_ids`; accept marks them `actioned` | redesign |
+| SC-3 | Nav shows available-open count (open and not already in a proposed patch) | redesign |
 | SC-4 | A standalone script can backfill historical signals from a Claude Code transcript directory on a machine with no agent_deck backend running locally | v1 ship |
 
 ---
@@ -32,7 +36,7 @@ This PRD closes that gap with a durable capture layer (`feedback_signals`) writt
 | Persona | Goal | v1 surface |
 |---------|------|------------|
 | **Solo dev running IDE sessions** | Corrections given mid-task aren't lost even when they're too weak to act on alone | Harness auto-logs signal on every correction |
-| **Deck owner reviewing playbooks** | Decide when to turn accumulated corrections into playbook changes, on their own schedule | Dashboard backlog (copy for agent / discard) + unreviewed-signal badge |
+| **Deck owner reviewing playbooks** | Review correction data by playbook, extract proposals without duplicating in-flight work | `/feedback-signals` table + Copy for agent + patches review |
 | **New user migrating history** | Bootstrap playbooks from corrections given before this feature existed | Standalone backfill CLI script |
 
 **Voice:** Objective, cold-reader. Link `docs/superpowers/specs/2026-07-11-playbook-learning-loop-design.md` for prior-art terminology (`playbook_patches`, ops, evidence).
@@ -47,13 +51,13 @@ This PRD closes that gap with a durable capture layer (`feedback_signals`) writt
 
 **Acceptance:**
 
-- [ ] `propose_playbook_patch` (any `kind`, including the new `signal_only`) always inserts a `feedback_signals` row before anything else
+- [ ] `propose_playbook_patch` (any `kind`, including `signal_only`) inserts a `feedback_signals` row when the call is not a curation submit that already carries `signal_ids`
 - [ ] Row is written even when the resulting patch proposal is rejected or goes stale later
 - [ ] Row fields (`failure_summary`, `user_feedback_excerpt`, `corrected_output_hint?`) are immutable after insert; only `status` and `linked_patch_id` change
-- [ ] Immediate kinds (`update` / `create` / …) insert the signal as `status: "actioned"` with `linked_patch_id` set to the new patch, **unless** the call already carries `signal_ids` (a curation submit) — in that case no new row is created, only the referenced ids transition; `signal_only` inserts as `unreviewed` with `linked_patch_id: null`
-- [ ] On patch **accept**, linked signal(s) stay `actioned`; on **reject** or **stale**, linked signal(s) reopen to `unreviewed` with `linked_patch_id` cleared (re-enter backlog) — a stale anchor means the anchor drifted, not that the correction stopped mattering
+- [ ] Immediate kinds insert the signal as `status: "open"` with `linked_patch_id` set to the new patch; curation submits with `signal_ids` create **no** new row and only link referenced open (linkable) ids; `signal_only` inserts as `open` with `linked_patch_id: null`
+- [ ] On patch **accept**, linked signal(s) become `actioned`; on **reject** or **stale**, clear `linked_patch_id` and leave/return status `open` (still a good source for a new proposal)
 
-*v1*
+*v1 / redesign*
 
 ### US-2 — Defer a correction instead of proposing immediately
 
@@ -61,46 +65,47 @@ This PRD closes that gap with a durable capture layer (`feedback_signals`) writt
 
 **Acceptance:**
 
-- [ ] `propose_playbook_patch({ kind: "signal_only", evidence })` stores the signal with `status: "unreviewed"` and creates **no** `playbook_patches` row
-- [ ] Harness guidance (agent-harness.ts) instructs the agent to use `signal_only` when a correction is plausible but not yet clearly generalizable, keeping the existing `update`/`create` immediate path for confident corrections
-- [ ] Explicit user-directed edits ("fix the playbook to say X") remain unaffected — still route to `update_playbook` directly, never through signal capture
+- [ ] `propose_playbook_patch({ kind: "signal_only", evidence })` stores the signal with `status: "open"` and creates **no** `playbook_patches` row
+- [ ] Harness guidance instructs the agent to use `signal_only` when a correction is plausible but not yet clearly generalizable
+- [ ] Explicit user-directed edits ("fix the playbook to say X") remain unaffected — still `update_playbook`
 
 *v1*
 
-### US-3 — Bulk curation starts on the dashboard
+### US-3 — Data review and extract on the dashboard
 
-**As a** deck owner **I want** to browse the unreviewed backlog in the dashboard and hand selected signals to my IDE agent when I choose **so that** capture stays on MCP while bulk analysis stays a human-gated dashboard path (no list/discard MCP tools, no backend LLM).
+**As a** deck owner **I want** a standard table of feedback data filtered by playbook and status **so that** I can copy id-bearing rows to my IDE agent for consolidated proposals without duplicating work already covered by an open patch.
 
 **Acceptance:**
 
-- [ ] Dashboard Playbook review page lists unreviewed signals with multi-select discard
-- [ ] "Copy for agent" copies a curation prompt + signal JSON (ids included) to the clipboard
-- [ ] When the user pastes that prompt into an IDE agent, the agent submits via existing `propose_playbook_patch` with `signal_ids` (MCP capture/propose only — no `list_feedback_signals` tool)
-- [ ] Dashboard discard marks rows `discarded` without deleting them
-- [ ] Resulting proposals appear in the existing review queue — no new accept/reject UI; **no** backend LLM
+- [ ] Dashboard page `/feedback-signals` lists signals in a table with playbook filter, status filter (`open` default), and optional include-in-proposal toggle (default off)
+- [ ] "Copy for agent" always includes each row’s `id` in the clipboard JSON plus excerpt/failure/playbook context
+- [ ] Pasted IDE agent submits via `propose_playbook_patch` with `signal_ids` (no list/discard MCP tools)
+- [ ] Propose **links** those ids (derived “In proposal”); does **not** mark `actioned` until patch accept
+- [ ] Discard marks rows `discarded` without deleting them
+- [ ] Resulting proposals appear in the existing playbook-patches review queue — no second accept/reject UI; **no** backend LLM
 
-*v1*
+*redesign*
 
-### US-4 — See accumulation status before deciding to curate
+### US-4 — See available work before curating
 
-**As a** deck owner **I want** to see how many corrections are waiting **so that** I know when there's enough backlog to ask an agent to curate.
+**As a** deck owner **I want** to see how many open corrections are waiting (not already in a proposal) **so that** I know when to open the feedback table.
 
 **Acceptance:**
 
-- [ ] Nav badge shows count of `feedback_signals WHERE status = 'unreviewed'`, alongside the existing pending-proposal badge
-- [ ] Playbook detail view shows a per-playbook unreviewed-signal count next to the existing fetch-count line
+- [ ] Nav badge shows count of available open signals (`status = open` and not linked to a `proposed` patch)
+- [ ] Playbook detail view shows a per-playbook available-open count
 
-*v1*
+*redesign*
 
 ### US-5 — Backfill historical corrections
 
-**As a** new user **I want** to mine corrections from Claude Code transcripts that predate this feature **so that** old history isn't a dead end just because no playbook existed at the time.
+**As a** new user **I want** to mine corrections from Claude Code transcripts that predate this feature **so that** old history isn't a dead end.
 
 **Acceptance:**
 
-- [ ] `agent-deck import-feedback-signals <transcript-dir>` reads local Claude Code JSONL transcripts, heuristically detects correction turns, and either POSTs directly to a reachable backend or writes a JSON file for later import
-- [ ] Script runs standalone on a machine with no agent_deck backend installed (only needs a transcript directory and, optionally, a `--backend-url`)
-- [ ] Imported signals are tagged `source: "backfill"` and are otherwise indistinguishable from live-captured signals in the dashboard backlog
+- [ ] `agent-deck import-feedback-signals <transcript-dir>` parses JSONL and POSTs or writes JSON
+- [ ] Script runs standalone without a local backend (optional `--backend-url`)
+- [ ] Imported signals are `source: "backfill"` and appear in the feedback table like live captures
 
 *v1*
 
@@ -113,34 +118,36 @@ This PRD closes that gap with a durable capture layer (`feedback_signals`) writt
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
 | F1.1 | `propose_playbook_patch` writes a `feedback_signals` row on every call **except** curation submits that already carry `signal_ids` | US-1 |
-| F1.2 | New `kind: "signal_only"` skips ops drafting and `playbook_patches` creation entirely | US-2 |
+| F1.2 | `kind: "signal_only"` skips ops drafting and `playbook_patches` creation | US-2 |
 | F1.3 | `feedback_signals` rows are immutable except `status`/`linked_patch_id` | US-1 |
-| F1.4 | Harness (`agent-harness.ts` Behavior 3) documents when to use `signal_only` vs immediate `update`/`create` | US-2 |
+| F1.4 | Harness Behavior 3 documents `signal_only` vs immediate propose and paste-from-`/feedback-signals` | US-2 |
 
-### Pillar B — Dashboard bulk curation
+### Pillar B — Dashboard data table & extract
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F2.1 | `GET /api/feedback-signals` (dashboard client) lists signals with status/playbook/deck filters | US-3 |
-| F2.2 | `propose_playbook_patch` accepts optional `signal_ids` on any patch-creating kind (`create`/`update`/`merge`/`retire`, incl. genesis clustering with no prior `candidatePlaybookId`); on success those rows become `actioned` + linked, and no separate signal row is written for the call itself | US-3 |
-| F2.3 | Dashboard discard via `POST /api/feedback-signals/discard` marks rows `discarded`, never deletes | US-3 |
-| F2.4 | Dashboard "Copy for agent" + harness documents paste → propose with `signal_ids`; **no** list/discard MCP tools | US-3 |
-| F2.5 | Rejecting **or staling** a `playbook_patches` row reopens linked `feedback_signals` (`unreviewed`, clear `linked_patch_id`) | US-1 |
+| F2.1 | `GET /api/feedback-signals` (dashboard) lists with status/playbook/deck filters; supports excluding in-proposal rows | US-3 |
+| F2.2 | `propose_playbook_patch` accepts optional `signal_ids`; on success those linkable rows get `linked_patch_id` and stay `open`; no new signal row for the call | US-3 |
+| F2.3 | Discard via `POST /api/feedback-signals/discard` → `discarded`, never delete | US-3 |
+| F2.4 | Dashboard Copy for agent always embeds signal `id`s; harness paste recipe; **no** list/discard MCP | US-3 |
+| F2.5 | Rejecting or staling a patch clears `linked_patch_id` on linked signals; status `open` | US-1 |
+| F2.6 | Accepting a patch sets linked signals to `actioned` | US-1 |
+| F2.7 | Own page `/feedback-signals`; remove bolted-on backlog from patches page | US-3 |
 
 ### Pillar C — Visibility
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F3.1 | `GET /api/feedback-signals/count?status=unreviewed` backs a nav badge | US-4 |
-| F3.2 | Playbook detail view shows per-playbook unreviewed count | US-4 |
+| F3.1 | Count API / badge = available open (not in-proposal) | US-4 |
+| F3.2 | Playbook detail shows per-playbook available-open count | US-4 |
 
 ### Pillar D — Backfill
 
 | Req ID | Requirement | Acceptance |
 |--------|-------------|------------|
-| F4.1 | Standalone CLI parses local Claude Code JSONL transcripts for correction turns | US-5 |
-| F4.2 | CLI POSTs to a reachable backend, or writes an importable JSON file otherwise | US-5 |
-| F4.3 | `POST /api/feedback-signals/import` accepts a batch of pre-parsed signal records, tagging `source: "backfill"` | US-5 |
+| F4.1 | Standalone CLI parses local Claude Code JSONL for correction turns | US-5 |
+| F4.2 | CLI POSTs or writes importable JSON | US-5 |
+| F4.3 | `POST /api/feedback-signals/import` accepts batch with `source: "backfill"` | US-5 |
 
 ---
 
@@ -154,17 +161,19 @@ This PRD closes that gap with a durable capture layer (`feedback_signals`) writt
 
 | Principle | Load-bearing requirement |
 |-----------|--------------------------|
-| Nothing is ever lost | Every correction is logged unconditionally, before any judgment about whether it's patch-worthy (F1.1) |
-| Append-only history | Signal rows never get edited or deleted, only status-transitioned (F1.3, F2.3) |
-| Reuse the existing review surface | Curated proposals are ordinary `playbook_patches` rows — no second review UI (F2.2) |
-| No LLM in agent_deck | Curation reasoning stays in the external agent after a dashboard copy; agent_deck stores signals and accepts proposals (F2.1–F2.4) |
-| Capture on MCP, bulk on dashboard | Session agents only write signals via propose; backlog browse/discard/copy is dashboard-only |
+| Nothing is ever lost | Every correction is logged unconditionally (F1.1) |
+| Append-only history | Rows never deleted; only status/link transitions (F1.3, F2.3) |
+| Data first, extract second | Table is the review surface; patches are the extract/apply rail (F2.7) |
+| No duplicate work | Linked-to-proposed signals are parked (derived), not re-copied by default (F2.1, F2.2) |
+| Solved = applied | `actioned` only on patch accept (F2.6) |
+| No LLM in agent_deck | External agent after dashboard copy (F2.4) |
+| Capture on MCP, browse on dashboard | No list/discard MCP tools |
 
 ---
 
 ## 7. Cross-cutting contracts
 
-Implementation: Zod in `packages/shared/src/schemas/feedback-signal.ts` (alongside `packages/shared/src/schemas/playbook-patch.ts`).
+Implementation: Zod in `packages/shared/src/schemas/feedback-signal.ts`.
 
 ### 7.1 `feedback_signals` row (`FeedbackSignal`)
 
@@ -179,23 +188,29 @@ Implementation: Zod in `packages/shared/src/schemas/feedback-signal.ts` (alongsi
   "candidatePlaybookId": "pb_ai_codegen_prd",
   "candidateDeckId": "6e825b59-13de-4ddd-ab7e-55ab5a1c279a",
   "linkedPatchId": null,
-  "status": "unreviewed",
+  "status": "open",
   "createdAt": "2026-07-22T10:00:00.000Z"
 }
 ```
 
-`source`: `ide` \| `dealer` \| `backfill`. `status`: `unreviewed` \| `actioned` \| `discarded`. `candidatePlaybookId` and `candidateDeckId` are both nullable — genesis-style signals (no playbook exists yet) may carry neither.
+`source`: `ide` \| `dealer` \| `backfill`. `status`: `open` \| `actioned` \| `discarded`.
+
+**Derived (not stored):** `inProposal` when `linkedPatchId` references a patch with `status = proposed`.
 
 **Status lifecycle:**
 
 | Event | Resulting `status` / `linkedPatchId` |
 |-------|--------------------------------------|
-| `propose` with `kind: signal_only` | new row, `unreviewed` / `null` |
-| `propose` with immediate kind, no `signal_ids` | new row, `actioned` / new patch id |
-| `propose` with `signal_ids` (curation submit, any patch-creating kind) | **no new row**; referenced ids → `actioned` / new patch id |
-| Dashboard discard | `discarded` / unchanged (`null`) |
-| Linked patch **accepted** | stays `actioned` |
-| Linked patch **rejected** or marked **stale** | `unreviewed` / `null` (reopens for curation — a stale anchor doesn't mean the correction stopped mattering) |
+| `propose` `signal_only` | new row, `open` / `null` |
+| `propose` immediate kind, no `signal_ids` | new row, `open` / new patch id |
+| `propose` with `signal_ids` | **no new row**; linkable ids → `open` / new patch id |
+| Dashboard discard | `discarded` |
+| Linked patch **accepted** | `actioned` / keep patch id |
+| Linked patch **rejected** or **stale** | `open` / `null` |
+
+**Linkable:** `status = open` and not already linked to a `proposed` patch. Unknown / non-linkable ids ignored — still create the patch (OD-3).
+
+Migration: `UPDATE feedback_signals SET status = 'open' WHERE status = 'unreviewed'`.
 
 ### 7.2 `propose_playbook_patch` — `signal_only` + optional `signal_ids`
 
@@ -211,9 +226,7 @@ Implementation: Zod in `packages/shared/src/schemas/feedback-signal.ts` (alongsi
 }
 ```
 
-`signal_only` requires `evidence`; never touches `ops`, `new_playbook`, or `playbook_patches`.
-
-For curation submit (immediate kinds):
+Curation / immediate propose with ids:
 
 ```jsonc
 {
@@ -226,56 +239,39 @@ For curation submit (immediate kinds):
 }
 ```
 
-`signal_ids` is optional; applies to any patch-creating `kind` (`create`/`update`/`merge`/`retire`), not only `update` — genesis clustering (`kind: "create"` from signals with no `candidatePlaybookId`) is the primary motivating case. When present, only `unreviewed` rows are transitioned and the call itself writes no new signal row (see §7.1 status lifecycle); unknown / already-actioned ids are ignored or reported — do not fail the propose.
+`signal_ids` optional on any patch-creating kind. Must be echoed from Copy-for-agent JSON so solved feedback is trackable.
 
 ### 7.3 `GET /api/feedback-signals` (dashboard only)
 
 ```json
 // query
-{ "status": "unreviewed", "playbookId": "pb_…", "deckId": "…" }  // all optional
+{ "status": "open", "playbookId": "pb_…", "deckId": "…", "excludeInProposal": true }
 
-// response
-{ "signals": [ /* FeedbackSignal[] */ ] }
+// response data: FeedbackSignal[]
 ```
 
-No MCP list tool — agents receive signal JSON via dashboard "Copy for agent".
+No MCP list tool — agents receive signal JSON (with ids) via dashboard Copy for agent.
 
-### 7.4 `GET /api/feedback-signals/count`
+### 7.4 Count
 
 ```json
-{ "unreviewed": 7 }
+{ "open": 7 }
 ```
 
-Optional `playbookId` query param scopes the count (F3.2).
+Badge uses available-open (exclude in-proposal). Optional `playbookId` scopes the count (F3.2).
 
-### 7.5 Discard (dashboard only)
+### 7.5 Discard / import
 
-```json
-// POST /api/feedback-signals/discard
-{ "signalIds": ["fs_a", "fs_b"] }
+Unchanged shapes; discard only transitions `open` → `discarded`. Import inserts `open` / `source: backfill`.
 
-// response
-{ "discarded": 2, "ids": ["fs_a", "fs_b"] }
-```
+### 7.6 Copy payload (dashboard)
 
-### 7.6 `POST /api/feedback-signals/import` (backfill batch)
+Markdown instructions + YAML list (not JSON). Every row **must** lead with `id`. Prompt instructs the agent to pass those ids as `signal_ids`.
 
-```json
-{
-  "signals": [
-    {
-      "source": "backfill",
-      "sourceRef": "transcript:2026-06-01-session.jsonl#L142",
-      "failureSummary": "…",
-      "userFeedbackExcerpt": "…",
-      "candidatePlaybookId": null,
-      "candidateDeckId": null
-    }
-  ]
-}
-```
+Example body:
 
-Partial success per-index (historical bulk import).
+- Markdown steps telling the agent to call `propose_playbook_patch` with `signal_ids`
+- Fenced `yaml` list of rows: `id`, `playbook`, `feedback`, `failure` (optional `hint`, `deck`)
 
 ---
 
@@ -283,14 +279,12 @@ Partial success per-index (historical bulk import).
 
 | Constraint | Detail |
 |------------|--------|
-| **Stack** | TypeScript monorepo; Fastify backend (`packages/backend/src/routes/`); Zod for all schemas |
-| **No LLM in backend** | Do **not** add `@anthropic-ai/sdk` or any model client for this feature |
-| **SQLite** | Table `feedback_signals` in `packages/backend/src/models/database.ts` |
-| **Codegen entry** | `feedback-signal.ts`, `feedback-signals.ts` routes, extend `register.ts` + `propose_playbook_patch` (`signal_ids`), `agent-harness.ts` |
-| **Dashboard** | Unreviewed badge + backlog panel (list, discard, Copy for agent) on playbook review page — no backend Analyze button |
-| **MCP surface** | Capture/propose only (`propose_playbook_patch` incl. `signal_only` + `signal_ids`); **no** list/discard feedback MCP tools |
-| **Backfill CLI** | `agent-deck import-feedback-signals` — parse JSONL locally; POST optional |
-| **Explicitly not used** | Backend Anthropic/OpenAI calls; list/discard MCP tools; agent-dealer `runReflect` |
+| **Stack** | TypeScript monorepo; Fastify; Zod |
+| **No LLM in backend** | Do **not** add model clients for this feature |
+| **SQLite** | `feedback_signals` in `database.ts` + status migration |
+| **Dashboard** | `/feedback-signals` table page; patches page = proposals only |
+| **MCP surface** | Capture/propose only; **no** list/discard feedback MCP tools |
+| **Backfill CLI** | `agent-deck import-feedback-signals` |
 
 ---
 
@@ -298,10 +292,10 @@ Partial success per-index (historical bulk import).
 
 | NFR | Target | Measurement |
 |-----|--------|-------------|
-| NFR-1 List latency (≤100 unreviewed signals) | p95 < 100 ms | Local, n ≥ 20 |
-| NFR-2 Signal write latency (`propose_playbook_patch`, any kind) | p95 < 200 ms added over today's call | Local, n ≥ 20 |
-| NFR-3 Backfill throughput | ≥ 500 transcript turns/min parsed | Local, n ≥ 3 transcript dirs |
-| NFR-4 Data durability | 0 signal rows lost or mutated outside `status`/`linked_patch_id` | Unit test on repository layer |
+| NFR-1 List latency (≤100 open signals) | p95 < 100 ms | Local, n ≥ 20 |
+| NFR-2 Signal write latency | p95 < 200 ms added over propose without signals | Local, n ≥ 20 |
+| NFR-3 Backfill throughput | ≥ 500 transcript turns/min parsed | Local, n ≥ 3 dirs |
+| NFR-4 Data durability | 0 rows lost or mutated outside `status`/`linked_patch_id` | Unit tests |
 
 ---
 
@@ -309,13 +303,12 @@ Partial success per-index (historical bulk import).
 
 | Item | Rationale |
 |------|-----------|
-| Backend LLM / Anthropic curation pass | Product cut — host agent curates after dashboard copy |
-| List/discard MCP tools for feedback | Overkill; backlog is dashboard-gated; MCP stays write/propose |
-| Scheduled/automatic analysis (cron, threshold-triggered) | User/agent initiated only |
-| Live in-session "propose now or defer?" prompt per correction | Agent judges via `signal_only` vs immediate kinds (US-2) |
-| New review UI for raw signals | Curated output reuses `playbook_patches` queue |
-| agent-dealer integration | Explicit product cut |
-| Backfill from agent-dealer run artifacts | Deferred; v1 = Claude Code transcripts only |
+| Backend LLM / Anthropic curation | Host agent after dashboard copy |
+| List/discard MCP tools | Dashboard-gated browse |
+| Explicit `proposed` status on signals | Derived from link + patch status |
+| Scheduled automatic analysis | User/agent initiated only |
+| Second accept/reject UI for raw signals | Reuse `playbook_patches` queue |
+| agent-dealer integration | Product cut |
 
 ---
 
@@ -323,9 +316,9 @@ Partial success per-index (historical bulk import).
 
 | Phase | Exit criteria |
 |-------|----------------|
-| **v1a — Capture** | `feedback_signals` table; propose writes signal (except curation `signal_ids` submits); `signal_only`; harness; unit tests |
-| **v1b — Dashboard bulk curation** | List/discard APIs (dashboard); Copy for agent; `signal_ids` on propose; harness paste recipe; tests |
-| **v1c — Visibility + backfill** | Nav badge + per-playbook count; backfill CLI + `/import`; SC-1–SC-4 |
+| **v1a — Capture** | Table + propose writes + `signal_only` (shipped) |
+| **v1b — First dashboard** | List/discard/copy on patches page (shipped; superseded UX) |
+| **v1c — Table redesign** | Status `open`; link-on-propose / actioned-on-accept; `/feedback-signals` page; ids in copy; badge = available open; tests + PRD alignment |
 
 ---
 
@@ -335,7 +328,8 @@ Partial success per-index (historical bulk import).
 |----------|----------------------|-------|
 | OD-1 Re-open discarded signals? | Stay `discarded`; manual reopen later if needed | Eng |
 | OD-2 How should agents group genesis signals (no playbook)? | By `candidateDeckId`, else one unscoped bucket | Eng |
-| OD-3 Unknown `signal_ids` on propose? | Ignore unknown / non-unreviewed ids; still create the patch | Eng |
+| OD-3 Unknown / non-linkable `signal_ids` on propose? | Ignore; still create the patch | Eng |
+| OD-4 Count endpoint shape for available-open? | Prefer `?available=1` or field `openAvailable` — pick one in implementation | Eng |
 
 ---
 
@@ -343,10 +337,10 @@ Partial success per-index (historical bulk import).
 
 | Consumer | Directive |
 |----------|-----------|
-| **Engineer** | Land Pillar A first, then B (list/discard/`signal_ids`), then C/D. Never add a backend model client for curation. |
-| **AI codegen** | Read §7; extend MCP + routes; do not introduce Anthropic/OpenAI dependencies. |
-| **Reviewer** | Trace US-1..US-5 to Req IDs; verify §10 (no backend LLM, no second review UI) wasn't re-introduced. |
-| **User** | Corrections work as before; say "just note this for later" for `signal_only`; when the badge grows, open Playbook review → Copy for agent (or discard noise). |
+| **Engineer** | Implement against §7 + design doc; migrate `unreviewed` → `open`; change lifecycle before UI polish. |
+| **AI codegen** | Read design doc + §7; do not reintroduce backlog panel on patches page or backend LLM. |
+| **Reviewer** | Trace US-1..US-5; verify actioned only on accept; Copy always has ids. |
+| **User** | Open **Feedback** in the dashboard → filter by playbook → Copy for agent (or discard). Accept patches to mark feedback solved. |
 
 ---
 
@@ -354,11 +348,11 @@ Partial success per-index (historical bulk import).
 
 | Source | Captured as |
 |--------|-------------|
-| Agent Deck playbook `pb_ai_codegen_prd` on **dev** deck | Document structure |
-| Agent Deck playbook `pb_product_principle` | Voice, scope discipline |
-| `docs/superpowers/specs/2026-07-11-playbook-learning-loop-design.md` | Prior-art terminology, deferred curation |
-| Brainstorming session, 2026-07-22 | `signal_only`; badge; backfill portability |
-| [decisions/no-backend-llm-boundary.md](./decisions/no-backend-llm-boundary.md) | Drop backend Anthropic; MCP = capture/propose only; dashboard = bulk curation (copy for agent / discard) |
+| Agent Deck playbooks `pb_ai_codegen_prd`, `pb_product_principle`, `pb_ui_principle` | Structure, layout |
+| `docs/superpowers/specs/2026-07-11-playbook-learning-loop-design.md` | Prior-art terminology |
+| Brainstorming 2026-07-22 | Own page; `open`/`actioned`/`discarded`; derived in-proposal; ids on copy; actioned on accept |
+| [decisions/no-backend-llm-boundary.md](./decisions/no-backend-llm-boundary.md) | No backend LLM; MCP = capture/propose |
+| [2026-07-22-feedback-signals-table-redesign.md](./superpowers/specs/2026-07-22-feedback-signals-table-redesign.md) | Approved UI/lifecycle redesign |
 
 ---
 
@@ -374,3 +368,4 @@ Partial success per-index (historical bulk import).
 - [x] Codegen load path + contracts directory named (§8)
 - [x] Pricing section addressed with justification (§5)
 - [x] No backend LLM dependency for curation
+- [x] Redesign design doc linked and lifecycle matches accept→actioned

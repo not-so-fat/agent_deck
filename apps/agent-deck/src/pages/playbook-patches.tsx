@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import type { FeedbackSignal, PlaybookPatch } from "@agent-deck/shared";
+import type { PlaybookPatch } from "@agent-deck/shared";
 import { patchPreviewHasChanges } from "@/lib/patch-preview";
 import {
   acceptPlaybookPatch,
@@ -10,12 +10,6 @@ import {
   listPlaybookPatches,
   rejectPlaybookPatch,
 } from "@/lib/playbook-patches";
-import {
-  buildCurationPromptForAgent,
-  discardFeedbackSignals,
-  getFeedbackSignalCount,
-  listFeedbackSignals,
-} from "@/lib/feedback-signals";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +19,7 @@ import {
   PlaybookPatchTriggerConflicts,
   parseTriggerConflicts,
 } from "@/components/playbook-patch-trigger-conflicts";
-import { ArrowLeft, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 function parseEvidence(patch: PlaybookPatch) {
   if (!patch.evidenceJson) return null;
@@ -40,123 +34,6 @@ function parseEvidence(patch: PlaybookPatch) {
   }
 }
 
-function FeedbackBacklogPanel({
-  signals,
-  isLoading,
-}: {
-  signals: FeedbackSignal[];
-  isLoading: boolean;
-}) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const discardMutation = useMutation({
-    mutationFn: (ids: string[]) => discardFeedbackSignals(ids),
-    onSuccess: (result) => {
-      toast({ title: `Discarded ${result.discarded} signal(s)` });
-      setSelected(new Set());
-      void queryClient.invalidateQueries({ queryKey: ["/api/feedback-signals"] });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Discard failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const toggle = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const copyForAgent = async () => {
-    const chosen =
-      selected.size > 0 ? signals.filter((s) => selected.has(s.id)) : signals;
-    if (chosen.length === 0) return;
-    try {
-      await navigator.clipboard.writeText(buildCurationPromptForAgent(chosen));
-      toast({
-        title: "Copied curation prompt",
-        description: "Paste into your IDE agent chat to propose consolidated patches.",
-      });
-    } catch (error) {
-      toast({
-        title: "Copy failed",
-        description: error instanceof Error ? error.message : "Clipboard unavailable",
-        variant: "destructive",
-      });
-    }
-  };
-
-  return (
-    <section className="min-w-0 border-t border-gray-800 pt-6 lg:col-span-2">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 className="text-sm font-medium text-gray-400">Unreviewed feedback</h2>
-        <Badge variant="outline">{signals.length}</Badge>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={signals.length === 0}
-            onClick={() => void copyForAgent()}
-          >
-            <Copy className="mr-1 h-3.5 w-3.5" />
-            Copy for agent
-            {selected.size > 0 ? ` (${selected.size})` : ""}
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={selected.size === 0 || discardMutation.isPending}
-            onClick={() => discardMutation.mutate([...selected])}
-          >
-            <Trash2 className="mr-1 h-3.5 w-3.5" />
-            Discard selected
-          </Button>
-        </div>
-      </div>
-      <p className="mb-3 text-xs text-gray-500">
-        Capture happens via MCP during sessions. Bulk curation starts here — copy a prompt for your
-        IDE agent, or discard noise.
-      </p>
-      {isLoading && <p className="text-sm text-gray-500">Loading signals…</p>}
-      {!isLoading && signals.length === 0 && (
-        <p className="text-sm text-gray-500">No unreviewed signals.</p>
-      )}
-      <ul className="space-y-2">
-        {signals.map((signal) => (
-          <li
-            key={signal.id}
-            className="flex gap-3 rounded-lg border border-gray-800 bg-gray-900/50 p-3"
-          >
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={selected.has(signal.id)}
-              onChange={() => toggle(signal.id)}
-              aria-label={`Select ${signal.id}`}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-xs text-gray-600">{signal.id}</p>
-              <p className="mt-1 text-sm text-gray-200">&ldquo;{signal.userFeedbackExcerpt}&rdquo;</p>
-              <p className="mt-1 text-sm text-gray-400">{signal.failureSummary}</p>
-              <p className="mt-1 text-xs text-gray-600">
-                {signal.candidatePlaybookId ?? "no playbook"}
-                {signal.candidateDeckId ? ` · deck ${signal.candidateDeckId.slice(0, 8)}…` : ""}
-                {" · "}
-                {new Date(signal.createdAt).toLocaleString()}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 export default function PlaybookPatchesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -166,16 +43,6 @@ export default function PlaybookPatchesPage() {
   const { data: patches = [], isLoading } = useQuery({
     queryKey: ["/api/playbook-patches", "proposed"],
     queryFn: () => listPlaybookPatches("proposed"),
-  });
-
-  const { data: unreviewedCount = 0 } = useQuery({
-    queryKey: ["/api/feedback-signals/count", "unreviewed"],
-    queryFn: () => getFeedbackSignalCount(),
-  });
-
-  const { data: unreviewedSignals = [], isLoading: signalsLoading } = useQuery({
-    queryKey: ["/api/feedback-signals", "unreviewed"],
-    queryFn: () => listFeedbackSignals({ status: "unreviewed" }),
   });
 
   const {
@@ -235,9 +102,13 @@ export default function PlaybookPatchesPage() {
           </Link>
           <h1 className="text-lg font-semibold">Playbook review queue</h1>
           <Badge variant="secondary">{patches.length} proposed</Badge>
-          {unreviewedCount > 0 && (
-            <Badge variant="outline">{unreviewedCount} unreviewed signals</Badge>
-          )}
+          <Link
+            href="/feedback-signals"
+            className="ml-auto text-sm hover:underline"
+            style={{ color: "#92E4DD" }}
+          >
+            Feedback data →
+          </Link>
         </div>
       </header>
 
@@ -370,8 +241,6 @@ export default function PlaybookPatchesPage() {
             </div>
           )}
         </section>
-
-        <FeedbackBacklogPanel signals={unreviewedSignals} isLoading={signalsLoading} />
       </main>
     </div>
   );

@@ -59,7 +59,7 @@ describe('feedback-signals routes (dashboard)', () => {
     fs.rmSync(dbPath, { force: true });
   });
 
-  it('lists and counts unreviewed signals for dashboard only', async () => {
+  it('lists and counts open signals for dashboard only', async () => {
     await db.createFeedbackSignal({
       id: `fs_${generateShortId()}`,
       source: 'ide',
@@ -70,19 +70,19 @@ describe('feedback-signals routes (dashboard)', () => {
       candidatePlaybookId: playbookId,
       candidateDeckId: deckId,
       linkedPatchId: null,
-      status: 'unreviewed',
+      status: 'open',
     });
 
     const denied = await app.inject({
       method: 'GET',
-      url: '/api/feedback-signals?status=unreviewed',
+      url: '/api/feedback-signals?status=open',
       headers: agentHeaders,
     });
     expect(denied.statusCode).toBe(403);
 
     const listed = await app.inject({
       method: 'GET',
-      url: '/api/feedback-signals?status=unreviewed',
+      url: '/api/feedback-signals?status=open',
       headers: dashboardHeaders,
     });
     expect(listed.statusCode).toBe(200);
@@ -90,11 +90,67 @@ describe('feedback-signals routes (dashboard)', () => {
 
     const counted = await app.inject({
       method: 'GET',
-      url: '/api/feedback-signals/count?status=unreviewed',
+      url: '/api/feedback-signals/count',
       headers: dashboardHeaders,
     });
     expect(counted.statusCode).toBe(200);
-    expect(counted.json().data.unreviewed).toBe(1);
+    expect(counted.json().data.open).toBe(1);
+  });
+
+  it('excludes in-proposal rows from available count and list filter', async () => {
+    const parked = await db.createFeedbackSignal({
+      id: `fs_${generateShortId()}`,
+      source: 'ide',
+      sourceRef: null,
+      failureSummary: 'parked',
+      userFeedbackExcerpt: 'in flight',
+      correctedOutputHint: null,
+      candidatePlaybookId: playbookId,
+      candidateDeckId: deckId,
+      linkedPatchId: null,
+      status: 'open',
+    });
+    const free = await db.createFeedbackSignal({
+      id: `fs_${generateShortId()}`,
+      source: 'ide',
+      sourceRef: null,
+      failureSummary: 'free',
+      userFeedbackExcerpt: 'available',
+      correctedOutputHint: null,
+      candidatePlaybookId: playbookId,
+      candidateDeckId: deckId,
+      linkedPatchId: null,
+      status: 'open',
+    });
+
+    const proposed = await patchManager.propose(
+      {
+        kind: 'update',
+        playbook_id: playbookId,
+        ops: [{ op: 'add_item', section: 'Gotchas', text: 'Parked lesson.' }],
+        rationale: 'link one',
+        signal_ids: [parked.id],
+      },
+      'ide',
+      null,
+    );
+    expect(proposed.kind).toBe('update');
+
+    const counted = await app.inject({
+      method: 'GET',
+      url: '/api/feedback-signals/count',
+      headers: dashboardHeaders,
+    });
+    expect(counted.json().data.open).toBe(1);
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: '/api/feedback-signals?status=open&excludeInProposal=true',
+      headers: dashboardHeaders,
+    });
+    const ids = (listed.json().data as Array<{ id: string }>).map((s) => s.id);
+    expect(ids).toContain(free.id);
+    expect(ids).not.toContain(parked.id);
   });
 
   it('imports backfill signals with partial success', async () => {
@@ -123,7 +179,7 @@ describe('feedback-signals routes (dashboard)', () => {
     expect(data.errors).toHaveLength(1);
   });
 
-  it('discards unreviewed signals from dashboard', async () => {
+  it('discards open signals from dashboard', async () => {
     const s1 = await db.createFeedbackSignal({
       id: `fs_${generateShortId()}`,
       source: 'ide',
@@ -134,7 +190,7 @@ describe('feedback-signals routes (dashboard)', () => {
       candidatePlaybookId: playbookId,
       candidateDeckId: deckId,
       linkedPatchId: null,
-      status: 'unreviewed',
+      status: 'open',
     });
 
     const denied = await app.inject({
@@ -182,7 +238,7 @@ describe('propose with signal_ids', () => {
     fs.rmSync(dbPath, { force: true });
   });
 
-  it('marks curated signal_ids actioned when proposing without a new signal row', async () => {
+  it('links curated signal_ids without marking actioned until accept', async () => {
     const s1 = await db.createFeedbackSignal({
       id: `fs_${generateShortId()}`,
       source: 'ide',
@@ -193,7 +249,7 @@ describe('propose with signal_ids', () => {
       candidatePlaybookId: playbookId,
       candidateDeckId: null,
       linkedPatchId: null,
-      status: 'unreviewed',
+      status: 'open',
     });
     const s2 = await db.createFeedbackSignal({
       id: `fs_${generateShortId()}`,
@@ -205,7 +261,7 @@ describe('propose with signal_ids', () => {
       candidatePlaybookId: playbookId,
       candidateDeckId: null,
       linkedPatchId: null,
-      status: 'unreviewed',
+      status: 'open',
     });
 
     const beforeCount = (await db.listFeedbackSignals()).length;
@@ -230,8 +286,12 @@ describe('propose with signal_ids', () => {
     if (result.kind === 'signal_only') throw new Error('expected patch');
     expect(result.signal).toBeNull();
     expect((await db.listFeedbackSignals()).length).toBe(beforeCount);
-    expect((await db.getFeedbackSignal(s1.id))?.status).toBe('actioned');
+    expect((await db.getFeedbackSignal(s1.id))?.status).toBe('open');
     expect((await db.getFeedbackSignal(s1.id))?.linkedPatchId).toBe(result.patch.id);
     expect((await db.getFeedbackSignal(s2.id))?.linkedPatchId).toBe(result.patch.id);
+
+    await patchManager.accept(result.patch.id);
+    expect((await db.getFeedbackSignal(s1.id))?.status).toBe('actioned');
+    expect((await db.getFeedbackSignal(s2.id))?.status).toBe('actioned');
   });
 });

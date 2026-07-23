@@ -284,7 +284,7 @@ function registerRuntimeTools(host: McpToolHost): void {
   r('propose_playbook_patch', {
     title: 'Propose Playbook Patch',
     description:
-      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal (or kind=signal_only to log without proposing). Prefer add_item to Gotchas/Checklist. Use signal_only when not yet generalizable. When curating accumulated feedback, pass signal_ids of consumed unreviewed signals.',
+      'Default way to improve playbooks from user corrections. Creates a dashboard review proposal (or kind=signal_only to log without proposing). Prefer add_item to Gotchas/Checklist. Use signal_only when not yet generalizable. When curating from the Feedback table, pass signal_ids (every consumed id) so rows link to the proposal; they become actioned on accept.',
     inputSchema: {
       kind: z.enum(['create', 'update', 'merge', 'retire', 'signal_only']),
       playbook_id: z.string().optional(),
@@ -314,7 +314,7 @@ function registerRuntimeTools(host: McpToolHost): void {
       signal_ids: z
         .array(z.string())
         .optional()
-        .describe('Unreviewed feedback signal ids to mark actioned when submitting a curated patch'),
+        .describe('Open feedback signal ids to link to this patch (actioned when the patch is accepted)'),
     },
   }, async ({ kind, playbook_id, ops, new_playbook, rationale, evidence, signal_ids }) => {
     try {

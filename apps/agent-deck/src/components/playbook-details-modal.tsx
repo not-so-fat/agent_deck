@@ -33,8 +33,8 @@ export default function PlaybookDetailsModal({
     enabled: open && Boolean(playbookId),
   });
 
-  const { data: unreviewedSignals } = useQuery({
-    queryKey: ["/api/feedback-signals/count", playbookId],
+  const { data: openSignals } = useQuery({
+    queryKey: ["/api/feedback-signals/count", "available", playbookId],
     queryFn: () => getFeedbackSignalCount(playbookId!),
     enabled: open && Boolean(playbookId),
   });
@@ -68,17 +68,17 @@ export default function PlaybookDetailsModal({
             {typeof fetchCount === "number" && (
               <p className="text-xs text-gray-500">
                 Fetched {fetchCount} time{fetchCount === 1 ? "" : "s"} (undertriggering signal)
-                {typeof unreviewedSignals === "number" && unreviewedSignals > 0
-                  ? ` · ${unreviewedSignals} unreviewed feedback signal${unreviewedSignals === 1 ? "" : "s"}`
+                {typeof openSignals === "number" && openSignals > 0
+                  ? ` · ${openSignals} open feedback signal${openSignals === 1 ? "" : "s"}`
                   : null}
               </p>
             )}
             {typeof fetchCount !== "number" &&
-              typeof unreviewedSignals === "number" &&
-              unreviewedSignals > 0 && (
+              typeof openSignals === "number" &&
+              openSignals > 0 && (
                 <p className="text-xs text-gray-500">
-                  {unreviewedSignals} unreviewed feedback signal
-                  {unreviewedSignals === 1 ? "" : "s"}
+                  {openSignals} open feedback signal
+                  {openSignals === 1 ? "" : "s"}
                 </p>
               )}
 

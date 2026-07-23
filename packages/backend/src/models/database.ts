@@ -160,6 +160,13 @@ export class DatabaseManager {
     this.dropColumnIfExists('decks', 'description');
 
     this.addColumnIfMissing('playbook_patches', 'conflicts_json', 'TEXT');
+
+    // Feedback redesign: unreviewed → open (link-on-propose / actioned-on-accept).
+    if (this.tableExists('feedback_signals')) {
+      this.db
+        .prepare(`UPDATE feedback_signals SET status = 'open' WHERE status = 'unreviewed'`)
+        .run();
+    }
   }
 
   private dropColumnIfExists(tableName: string, columnName: string): void {
@@ -367,7 +374,7 @@ export class DatabaseManager {
         candidate_playbook_id TEXT,
         candidate_deck_id TEXT,
         linked_patch_id TEXT,
-        status TEXT NOT NULL DEFAULT 'unreviewed',
+        status TEXT NOT NULL DEFAULT 'open',
         created_at TEXT NOT NULL,
         FOREIGN KEY (candidate_playbook_id) REFERENCES playbooks (id) ON DELETE SET NULL,
         FOREIGN KEY (candidate_deck_id) REFERENCES decks (id) ON DELETE SET NULL,
@@ -1670,10 +1677,22 @@ export class DatabaseManager {
     return row ? this.mapFeedbackSignalRow(row) : null;
   }
 
+  private feedbackInProposalClause(exclude: boolean | undefined): string {
+    if (!exclude) return '';
+    return `AND NOT (
+      linked_patch_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM playbook_patches pp
+        WHERE pp.id = feedback_signals.linked_patch_id AND pp.status = 'proposed'
+      )
+    )`;
+  }
+
   async listFeedbackSignals(filter?: {
     status?: FeedbackSignalStatus;
     candidatePlaybookId?: string;
     candidateDeckId?: string;
+    excludeInProposal?: boolean;
   }): Promise<FeedbackSignal[]> {
     const clauses: string[] = [];
     const params: Record<string, string> = {};
@@ -1689,7 +1708,12 @@ export class DatabaseManager {
       clauses.push('candidate_deck_id = @candidate_deck_id');
       params.candidate_deck_id = filter.candidateDeckId;
     }
-    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const whereBase = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const exclude = this.feedbackInProposalClause(filter?.excludeInProposal);
+    const where =
+      exclude && !whereBase
+        ? `WHERE ${exclude.replace(/^AND\s+/, '')}`
+        : `${whereBase} ${exclude}`.trim();
     const rows = this.db
       .prepare(`SELECT * FROM feedback_signals ${where} ORDER BY created_at ASC`)
       .all(params) as any[];
@@ -1699,6 +1723,7 @@ export class DatabaseManager {
   async countFeedbackSignals(filter?: {
     status?: FeedbackSignalStatus;
     playbookId?: string;
+    excludeInProposal?: boolean;
   }): Promise<number> {
     const clauses: string[] = [];
     const params: Record<string, string> = {};
@@ -1710,7 +1735,12 @@ export class DatabaseManager {
       clauses.push('candidate_playbook_id = @playbook_id');
       params.playbook_id = filter.playbookId;
     }
-    const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const whereBase = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
+    const exclude = this.feedbackInProposalClause(filter?.excludeInProposal);
+    const where =
+      exclude && !whereBase
+        ? `WHERE ${exclude.replace(/^AND\s+/, '')}`
+        : `${whereBase} ${exclude}`.trim();
     const row = this.db
       .prepare(`SELECT COUNT(*) as count FROM feedback_signals ${where}`)
       .get(params) as { count: number };
@@ -1738,16 +1768,34 @@ export class DatabaseManager {
     return this.getFeedbackSignal(id);
   }
 
-  /** Reopen signals that were linked to a rejected patch (back to unreviewed). */
+  /** Clear link after reject/stale; signals stay/return open for new proposals. */
   async reopenSignalsForPatch(patchId: string): Promise<number> {
     const result = this.db
       .prepare(
         `UPDATE feedback_signals
-         SET status = 'unreviewed', linked_patch_id = NULL
-         WHERE linked_patch_id = ? AND status = 'actioned'`,
+         SET status = 'open', linked_patch_id = NULL
+         WHERE linked_patch_id = ?`,
       )
       .run(patchId);
     return result.changes;
+  }
+
+  /** Mark linked signals actioned when a patch is accepted. */
+  async actionSignalsForPatch(patchId: string): Promise<number> {
+    const result = this.db
+      .prepare(
+        `UPDATE feedback_signals
+         SET status = 'actioned'
+         WHERE linked_patch_id = ? AND status = 'open'`,
+      )
+      .run(patchId);
+    return result.changes;
+  }
+
+  async isSignalLinkedToProposedPatch(signal: FeedbackSignal): Promise<boolean> {
+    if (!signal.linkedPatchId) return false;
+    const patch = await this.getPlaybookPatch(signal.linkedPatchId);
+    return patch?.status === 'proposed';
   }
 
   // Cleanup
