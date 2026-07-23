@@ -85,6 +85,17 @@ describe('digestSession', () => {
     expect(digest.turnCount).toBe(1);
   });
 
+  it('counts tools, files, skills, and outcome from with-tools', () => {
+    const digest = digestSession('sess-tools', loadFixture('with-tools.jsonl'));
+
+    expect(digest.tools.some((tool) => tool.name === 'Bash')).toBe(true);
+    expect(digest.commands.some((command) => command.command === 'git commit')).toBe(true);
+    expect(digest.topFiles.some((file) => file.path.endsWith('a.ts') && file.edits >= 1)).toBe(true);
+    expect(digest.skills.some((skill) => skill.name === 'review' || skill.name === 'commit')).toBe(true);
+    expect(digest.outcome.signal).toBe('committed');
+    expect(digest.outcome.evidence).toMatch(/git commit/);
+  });
+
   it('skips malformed lines without throwing', () => {
     const digest = digestSession('s', [{ type: 'user' }, 'not-json-object', { type: 'assistant' }]);
 

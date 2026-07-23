@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { SessionDigestSchema, type SessionDigest } from '@agent-deck/shared';
+import { deriveOutcome, extractSkillsFromUserText, normalizeBashCommand, summarizeAssistantAction } from './extractors';
 import { extractUserText, isRealUserIntent } from './real-intent';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
@@ -23,6 +24,20 @@ function toIsoTimestamp(value: unknown): string | undefined {
   return new Date(value).toISOString();
 }
 
+function increment(counts: Map<string, number>, values: string[]): void {
+  for (const value of values) {
+    if (value) {
+      counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+  }
+}
+
+function sortedCounts(counts: Map<string, number>) {
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, count }))
+    .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value));
+}
+
 export function digestSession(sessionId: string, lines: unknown[]): SessionDigest {
   let workspaceRoot = '';
   let workspaceLabel: string | undefined;
@@ -32,6 +47,10 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
   let skippedLineCount = 0;
   let turnCount = 0;
   const intents: SessionDigest['intents'] = [];
+  const toolCounts = new Map<string, number>();
+  const commandCounts = new Map<string, number>();
+  const skillCounts = new Map<string, number>();
+  const fileCounts = new Map<string, number>();
 
   for (const line of lines) {
     try {
@@ -55,20 +74,46 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
         endedAt = timestamp;
       }
 
+      const action = summarizeAssistantAction(line);
+      increment(toolCounts, action.toolNames);
+      increment(
+        commandCounts,
+        action.bashCommands.map(normalizeBashCommand).filter(Boolean),
+      );
+      increment(skillCounts, action.skills);
+      increment(fileCounts, action.filePaths);
+
       if (isRealUserIntent(line)) {
         turnCount += 1;
         const text = extractUserText(line);
-        if (text !== null && intents.length < 40) {
-          intents.push({
-            text: text.slice(0, 280),
-            ...(timestamp ? { at: timestamp } : {}),
-          });
+        if (text !== null) {
+          increment(skillCounts, extractSkillsFromUserText(text));
+          if (intents.length < 40) {
+            intents.push({
+              text: text.slice(0, 280),
+              ...(timestamp ? { at: timestamp } : {}),
+            });
+          }
         }
       }
     } catch {
       skippedLineCount += 1;
     }
   }
+
+  const commands = sortedCounts(commandCounts)
+    .slice(0, 40)
+    .map(({ value: command, count }) => ({ command, count }));
+  const tools = sortedCounts(toolCounts)
+    .slice(0, 40)
+    .map(({ value: name, count }) => ({ name, count }));
+  const skills = sortedCounts(skillCounts)
+    .slice(0, 40)
+    .map(({ value: name, count }) => ({ name, count }));
+  const topFiles = [...fileCounts.entries()]
+    .map(([path, edits]) => ({ path, edits }))
+    .sort((left, right) => right.edits - left.edits || left.path.localeCompare(right.path))
+    .slice(0, 20);
 
   // Transcript lines may lack timestamps; epoch placeholders keep digestion deterministic.
   const digest = {
@@ -82,12 +127,12 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     turnCount,
     skippedLineCount,
     intents,
-    commands: [],
-    tools: [],
-    skills: [],
-    topFiles: [],
+    commands,
+    tools,
+    skills,
+    topFiles,
     feedbackMoments: [],
-    outcome: { signal: 'unknown' as const },
+    outcome: deriveOutcome(commands),
   };
 
   return finalizeDigest(digest);
