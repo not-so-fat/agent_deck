@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.5.0 — 2026-07-22
+
+### Playbook feedback accumulation
+
+- **Durable `feedback_signals`:** every correction can be logged via MCP `propose_playbook_patch` (incl. `kind: signal_only`) without forcing an immediate patch
+- **Dashboard Feedback table** (`/feedback-signals`): filter by playbook + status (`open` / `actioned` / `discarded`); select-all; discard; Copy for agent
+- **Copy for agent:** Markdown instructions + YAML list with signal `id`s so curated proposes pass `signal_ids` for tracking
+- **Lifecycle:** propose **links** open signals (parked / in-proposal); **accept** → `actioned`; reject/stale clears the link so feedback stays reusable
+- **No backend LLM:** backlog browse/discard stay dashboard-only; MCP remains capture/propose (see `docs/decisions/no-backend-llm-boundary.md`)
+- **Backfill CLI:** `agent-deck import-feedback-signals` for Claude Code transcript dirs
+- **Harness:** paste-from-Feedback guidance; re-run `agent-deck setup` after upgrade
+
 ### Codex / Claude plugin packaging
 
 - **Option A at monorepo root:** `.codex-plugin/plugin.json`, root `skills/` (setup / session / playbooks stubs), `.codexignore`, `assets/icon.svg`, `SECURITY.md`
@@ -10,6 +22,11 @@
 - **HOL scanner:** `.plugin-scanner.toml` ignore paths for product surfaces; `.github/workflows/hol-plugin-scanner.yml`; SHA-pinned Actions in `ci.yml`; Dependabot for npm + Actions
 - **Version sync:** `scripts/sync-versions.mjs` also updates Codex/Claude plugin manifests
 - Local preflight: `plugin-scanner` 2.0.1015 → **100/100**, zero high/critical (HOL awesome-list PR after green CI on `main`)
+
+### After upgrade
+
+- Re-run `agent-deck setup --client cursor|claude` so harness mentions Feedback table + `signal_ids`
+- Open dashboard **Feedback** to curate open signals; **Review** still accepts/rejects proposals
 
 ## 1.4.4 — 2026-07-14
 
