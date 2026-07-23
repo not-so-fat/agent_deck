@@ -64,7 +64,7 @@ describe('runBootstrap', () => {
         `   (guideRef: pb_session_bootstrap_authoring)\n` +
         `2. Read the manifest: ${result.manifestPath}\n` +
         `3. Bind the workspace you are in, then propose playbooks for the bound deck only\n` +
-        `   (load digests whose workspaceRoot matches; hold others).\n` +
+        `   (load digests whose workspaceRoot or workspaceSlug matches; hold others).\n` +
         `--- end handoff ---`,
     );
     expect(formatBootstrapOutput(result)).toBe(
@@ -173,6 +173,11 @@ describe('runBootstrap', () => {
     const digest = JSON.parse(fs.readFileSync(path.join(result.outDir, 'digests', digests[0]), 'utf8'));
     expect(digest.host).toBe('cursor');
     expect(digest.workspaceRoot).toBe(workspace);
-    expect(digest.feedbackMoments.length).toBeGreaterThanOrEqual(1);
+    expect(digest.workspaceSlug).toBe(slug);
+    expect(digest.intents.every((intent: { text: string }) => !intent.text.includes('<user_query>'))).toBe(
+      true,
+    );
+    expect(digest.feedbackMoments.length).toBe(1);
+    expect(digest.feedbackMoments[0].userReaction).not.toContain('Briefly inform');
   });
 });

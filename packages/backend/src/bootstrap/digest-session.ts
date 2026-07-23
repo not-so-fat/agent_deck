@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { SessionDigestSchema, type SessionDigest } from '@agent-deck/shared';
+import { encodeCursorProjectSlug } from './cursor-project-slug';
 import { deriveOutcome, extractSkillsFromUserText, normalizeBashCommand, summarizeAssistantAction } from './extractors';
 import { extractFeedbackMoments } from './feedback-moments';
 import { extractUserText, isRealUserIntent } from './real-intent';
@@ -130,12 +131,14 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
   }
 
   // Transcript lines may lack timestamps; epoch placeholders keep digestion deterministic.
+  const workspaceSlug = workspaceRoot ? encodeCursorProjectSlug(workspaceRoot) : undefined;
   const digest = {
     schemaVersion: 1 as const,
     host: 'claude' as const,
     sessionId,
     workspaceRoot,
     ...(workspaceLabel ? { workspaceLabel } : {}),
+    ...(workspaceSlug ? { workspaceSlug } : {}),
     ...(gitBranch === undefined ? {} : { gitBranch }),
     startedAt: startedAt ?? EPOCH_ISO,
     endedAt: endedAt ?? EPOCH_ISO,
@@ -381,6 +384,7 @@ function finalizeDigest(digest: unknown): SessionDigest {
     sessionId: typeof d.sessionId === 'string' ? d.sessionId : 'unknown',
     workspaceRoot: typeof d.workspaceRoot === 'string' ? d.workspaceRoot : '',
     ...(typeof d.workspaceLabel === 'string' ? { workspaceLabel: d.workspaceLabel } : {}),
+    ...(typeof d.workspaceSlug === 'string' ? { workspaceSlug: d.workspaceSlug } : {}),
     ...(d.gitBranch === null || typeof d.gitBranch === 'string' ? { gitBranch: d.gitBranch } : {}),
     startedAt: typeof d.startedAt === 'string' ? d.startedAt : EPOCH_ISO,
     endedAt: typeof d.endedAt === 'string' ? d.endedAt : EPOCH_ISO,

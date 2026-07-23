@@ -21,6 +21,9 @@ export function enumerateCursorSessions(projectsDir: string): EnumeratedCursorSe
 
   const sessions: EnumeratedCursorSession[] = [];
   for (const projectEntry of projectEntries.filter((entry) => entry.isDirectory()).sort(byName)) {
+    if (isJunkCursorProjectSlug(projectEntry.name)) {
+      continue;
+    }
     const transcriptsRoot = path.join(projectsDir, projectEntry.name, 'agent-transcripts');
     if (!fs.existsSync(transcriptsRoot) || !fs.statSync(transcriptsRoot).isDirectory()) {
       continue;
@@ -29,6 +32,22 @@ export function enumerateCursorSessions(projectsDir: string): EnumeratedCursorSe
   }
 
   return sessions;
+}
+
+/** Skip Cursor project dirs that are not real workspace path encodings. */
+export function isJunkCursorProjectSlug(slug: string): boolean {
+  const trimmed = slug.trim();
+  if (!trimmed || trimmed !== slug) {
+    return true;
+  }
+  if (trimmed === 'empty-window') {
+    return true;
+  }
+  // Cursor sometimes uses pure numeric ids for non-folder projects.
+  if (/^\d+$/.test(trimmed)) {
+    return true;
+  }
+  return false;
 }
 
 function collectCursorTranscripts(

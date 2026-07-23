@@ -67,6 +67,11 @@ export const SessionDigestSchema = z
     sessionId: z.string(),
     workspaceRoot: z.string(),
     workspaceLabel: z.string().optional(),
+    /**
+     * Host-agnostic workspace match key (encodeCursorProjectSlug of abs path, or Cursor project dir).
+     * Use for cross-host grouping / bound-deck matching; keep workspaceRoot as display when absolute.
+     */
+    workspaceSlug: z.string().optional(),
     gitBranch: z.string().nullable().optional(),
     startedAt: z.string().datetime(),
     endedAt: z.string().datetime().optional(),
@@ -87,6 +92,8 @@ export const BootstrapWorkspaceSchema = z
   .object({
     workspaceRoot: z.string(),
     label: z.string(),
+    /** Shared across Claude abs + Cursor slug digests for the same repo. */
+    workspaceSlug: z.string().optional(),
     sessionCount: z.number().int().min(0),
     digestPaths: z.array(z.string()),
   })

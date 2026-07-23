@@ -5,6 +5,8 @@ import { extractUserText, isRealUserIntent } from './real-intent';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
 const DIGEST_BYTE_BUDGET = 4096;
+/** Skip tiny intents after envelope unwrap (shared quality floor with Claude shortening floor spirit). */
+const MIN_INTENT_TEXT_LENGTH = 8;
 
 export type DigestCursorSessionOptions = {
   /** Absolute --workspace path when this project was selected via slug encode match. */
@@ -38,7 +40,7 @@ function sortedCounts(counts: Map<string, number>) {
 
 /**
  * Cursor agent-transcript JSONL → SessionDigest (F1C).
- * `projectSlug` becomes workspaceLabel; workspaceRoot is abs --workspace when provided, else the slug (opaque).
+ * `projectSlug` becomes workspaceLabel + workspaceSlug; workspaceRoot is abs --workspace when provided, else the slug (opaque).
  */
 export function digestCursorSession(
   sessionId: string,
@@ -48,6 +50,7 @@ export function digestCursorSession(
 ): SessionDigest {
   const workspaceRoot = options.workspaceRoot ?? projectSlug;
   const workspaceLabel = projectSlug;
+  const workspaceSlug = projectSlug;
   let startedAt: string | undefined;
   let endedAt: string | undefined;
   let skippedLineCount = 0;
@@ -81,7 +84,7 @@ export function digestCursorSession(
       if (isRealUserIntent(line)) {
         turnCount += 1;
         const text = extractUserText(line);
-        if (text !== null && intents.length < 40) {
+        if (text !== null && text.length >= MIN_INTENT_TEXT_LENGTH && intents.length < 40) {
           intents.push({
             text: text.slice(0, 280),
             ...(timestamp ? { at: timestamp } : {}),
@@ -111,6 +114,7 @@ export function digestCursorSession(
     sessionId,
     workspaceRoot,
     workspaceLabel,
+    workspaceSlug,
     startedAt: startedAt ?? EPOCH_ISO,
     endedAt: endedAt ?? EPOCH_ISO,
     turnCount,

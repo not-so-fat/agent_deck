@@ -73,6 +73,7 @@ describe('digestSession', () => {
     expect(SessionDigestSchema.safeParse(digest).success).toBe(true);
     expect(digest.workspaceRoot).toBe('/Users/x/proj');
     expect(digest.workspaceLabel).toBe('proj');
+    expect(digest.workspaceSlug).toBe('Users-x-proj');
     expect(digest.turnCount).toBe(3);
     expect(digest.feedbackMoments).toEqual([]);
     expect(digest.outcome.signal).toBe('unknown');

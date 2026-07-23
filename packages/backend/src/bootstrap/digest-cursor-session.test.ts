@@ -22,7 +22,7 @@ describe('encodeCursorProjectSlug', () => {
 });
 
 describe('digestCursorSession', () => {
-  it('digests cursor-with-tools fixture', () => {
+  it('unwraps envelopes, drops host injections, and captures real negative feedback', () => {
     const d = digestCursorSession(
       'sess-tools',
       loadFixture('cursor-with-tools.jsonl'),
@@ -33,19 +33,26 @@ describe('digestCursorSession', () => {
     expect(d.host).toBe('cursor');
     expect(d.workspaceRoot).toBe('/Users/x/proj');
     expect(d.workspaceLabel).toBe('Users-x-proj');
+    expect(d.workspaceSlug).toBe('Users-x-proj');
+    expect(d.intents.map((intent) => intent.text)).toEqual([
+      'fix the bootstrap path please',
+      "don't use that approach, revert it",
+    ]);
     expect(d.tools.some((tool) => tool.name === 'Shell')).toBe(true);
     expect(d.commands.some((command) => command.command === 'git commit')).toBe(true);
     expect(d.topFiles.some((file) => file.path.endsWith('a.ts') && file.edits >= 1)).toBe(true);
     expect(d.outcome.signal).toBe('committed');
-    expect(d.feedbackMoments.length).toBeGreaterThanOrEqual(1);
+    expect(d.feedbackMoments.length).toBe(1);
+    expect(d.feedbackMoments[0]?.userReaction).toBe("don't use that approach, revert it");
     expect(d.feedbackMoments[0]?.polarityHint).toBe('negative');
   });
 
-  it('qa-only yields zero feedback moments and skips turn_ended', () => {
+  it('qa-only yields unwrapped intent and zero feedback moments', () => {
     const d = digestCursorSession('sess-qa', loadFixture('cursor-qa-only.jsonl'), 'Users-x-proj');
     expect(d.host).toBe('cursor');
     expect(d.workspaceRoot).toBe('Users-x-proj');
-    expect(d.intents.length).toBe(1);
+    expect(d.workspaceSlug).toBe('Users-x-proj');
+    expect(d.intents).toEqual([{ text: 'what is a digest?' }]);
     expect(d.feedbackMoments).toEqual([]);
     expect(d.turnCount).toBe(1);
   });

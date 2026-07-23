@@ -33,6 +33,8 @@ describe('extractors', () => {
     expect(normalizeBashCommand('gh pr create --fill')).toBe('gh pr create');
     expect(normalizeBashCommand('npm run test -- --runInBand')).toBe('npm run');
     expect(normalizeBashCommand('npx vitest run')).toBe('npx vitest');
+    expect(normalizeBashCommand('(cd foo && npm test)')).toBe('');
+    expect(normalizeBashCommand('{ echo hi; }')).toBe('');
   });
 
   it('extracts skill name from command-name tags in user text', () => {

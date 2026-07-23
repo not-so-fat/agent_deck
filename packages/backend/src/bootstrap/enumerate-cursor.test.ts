@@ -37,4 +37,16 @@ describe('enumerateCursorSessions', () => {
     expect(sessions.every((session) => session.projectSlug === slug)).toBe(true);
     expect(sessions.some((session) => session.filePath.includes('subagents'))).toBe(false);
   });
+
+  it('skips empty-window and numeric junk project slugs', () => {
+    const projects = makeTempDir('cursor-projects-');
+    for (const slug of ['empty-window', '1768784650792', 'Users-x-real']) {
+      const root = path.join(projects, slug, 'agent-transcripts');
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, 'sess.jsonl'), '{}\n');
+    }
+
+    const sessions = enumerateCursorSessions(projects);
+    expect(sessions.map((session) => session.projectSlug)).toEqual(['Users-x-real']);
+  });
 });

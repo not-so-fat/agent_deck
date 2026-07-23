@@ -222,16 +222,13 @@ function matchesFilters(
   since: number | undefined,
 ): boolean {
   if (workspace) {
-    if (digest.host === 'cursor') {
-      const slug = encodeCursorProjectSlug(workspace);
-      const matches =
-        digest.workspaceRoot === workspace ||
-        digest.workspaceLabel === slug ||
-        digest.workspaceRoot === slug;
-      if (!matches) {
-        return false;
-      }
-    } else if (digest.workspaceRoot !== workspace) {
+    const slug = encodeCursorProjectSlug(workspace);
+    const matches =
+      digest.workspaceRoot === workspace ||
+      digest.workspaceSlug === slug ||
+      digest.workspaceLabel === slug ||
+      digest.workspaceRoot === slug;
+    if (!matches) {
       return false;
     }
   }
@@ -258,23 +255,39 @@ function buildWorkspaces(
   records: DigestRecord[],
   digestPaths: Map<SessionDigest, string>,
 ): BootstrapManifest['workspaces'] {
-  const groups = new Map<string, { label: string; digestPaths: string[] }>();
+  const groups = new Map<
+    string,
+    { workspaceRoot: string; label: string; workspaceSlug?: string; digestPaths: string[] }
+  >();
 
   for (const { digest } of records) {
-    const workspaceRoot = digest.workspaceRoot;
-    const group = groups.get(workspaceRoot) ?? {
-      label: digest.workspaceLabel || path.basename(workspaceRoot) || 'unknown',
-      digestPaths: [],
-    };
-    group.digestPaths.push(digestPaths.get(digest)!);
-    groups.set(workspaceRoot, group);
+    const key = digest.workspaceSlug || digest.workspaceRoot;
+    const existing = groups.get(key);
+    const absRoot = digest.workspaceRoot.startsWith('/') ? digest.workspaceRoot : undefined;
+    if (!existing) {
+      groups.set(key, {
+        workspaceRoot: absRoot ?? digest.workspaceRoot,
+        label: digest.workspaceLabel || path.basename(digest.workspaceRoot) || 'unknown',
+        ...(digest.workspaceSlug ? { workspaceSlug: digest.workspaceSlug } : {}),
+        digestPaths: [digestPaths.get(digest)!],
+      });
+      continue;
+    }
+    existing.digestPaths.push(digestPaths.get(digest)!);
+    if (absRoot && !existing.workspaceRoot.startsWith('/')) {
+      existing.workspaceRoot = absRoot;
+    }
+    if (digest.workspaceSlug) {
+      existing.workspaceSlug = digest.workspaceSlug;
+    }
   }
 
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([workspaceRoot, group]) => ({
-      workspaceRoot,
+  return [...groups.values()]
+    .sort((left, right) => left.workspaceRoot.localeCompare(right.workspaceRoot))
+    .map((group) => ({
+      workspaceRoot: group.workspaceRoot,
       label: group.label,
+      ...(group.workspaceSlug ? { workspaceSlug: group.workspaceSlug } : {}),
       sessionCount: group.digestPaths.length,
       digestPaths: group.digestPaths.sort((left, right) => left.localeCompare(right)),
     }));

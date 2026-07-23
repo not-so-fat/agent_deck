@@ -107,9 +107,9 @@ Cursor JSONL is a **different consumed shape** (§7.0b). Same output digest; dif
 |---|---|---|
 | F1C.1 | Enumerate session files under `~/.cursor/projects/<projectSlug>/agent-transcripts/` supporting both layouts: `<sessionId>/<sessionId>.jsonl` and legacy flat `*.jsonl`. Env override for tests (e.g. `AGENT_DECK_CURSOR_PROJECTS_DIR`). | Fixtures for both layouts parse; missing tree → host contributes zero sessions (not a hard fail if another host has work). |
 | F1C.2 | **Exclude** paths under `**/subagents/**` (Cursor subagent transcripts). | Subagent-only trees yield zero parent sessions; parent session still digests. |
-| F1C.3 | Real user intent = top-level `role:"user"` (or `message.role:"user"`) with text-only `message.content` (string or all-`text` blocks). Ignore non-message control lines (e.g. `type:"turn_ended"`). | Intents exclude tool-result/user-echo shapes if present; control lines never become intents. |
+| F1C.3 | Real user intent = Cursor `role:"user"` (or `message.role:"user"`) with text-only content that includes a `<user_query>…</user_query>` body (optional preceding `<timestamp>` line). **Unwrap** into the digest: strip `<timestamp>`, keep only the inner `user_query` text (shared helper in `extractUserText` — Claude plain strings unchanged). **Drop host injections** that arrive as `role:user` (e.g. “Briefly inform the user…”, subagent-result notices, `<mcp_meta_tools>` chrome). Ignore control lines (`type:"turn_ended"`). | Intents are clusterable plain text (no wrappers/timestamps); injected follow-ups never become intents or feedback moments. |
 | F1C.4 | Extraction map (fixed): **commands** ← `Shell` tool_use `input.command` (same normalizeBashCommand rules as Claude `Bash`); **tools** ← every assistant `tool_use.name`; **skills** ← none required in v1 unless a clear Cursor equivalent appears in fixtures (leave empty rather than invent); **topFiles** ← `StrReplace`/`Write`/`Read` tool_use path fields (`input.path` or `input.file_path`), edits = StrReplace+Write. | Cursor fixture lists match these fields exactly. |
-| F1C.5 | **Workspace identity (no speculative slug decode):** Cursor lines typically omit `cwd`. Set `workspaceLabel` = `<projectSlug>` (directory name under `projects/`). Set `workspaceRoot` = the absolute `--workspace` path when this project was selected because `encodeCursorProjectSlug(workspace) === projectSlug` (Unix: strip leading `/`, replace `/` and `_` with `-`). When scanning without `--workspace`, set `workspaceRoot` equal to `projectSlug` (opaque) and teach the authoring guide to match Cursor digests via `encodeCursorProjectSlug(boundRoot) === workspaceLabel` **or** `workspaceRoot === boundRoot`. | `--workspace` run attributes absolute `workspaceRoot`; unbound all-scan digests still cluster by slug/label without inventing a wrong absolute path. |
+| F1C.5 | **Workspace identity (no speculative slug decode):** Cursor lines typically omit `cwd`. Set `workspaceLabel` = `<projectSlug>`; set `workspaceSlug` = `<projectSlug>` (same encode as `encodeCursorProjectSlug`). Set `workspaceRoot` = absolute `--workspace` when selected via slug match (Unix: strip leading `/`, replace `/` and `_` with `-`); else opaque slug. Claude digests set `workspaceSlug = encodeCursorProjectSlug(cwd)`. Manifest **groups by `workspaceSlug`** so Claude+Cursor for one repo are one workspace; prefer absolute `workspaceRoot` as the display root when any digest has it. Authoring match: `workspaceRoot === boundRoot` **or** `workspaceSlug === encodeCursorProjectSlug(boundRoot)`. Skip junk Cursor project dirs (`empty-window`, pure-numeric ids, blank names). | Bound-deck load attaches both hosts; `--workspace` attributes abs root; junk projects contribute 0. |
 | F1C.6 | Outcome (F1.6) applies to normalized `Shell` commands the same way as Claude `Bash`. | Cursor fixture with `gh pr create` / `git commit` maps correctly. |
 
 ### F2 — Feedback-moment extraction
@@ -143,7 +143,7 @@ The guide is half the product; it ships as **one artifact** with a committed inp
 | Req ID | Requirement | Acceptance |
 |---|---|---|
 | F4.1 | Ship the guide as **one** artifact at a fixed id/path (`guideRef`, e.g. `pb_session_bootstrap_authoring`). Not mirrored into `.cursor/skills/`. Written into each run's output dir as `authoring-guide.md`. | `guideRef` in the manifest resolves to exactly one loadable artifact (absolute path to that file). |
-| F4.2 | The guide commits an **input shape**, not topics: *"1. Read the manifest at the path in the handoff. 2. For the **bound deck's** workspace, load its digests (Claude: `workspaceRoot === boundRoot`; Cursor: `workspaceRoot === boundRoot` **or** `encodeCursorProjectSlug(boundRoot) === workspaceLabel`). 3. Cluster digests by task shape (not wording); host is a hint, not a hard split unless lessons clearly diverge. 4. Per cluster, draft a playbook: triggers ← recurring `intents`; Gotchas ← `negative` feedbackMoments; Techniques ← `positive`; generalize project-specific names/paths. 5. File via `propose_playbook_patch`."* | The guide contains a numbered load→cluster→draft→propose sequence citing digest field names + Cursor match rule. |
+| F4.2 | The guide commits an **input shape**, not topics: *"1. Read the manifest. 2. For the bound deck workspace, load digests where `workspaceRoot === boundRoot` **or** `workspaceSlug === encodeCursorProjectSlug(boundRoot)` (host-agnostic). 3. Cluster by task shape; host is a hint. 4. Draft playbook from recurring unwrapped `intents` + feedbackMoments. 5. File via `propose_playbook_patch`."* | Guide cites `workspaceSlug` match + unwrapped intents. |
 | F4.3 | **Multi-workspace rule (decks are bind-scoped):** the guide directs the agent to propose into the **currently bound deck**, authoring from matching digests only; digests from other workspaces are held. Re-run after switching binds for other workspaces. | Guide states one-deck-per-bound-workspace; no proposal targets an unbound deck. |
 | F4.4 | The guide directs all output through `propose_playbook_patch { kind:"create" }` — no `register_playbook`. | Following the guide files proposals, not registrations. |
 
@@ -230,7 +230,7 @@ Cursor Agent / Composer JSONL (lossy transcript layer). Not owned by Agent Deck.
 }
 ```
 
-**Cursor real-intent predicate (F1C.3):** (`role == "user"` ∨ `message.role == "user"`) ∧ text-only content ∧ not a control-only line.
+**Cursor real-intent predicate (F1C.3):** (`role == "user"` ∨ `message.role == "user"`) ∧ text-only content ∧ contains `<user_query>…</user_query>` (optional `<timestamp>`) ∧ not a known host-injection prefix ∧ not a control-only line. Digest `intents[].text` / `feedbackMoments[].userReaction` store **unwrapped** inner text only.
 
 **Cursor tool path fields:** prefer `input.path`, else `input.file_path`, for `Read` / `StrReplace` / `Write`.
 
@@ -250,6 +250,7 @@ Cursor Agent / Composer JSONL (lossy transcript layer). Not owned by Agent Deck.
     "sessionId": { "type": "string" },
     "workspaceRoot": { "type": "string", "description": "absolute path when known; may equal Cursor projectSlug when unscanned without --workspace" },
     "workspaceLabel": { "type": "string" },
+    "workspaceSlug": { "type": "string", "description": "encodeCursorProjectSlug(abs cwd) or Cursor project dir; cross-host match key" },
     "gitBranch": { "type": ["string", "null"] },
     "startedAt": { "type": "string", "format": "date-time" },
     "endedAt": { "type": "string", "format": "date-time" },

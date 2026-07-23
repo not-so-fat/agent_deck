@@ -11,7 +11,7 @@ export function formatHandoffBlock(result: BootstrapResult): string {
     `   (guideRef: ${GUIDE_REF})`,
     `2. Read the manifest: ${result.manifestPath}`,
     '3. Bind the workspace you are in, then propose playbooks for the bound deck only',
-    '   (load digests whose workspaceRoot matches; hold others).',
+    '   (load digests whose workspaceRoot or workspaceSlug matches; hold others).',
     '--- end handoff ---',
   ].join('\n');
 }

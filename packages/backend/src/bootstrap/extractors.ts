@@ -30,7 +30,13 @@ export function normalizeBashCommand(command: string): string {
   }
 
   const [program] = significant;
-  const tokenCount = program === 'gh' ? 3 : ['git', 'npm', 'npx'].includes(program) ? 2 : 1;
+  // Guard non-alpha program tokens (e.g. `(`, `{`, redirects) — not real commands.
+  if (!program || !/^[A-Za-z]/.test(program.replace(/^["']|["']$/g, ''))) {
+    return '';
+  }
+
+  const bareProgram = program.replace(/^["']|["']$/g, '');
+  const tokenCount = bareProgram === 'gh' ? 3 : ['git', 'npm', 'npx'].includes(bareProgram) ? 2 : 1;
   return significant.slice(0, tokenCount).join(' ');
 }
 
