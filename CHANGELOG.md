@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.5.1 — 2026-07-23
+
+### Session-history bootstrap
+
+- **`agent-deck bootstrap`:** mine local Claude Code and/or Cursor agent transcripts into digests + an offline handoff for playbook authoring (`propose_playbook_patch` only — no auto-register, no LLM in the parser)
+- **Hosts:** `--host claude|cursor|all` (default `all`); Cursor reads `~/.cursor/projects/*/agent-transcripts` (skips subagents); Claude reads `~/.claude/projects`
+- **Output:** `$AGENT_DECK_HOME/bootstrap/<timestamp>/` (default `~/.agent-deck/bootstrap/`) — host-agnostic, not under `~/.claude`
+- **Real-envelope parsing:** unwrap Cursor `<user_query>` / strip `<timestamp>`; drop host injections on **both** hosts (Claude slash/hook chrome, Cursor “Briefly inform…”); shared `workspaceSlug` merges Claude+Cursor for the same repo; `--limit` keeps newest by mtime
+
+### After upgrade
+
+- Try: `agent-deck bootstrap --workspace <repo-root> [--host cursor|claude|all]` then paste the printed handoff into an agent chat bound to that workspace
+- Review create proposals in the dashboard — nothing is auto-registered
+
 ## 1.5.0 — 2026-07-22
 
 ### Playbook feedback accumulation
