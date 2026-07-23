@@ -10,6 +10,7 @@ import {
   runPlaybookCommand,
   runServiceCommand,
 } from './collection-admin';
+import { runBootstrapCommand } from './bootstrap';
 import { runExportCommand, runImportCommand } from './export-import';
 import { runImportFeedbackSignalsCommand } from './import-feedback-signals';
 import { runDebugMcp } from './debug-mcp';
@@ -60,6 +61,8 @@ function printUsage() {
   agent-deck export deck <uuid> --output <path>
   agent-deck import <path>
   agent-deck import-feedback-signals <transcript-dir> [--backend-url URL] [--output <path>]
+  agent-deck bootstrap [--workspace <path>] [--since <date>] [--limit <n>] [--out <dir>]
+    Mine local Claude Code session history into playbook-proposal digests (offline).
   agent-deck exec [--deck DECK_ID] [--connections cred_a,cred_b] [--dry-run] -- <command...>`);
 }
 
@@ -327,6 +330,8 @@ export async function runCli(argv: string[]): Promise<number> {
       return runImportCommand(rest);
     case 'import-feedback-signals':
       return runImportFeedbackSignalsCommand(rest);
+    case 'bootstrap':
+      return runBootstrapCommand(rest);
     case 'exec':
       return runExec(rest);
     default:
