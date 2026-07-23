@@ -87,7 +87,7 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
 
   fs.mkdirSync(bootstrapRoot, { recursive: true });
   const latestPointerPath = path.join(bootstrapRoot, 'latest');
-  fs.writeFileSync(latestPointerPath, `${outDir}\n`, 'utf8');
+  writeLatestPointer(latestPointerPath, outDir);
 
   return {
     outDir,
@@ -97,6 +97,16 @@ export function runBootstrap(options: BootstrapOptions = {}): BootstrapResult {
     manifest,
     ...(digests.length < 5 ? { warning: `Only ${digests.length} sessions found; five or more are recommended.` } : {}),
   };
+}
+
+function writeLatestPointer(latestPointerPath: string, outDir: string): void {
+  if (fs.existsSync(latestPointerPath)) {
+    const stat = fs.lstatSync(latestPointerPath);
+    if (!stat.isFile()) {
+      fs.unlinkSync(latestPointerPath);
+    }
+  }
+  fs.writeFileSync(latestPointerPath, `${outDir}\n`, 'utf8');
 }
 
 function resolveOutDir(outDir: string | undefined, bootstrapRoot: string, now: () => Date): string {

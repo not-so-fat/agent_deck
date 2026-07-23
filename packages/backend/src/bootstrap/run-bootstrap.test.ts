@@ -67,6 +67,24 @@ describe('runBootstrap', () => {
     );
   });
 
+  it('replaces a legacy latest symlink with a regular pointer file', () => {
+    const projectsDir = makeTempDir('agent-deck-projects-');
+    const bootstrapRoot = makeTempDir('agent-deck-bootstrap-');
+    const legacyTarget = makeTempDir('agent-deck-legacy-');
+    fs.symlinkSync(legacyTarget, path.join(bootstrapRoot, 'latest'));
+    copyFixture(projectsDir, '-Users-x-proj', 'qa-only.jsonl', 'session-qa');
+
+    const result = runBootstrap({
+      projectsDir,
+      bootstrapRoot,
+      now: () => new Date('2026-07-22T12:00:00.000Z'),
+    });
+
+    const latestPath = path.join(bootstrapRoot, 'latest');
+    expect(fs.lstatSync(latestPath).isSymbolicLink()).toBe(false);
+    expect(fs.readFileSync(latestPath, 'utf8')).toBe(`${result.outDir}\n`);
+  });
+
   it('creates a unique timestamped directory and updates latest on a second run', () => {
     const projectsDir = makeTempDir('agent-deck-projects-');
     const bootstrapRoot = makeTempDir('agent-deck-bootstrap-');
