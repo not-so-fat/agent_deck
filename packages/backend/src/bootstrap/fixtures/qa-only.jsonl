@@ -1,0 +1,6 @@
+{"type":"user","message":{"role":"user","content":"first request"},"cwd":"/Users/x/proj","gitBranch":"main","timestamp":"2026-01-01T00:00:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":"first response"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:01:00.000Z"}
+{"type":"user","message":{"role":"user","content":"second request"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:02:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":"second response"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:03:00.000Z"}
+{"type":"user","message":{"role":"user","content":"third request"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:04:00.000Z"}
+{"type":"assistant","message":{"role":"assistant","content":"third response"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:05:00.000Z"}

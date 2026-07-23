@@ -1,0 +1,2 @@
+{"type":"user","message":{"role":"user","content":"tool output echo"},"toolUseResult":{"ok":true},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:00:00.000Z"}
+{"type":"user","message":{"role":"user","content":"real user request"},"cwd":"/Users/x/proj","timestamp":"2026-01-01T00:01:00.000Z"}

@@ -17,6 +17,10 @@
       "types": "./dist/mcp-index.d.ts",
       "default": "./dist/mcp-index.js"
     },
+    "./bootstrap": {
+      "types": "./dist/bootstrap/index.d.ts",
+      "default": "./dist/bootstrap/index.js"
+    },
     "./playbooks/stub-sync": {
       "types": "./dist/playbooks/stub-sync.d.ts",
       "default": "./dist/playbooks/stub-sync.js"

@@ -1,0 +1,7 @@
+{"role":"user","message":{"role":"user","content":[{"type":"text","text":"<timestamp>Saturday, Jul 11, 2026, 10:49 AM (UTC-7)</timestamp>\n<user_query>\nfix the bootstrap path please\n</user_query>"}]}}
+{"role":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Shell","input":{"command":"git commit -m hi"}},{"type":"tool_use","name":"StrReplace","input":{"path":"/Users/x/proj/src/a.ts","old_string":"a","new_string":"b"}}]}}
+{"role":"user","message":{"role":"user","content":[{"type":"text","text":"<user_query>Briefly inform the user about the task result and perform any follow-up actions (if needed). If there's no follow-ups needed, don't explicitly say that.</user_query>"}]}}
+{"role":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Shell","input":{"command":"echo done"}}]}}
+{"role":"user","message":{"role":"user","content":[{"type":"text","text":"<timestamp>Saturday, Jul 11, 2026, 10:55 AM (UTC-7)</timestamp>\n<user_query>\ndon't use that approach, revert it\n</user_query>"}]}}
+{"role":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"StrReplace","input":{"path":"/Users/x/proj/src/a.ts","old_string":"b","new_string":"a"}}]}}
+{"type":"turn_ended","status":"completed"}

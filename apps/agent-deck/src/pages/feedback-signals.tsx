@@ -8,7 +8,6 @@ import {
   listFeedbackSignals,
   signalLooksInProposal,
 } from "@/lib/feedback-signals";
-import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,13 +20,6 @@ const CHECKBOX_CLASS =
 
 type StatusFilter = "open" | "actioned" | "discarded" | "all";
 
-async function listPlaybookVault(): Promise<Playbook[]> {
-  const res = await apiRequest("GET", "/api/playbooks/vault");
-  const body = (await res.json()) as { success?: boolean; data?: Playbook[]; error?: string };
-  if (!body.success) throw new Error(body.error ?? "Failed to load playbooks");
-  return body.data ?? [];
-}
-
 export default function FeedbackSignalsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -36,10 +28,12 @@ export default function FeedbackSignalsPage() {
   const [includeInProposal, setIncludeInProposal] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const { data: playbooks = [] } = useQuery({
+  // Same key + envelope as home (default queryFn returns ApiResponse) — do not unwrap
+  // in queryFn or a warm cache from home crashes: "playbooks is not iterable".
+  const { data: playbooksResponse } = useQuery<{ success: boolean; data: Playbook[] }>({
     queryKey: ["/api/playbooks/vault"],
-    queryFn: listPlaybookVault,
   });
+  const playbooks = playbooksResponse?.data ?? [];
 
   const titleById = useMemo(() => {
     const map = new Map<string, string>();
