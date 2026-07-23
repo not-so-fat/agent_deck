@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { SessionDigestSchema, type SessionDigest } from '@agent-deck/shared';
 import { deriveOutcome, extractSkillsFromUserText, normalizeBashCommand, summarizeAssistantAction } from './extractors';
+import { extractFeedbackMoments } from './feedback-moments';
 import { extractUserText, isRealUserIntent } from './real-intent';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
@@ -116,6 +117,13 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     .map(([path, edits]) => ({ path, edits }))
     .sort((left, right) => right.edits - left.edits || left.path.localeCompare(right.path))
     .slice(0, 20);
+  let feedbackMoments: SessionDigest['feedbackMoments'] = [];
+
+  try {
+    feedbackMoments = extractFeedbackMoments(lines);
+  } catch {
+    skippedLineCount += 1;
+  }
 
   // Transcript lines may lack timestamps; epoch placeholders keep digestion deterministic.
   const digest = {
@@ -133,7 +141,7 @@ export function digestSession(sessionId: string, lines: unknown[]): SessionDiges
     tools,
     skills,
     topFiles,
-    feedbackMoments: [],
+    feedbackMoments,
     outcome: deriveOutcome(allCommands),
   };
 
